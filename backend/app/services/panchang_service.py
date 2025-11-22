@@ -50,6 +50,33 @@ class PanchangService:
         "Naga", "Kimstughna"
     ]
 
+    # Rashi (Moon Sign) names
+    RASHIS = [
+        "Mesha", "Vrishabha", "Mithuna", "Karka", "Simha", "Kanya",
+        "Tula", "Vrishchika", "Dhanu", "Makara", "Kumbha", "Meena"
+    ]
+
+    # Ruthu (Season) names
+    RUTHUS = [
+        "Vasanta", "Grishma", "Varsha", "Sharad", "Hemanta", "Shishira"
+    ]
+
+    # Samvatsara names (60-year cycle)
+    SAMVATSARAS = [
+        "Prabhava", "Vibhava", "Shukla", "Pramoda", "Prajapati",
+        "Angirasa", "Shrimukha", "Bhava", "Yuvan", "Dhatri",
+        "Ishvara", "Bahudhanya", "Pramathi", "Vikrama", "Vrisha",
+        "Chitrabhanu", "Svabhanu", "Tarana", "Parthiva", "Vyaya",
+        "Sarvajit", "Sarvadharin", "Virodhin", "Vikrita", "Khara",
+        "Nandana", "Vijaya", "Jaya", "Manmatha", "Durmukha",
+        "Hemalamba", "Vilamba", "Vikarin", "Sharvari", "Plava",
+        "Shubhakrit", "Shobhana", "Krodhin", "Vishvavasu", "Parabhava",
+        "Plavanga", "Kilaka", "Saumya", "Sadharana", "Virodhikrit",
+        "Paridhavi", "Pramadin", "Ananda", "Rakshasa", "Nala",
+        "Pingala", "Kalayukta", "Siddharthi", "Raudra", "Durmathi",
+        "Dundubhi", "Rudhirodgari", "Raktaksha", "Krodhana", "Kshaya"
+    ]
+
     # Vara (weekday) names
     VARAS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     VARA_SANSKRIT = ["रविवार", "सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार"]
@@ -153,7 +180,7 @@ class PanchangService:
         }
 
     def get_karana(self, jd: float) -> Dict:
-        """Calculate current Karana"""
+        """Calculate current Karana (both halves of the day)"""
         moon_long = self.get_sidereal_position(jd, swe.MOON)
         sun_long = self.get_sidereal_position(jd, swe.SUN)
 
@@ -164,15 +191,33 @@ class PanchangService:
         # Each tithi has 2 karanas (6 degrees each)
         karana_num = int(diff / 6)
 
-        # Karanas repeat in a pattern
+        # Calculate karana for first half
         if karana_num >= 57:  # Last 4 karanas (fixed)
-            karana_index = 7 + (karana_num - 57)
+            karana_index_first = 7 + (karana_num - 57)
         else:
-            karana_index = karana_num % 7
+            karana_index_first = karana_num % 7
+
+        # Calculate karana for second half (next karana)
+        karana_num_second = (karana_num + 1) % 60
+        if karana_num_second >= 57:
+            karana_index_second = 7 + (karana_num_second - 57)
+        else:
+            karana_index_second = karana_num_second % 7
+
+        first_karana = self.KARANAS[min(karana_index_first, 10)]
+        second_karana = self.KARANAS[min(karana_index_second, 10)]
 
         return {
-            "name": self.KARANAS[min(karana_index, 10)],
-            "is_bhadra": self.KARANAS[min(karana_index, 10)] == "Vishti"
+            "name": first_karana,
+            "is_bhadra": first_karana == "Vishti" or second_karana == "Vishti",
+            "first_half": {
+                "name": first_karana,
+                "is_bhadra": first_karana == "Vishti"
+            },
+            "second_half": {
+                "name": second_karana,
+                "is_bhadra": second_karana == "Vishti"
+            }
         }
 
     def get_vara(self, dt: datetime) -> Dict:
@@ -258,7 +303,241 @@ class PanchangService:
                 "sunset": "17:46:00"     # Bangalore approximate
             }
 
-    def calculate_panchang(self, dt: datetime, lat: float = 12.9716, lon: float = 77.5946) -> Dict:
+    def get_moon_sign(self, jd: float) -> Dict:
+        """Calculate Moon's Rashi (zodiac sign)"""
+        moon_long = self.get_sidereal_position(jd, swe.MOON)
+        rashi_num = int(moon_long / 30)
+
+        return {
+            "number": rashi_num + 1,
+            "name": self.RASHIS[rashi_num],
+            "moon_longitude": round(moon_long, 2)
+        }
+
+    def get_ayana(self, jd: float) -> str:
+        """Calculate Ayana (Sun's course)"""
+        sun_long = self.get_sidereal_position(jd, swe.SUN)
+
+        # Uttarayana: Makara (270°) to Mithuna (90°)
+        # Dakshinayana: Karka (90°) to Dhanu (270°)
+        if 270 <= sun_long or sun_long < 90:
+            return "Uttarayana"
+        else:
+            return "Dakshinayana"
+
+    def get_ruthu(self, jd: float) -> str:
+        """Calculate Ruthu (season)"""
+        sun_long = self.get_sidereal_position(jd, swe.SUN)
+
+        # Each Ruthu spans 2 signs (60 degrees)
+        ruthu_num = int((sun_long % 360) / 60)
+        return self.RUTHUS[ruthu_num]
+
+    def get_samvatsara(self, year: int) -> Dict:
+        """Calculate Samvatsara name (60-year cycle)"""
+        # Prabhava (cycle 1) started in 1987-1988
+        # Current year 2025 is in Viswavasu (39th in cycle)
+        base_year = 1987
+        years_since_base = year - base_year
+        samvatsara_index = (years_since_base + 3) % 60  # +3 because 1987 was 4th year (index 3)
+
+        return {
+            "number": samvatsara_index + 1,
+            "name": self.SAMVATSARAS[samvatsara_index],
+            "kali_year": year + 3102,  # Kali year calculation
+            "cycle_year": samvatsara_index + 1
+        }
+
+    def get_rahu_kala(self, sunrise: str, sunset: str, day_of_week: int) -> Dict:
+        """Calculate Rahu Kala timing"""
+        # Convert times to minutes
+        def time_to_minutes(time_str):
+            parts = time_str.split(':')
+            return int(parts[0]) * 60 + int(parts[1])
+
+        def minutes_to_time(minutes):
+            hours = int(minutes // 60)
+            mins = int(minutes % 60)
+            return f"{hours:02d}:{mins:02d}:00"
+
+        sunrise_min = time_to_minutes(sunrise)
+        sunset_min = time_to_minutes(sunset)
+        day_duration = sunset_min - sunrise_min
+        segment = day_duration / 8
+
+        # Rahu Kala occurs at different times each day
+        # Sunday=0, Monday=1, ..., Saturday=6
+        rahu_segments = {
+            6: 1,  # Saturday: 2nd segment
+            0: 7,  # Sunday: 8th segment
+            1: 2,  # Monday: 3rd segment
+            2: 5,  # Tuesday: 6th segment
+            3: 4,  # Wednesday: 5th segment
+            4: 3,  # Thursday: 4th segment
+            5: 6   # Friday: 7th segment
+        }
+
+        segment_num = rahu_segments.get(day_of_week, 1)
+        start_min = sunrise_min + ((segment_num - 1) * segment)
+        end_min = start_min + segment
+
+        return {
+            "start": minutes_to_time(start_min),
+            "end": minutes_to_time(end_min),
+            "duration_minutes": int(segment)
+        }
+
+    def get_yamaganda(self, sunrise: str, sunset: str, day_of_week: int) -> Dict:
+        """Calculate Yamaganda timing"""
+        def time_to_minutes(time_str):
+            parts = time_str.split(':')
+            return int(parts[0]) * 60 + int(parts[1])
+
+        def minutes_to_time(minutes):
+            hours = int(minutes // 60)
+            mins = int(minutes % 60)
+            return f"{hours:02d}:{mins:02d}:00"
+
+        sunrise_min = time_to_minutes(sunrise)
+        sunset_min = time_to_minutes(sunset)
+        day_duration = sunset_min - sunrise_min
+        segment = day_duration / 8
+
+        yamaganda_segments = {
+            6: 6,  # Saturday: 7th segment
+            0: 5,  # Sunday: 6th segment
+            1: 4,  # Monday: 5th segment
+            2: 3,  # Tuesday: 4th segment
+            3: 2,  # Wednesday: 3rd segment
+            4: 1,  # Thursday: 2nd segment
+            5: 7   # Friday: 8th segment
+        }
+
+        segment_num = yamaganda_segments.get(day_of_week, 1)
+        start_min = sunrise_min + ((segment_num - 1) * segment)
+        end_min = start_min + segment
+
+        return {
+            "start": minutes_to_time(start_min),
+            "end": minutes_to_time(end_min),
+            "duration_minutes": int(segment)
+        }
+
+    def get_gulika(self, sunrise: str, sunset: str, day_of_week: int) -> Dict:
+        """Calculate Gulika Kala timing"""
+        def time_to_minutes(time_str):
+            parts = time_str.split(':')
+            return int(parts[0]) * 60 + int(parts[1])
+
+        def minutes_to_time(minutes):
+            hours = int(minutes // 60)
+            mins = int(minutes % 60)
+            return f"{hours:02d}:{mins:02d}:00"
+
+        sunrise_min = time_to_minutes(sunrise)
+        sunset_min = time_to_minutes(sunset)
+        day_duration = sunset_min - sunrise_min
+        segment = day_duration / 8
+
+        gulika_segments = {
+            6: 7,  # Saturday: 8th segment
+            0: 6,  # Sunday: 7th segment
+            1: 5,  # Monday: 6th segment
+            2: 4,  # Tuesday: 5th segment
+            3: 3,  # Wednesday: 4th segment
+            4: 2,  # Thursday: 3rd segment
+            5: 1   # Friday: 2nd segment
+        }
+
+        segment_num = gulika_segments.get(day_of_week, 1)
+        start_min = sunrise_min + ((segment_num - 1) * segment)
+        end_min = start_min + segment
+
+        return {
+            "start": minutes_to_time(start_min),
+            "end": minutes_to_time(end_min),
+            "duration_minutes": int(segment)
+        }
+
+    def get_abhijit_muhurat(self, sunrise: str, sunset: str) -> Dict:
+        """Calculate Abhijit Muhurat (most auspicious time)"""
+        def time_to_minutes(time_str):
+            parts = time_str.split(':')
+            return int(parts[0]) * 60 + int(parts[1])
+
+        def minutes_to_time(minutes):
+            hours = int(minutes // 60)
+            mins = int(minutes % 60)
+            return f"{hours:02d}:{mins:02d}:00"
+
+        sunrise_min = time_to_minutes(sunrise)
+        sunset_min = time_to_minutes(sunset)
+
+        # Abhijit Muhurat is at noon (midpoint of day)
+        midday = (sunrise_min + sunset_min) / 2
+        duration = 24  # 24 minutes duration
+
+        start_min = midday - (duration / 2)
+        end_min = midday + (duration / 2)
+
+        return {
+            "start": minutes_to_time(start_min),
+            "end": minutes_to_time(end_min),
+            "duration_minutes": duration
+        }
+
+    def detect_special_days(self, tithi_data: Dict, vara: Dict, nakshatra: Dict) -> list:
+        """Detect special days like Ekadashi, Pradosha, Sankashta Chaturthi"""
+        special_days = []
+
+        tithi_name = tithi_data.get("name", "")
+        tithi_num = tithi_data.get("number", 0)
+        vara_name = vara.get("name", "")
+        nakshatra_name = nakshatra.get("name", "")
+
+        # Ekadashi (11th tithi)
+        if tithi_name == "Ekadashi":
+            special_days.append({
+                "name": "Ekadashi",
+                "description": "Fasting day dedicated to Lord Vishnu",
+                "observance": "Fast from grains and beans"
+            })
+
+        # Pradosha (13th tithi)
+        if tithi_name == "Trayodashi":
+            special_days.append({
+                "name": "Pradosha Vrat",
+                "description": "Auspicious time to worship Lord Shiva during twilight",
+                "observance": "Worship Shiva during sunset time"
+            })
+
+        # Sankashta Chaturthi (4th tithi in Krishna Paksha with Tuesday)
+        if tithi_name == "Chaturthi" and tithi_data.get("paksha") == "Krishna":
+            special_days.append({
+                "name": "Sankashta Chaturthi",
+                "description": "Day dedicated to Lord Ganesha",
+                "observance": "Fast and worship Ganesha, break fast after moonrise"
+            })
+
+        # Amavasya (New Moon)
+        if tithi_name == "Amavasya":
+            special_days.append({
+                "name": "Amavasya",
+                "description": "New Moon day, sacred for ancestor worship",
+                "observance": "Perform Tarpanam for ancestors"
+            })
+
+        # Purnima (Full Moon)
+        if tithi_name == "Purnima":
+            special_days.append({
+                "name": "Purnima",
+                "description": "Full Moon day, auspicious for all spiritual activities",
+                "observance": "Fasting and meditation"
+            })
+
+        return special_days
+
+    def calculate_panchang(self, dt: datetime, lat: float = 12.9716, lon: float = 77.5946, city: str = "Bengaluru") -> Dict:
         """
         Calculate complete Panchang for a given date and location
 
@@ -266,12 +545,35 @@ class PanchangService:
             dt: DateTime to calculate for
             lat: Latitude (default: Bangalore 12.9716°N)
             lon: Longitude (default: Bangalore 77.5946°E)
+            city: City name (default: Bengaluru)
 
         Returns:
             Complete Panchang data dictionary
         """
         jd = self.get_julian_day(dt)
         ayanamsa = swe.get_ayanamsa_ut(jd)
+
+        # Get all panchang elements
+        tithi_data = self.get_tithi(jd)
+        nakshatra_data = self.get_nakshatra(jd)
+        yoga_data = self.get_yoga(jd)
+        karana_data = self.get_karana(jd)
+        vara_data = self.get_vara(dt)
+        sun_moon_data = self.get_sun_rise_set(dt, lat, lon)
+        moon_sign_data = self.get_moon_sign(jd)
+        samvatsara_data = self.get_samvatsara(dt.year)
+
+        # Calculate inauspicious times
+        day_of_week = (dt.weekday() + 1) % 7  # Convert to Sunday=0 format
+        rahu_kala = self.get_rahu_kala(sun_moon_data["sunrise"], sun_moon_data["sunset"], day_of_week)
+        yamaganda = self.get_yamaganda(sun_moon_data["sunrise"], sun_moon_data["sunset"], day_of_week)
+        gulika = self.get_gulika(sun_moon_data["sunrise"], sun_moon_data["sunset"], day_of_week)
+
+        # Calculate auspicious times
+        abhijit_muhurat = self.get_abhijit_muhurat(sun_moon_data["sunrise"], sun_moon_data["sunset"])
+
+        # Detect special days
+        special_days = self.detect_special_days(tithi_data, vara_data, nakshatra_data)
 
         return {
             "date": {
@@ -281,21 +583,34 @@ class PanchangService:
                     "formatted": dt.strftime("%A, %B %d, %Y")
                 },
                 "hindu": {
-                    "samvat_vikram": 2082,  # TODO: Calculate dynamically
-                    "month": "Margashirsha",  # TODO: Calculate from tithi
-                    "paksha": self.get_tithi(jd)["paksha"]
+                    "samvat_vikram": 2082,  # Vikram Samvat
+                    "samvatsara": samvatsara_data,
+                    "month": "Margashirsha",  # TODO: Calculate from Moon position
+                    "paksha": tithi_data["paksha"]
                 }
             },
             "panchang": {
-                "tithi": self.get_tithi(jd),
-                "nakshatra": self.get_nakshatra(jd),
-                "yoga": self.get_yoga(jd),
-                "karana": self.get_karana(jd),
-                "vara": self.get_vara(dt)
+                "tithi": tithi_data,
+                "nakshatra": nakshatra_data,
+                "yoga": yoga_data,
+                "karana": karana_data,
+                "vara": vara_data
             },
-            "sun_moon": self.get_sun_rise_set(dt, lat, lon),
+            "sun_moon": sun_moon_data,
+            "moon_sign": moon_sign_data,
+            "ayana": self.get_ayana(jd),
+            "ruthu": self.get_ruthu(jd),
+            "inauspicious_times": {
+                "rahu_kaal": rahu_kala,
+                "yamaganda": yamaganda,
+                "gulika": gulika
+            },
+            "auspicious_times": {
+                "abhijit_muhurat": abhijit_muhurat
+            },
+            "festivals": special_days,
             "location": {
-                "city": "Bangalore",  # Default
+                "city": city,
                 "latitude": lat,
                 "longitude": lon,
                 "timezone": "Asia/Kolkata"
