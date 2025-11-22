@@ -4,7 +4,14 @@ Based on temple seva list
 """
 
 from app.core.database import SessionLocal, engine, Base
-from app.models.seva import Seva, SevaCategory, SevaAvailability
+
+# Import all models to ensure they're registered with SQLAlchemy
+from app.models.temple import Temple
+from app.models.user import User
+from app.models.donation import Donation, DonationCategory
+from app.models.devotee import Devotee
+from app.models.panchang_display_settings import PanchangDisplaySettings
+from app.models.seva import Seva, SevaBooking, SevaCategory, SevaAvailability
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
