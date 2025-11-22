@@ -191,10 +191,11 @@ class PanchangService:
     def get_sun_rise_set(self, dt: datetime, lat: float, lon: float) -> Dict:
         """Calculate sunrise and sunset times using Swiss Ephemeris"""
         try:
-            # Get Julian day for the date at midnight
+            # Get Julian day for the date at midnight UTC
+            # We need to account for timezone - IST is UTC+5:30
             jd_midnight = swe.julday(dt.year, dt.month, dt.day, 0.0)
 
-            # Calculate sunrise
+            # Calculate sunrise - returns JD in UTC
             sunrise_result = swe.rise_trans(
                 jd_midnight,
                 swe.SUN,
@@ -204,7 +205,7 @@ class PanchangService:
                 swe.CALC_RISE | swe.BIT_DISC_CENTER
             )
 
-            # Calculate sunset
+            # Calculate sunset - returns JD in UTC
             sunset_result = swe.rise_trans(
                 jd_midnight,
                 swe.SUN,
@@ -214,27 +215,47 @@ class PanchangService:
                 swe.CALC_SET | swe.BIT_DISC_CENTER
             )
 
-            # Convert Julian time to hours:minutes
-            def jd_to_time_str(jd_time):
-                # Extract time from JD (fractional part * 24 = hours since midnight)
-                time_fraction = jd_time - int(jd_time)
-                hours = time_fraction * 24
-                hour = int(hours)
-                minutes = int((hours - hour) * 60)
-                return f"{hour:02d}:{minutes:02d}:00"
+            # Convert Julian Day to local time (IST)
+            def jd_to_local_time(jd_value):
+                # swe.revjul returns year, month, day, hour (in UTC)
+                year, month, day, hour_utc = swe.revjul(jd_value)
 
-            sunrise_time = jd_to_time_str(sunrise_result[1][0]) if sunrise_result[0] == 0 else "06:00:00"
-            sunset_time = jd_to_time_str(sunset_result[1][0]) if sunset_result[0] == 0 else "18:00:00"
+                # Convert UTC to IST (UTC + 5:30)
+                hour_ist = hour_utc + 5.5
+                if hour_ist >= 24:
+                    hour_ist -= 24
+
+                hours = int(hour_ist)
+                minutes = int((hour_ist - hours) * 60)
+                seconds = int(((hour_ist - hours) * 60 - minutes) * 60)
+
+                return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+            # Check if calculations succeeded (return code 0 = success)
+            if sunrise_result[0] == 0 and len(sunrise_result[1]) > 0:
+                sunrise_time = jd_to_local_time(sunrise_result[1][0])
+            else:
+                print(f"Sunrise calculation failed: {sunrise_result}")
+                sunrise_time = "06:25:00"  # Fallback for Bangalore
+
+            if sunset_result[0] == 0 and len(sunset_result[1]) > 0:
+                sunset_time = jd_to_local_time(sunset_result[1][0])
+            else:
+                print(f"Sunset calculation failed: {sunset_result}")
+                sunset_time = "17:46:00"  # Fallback for Bangalore
 
             return {
                 "sunrise": sunrise_time,
                 "sunset": sunset_time
             }
         except Exception as e:
-            # Fallback to approximate times if calculation fails
+            # Log error and return fallback times
+            print(f"Error calculating sunrise/sunset: {e}")
+            import traceback
+            traceback.print_exc()
             return {
-                "sunrise": "06:15:00",
-                "sunset": "18:00:00"
+                "sunrise": "06:25:00",  # Bangalore approximate
+                "sunset": "17:46:00"     # Bangalore approximate
             }
 
     def calculate_panchang(self, dt: datetime, lat: float = 12.9716, lon: float = 77.5946) -> Dict:
