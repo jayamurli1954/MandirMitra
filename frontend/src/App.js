@@ -9,6 +9,7 @@ import Devotees from './pages/Devotees';
 import Reports from './pages/Reports';
 import Panchang from './pages/Panchang';
 import Sevas from './pages/Sevas';
+import SevaManagement from './pages/SevaManagement';
 import Settings from './pages/Settings';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -75,6 +76,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Sevas />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sevas/manage"
+            element={
+              <ProtectedRoute>
+                <SevaManagement />
               </ProtectedRoute>
             }
           />

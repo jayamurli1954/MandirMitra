@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -23,12 +24,15 @@ import {
   Tab,
   Tabs,
 } from '@mui/material';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import api from '../services/api';
 
 function Sevas() {
+  const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [sevas, setSevas] = useState([]);
   const [filteredSevas, setFilteredSevas] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -192,12 +196,30 @@ function Sevas() {
       <Box sx={{ p: 3 }}>
         {/* Header */}
         <Paper sx={{ p: 2, mb: 3, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
-            🕉️ Temple Sevas & Services
-          </Typography>
-          <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.9)' }}>
-            Book divine sevas and poojas for blessings and spiritual upliftment
-          </Typography>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
+                🕉️ Temple Sevas & Services
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.9)' }}>
+                Book divine sevas and poojas for blessings and spiritual upliftment
+              </Typography>
+            </Box>
+            {user.role === 'admin' && (
+              <Button
+                variant="contained"
+                startIcon={<SettingsIcon />}
+                onClick={() => navigate('/sevas/manage')}
+                sx={{
+                  bgcolor: '#fff',
+                  color: '#FF6B35',
+                  '&:hover': { bgcolor: '#f5f5f5' }
+                }}
+              >
+                Manage Sevas
+              </Button>
+            )}
+          </Box>
         </Paper>
 
         {/* Category Filter */}
