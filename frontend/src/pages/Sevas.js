@@ -25,9 +25,6 @@ import {
   Tabs,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import api from '../services/api';
 
 function Sevas() {
@@ -46,7 +43,7 @@ function Sevas() {
   const [devotees, setDevotees] = useState([]);
   const [bookingForm, setBookingForm] = useState({
     devotee_id: '',
-    booking_date: new Date(),
+    booking_date: new Date().toISOString().split('T')[0],
     booking_time: '',
     amount_paid: '',
     payment_method: 'cash',
@@ -115,8 +112,7 @@ function Sevas() {
       setBookingError(null);
       const bookingData = {
         ...bookingForm,
-        seva_id: selectedSeva.id,
-        booking_date: bookingForm.booking_date.toISOString().split('T')[0]
+        seva_id: selectedSeva.id
       };
 
       await api.post('/sevas/bookings/', bookingData);
@@ -128,7 +124,7 @@ function Sevas() {
         setBookingSuccess(false);
         setBookingForm({
           devotee_id: '',
-          booking_date: new Date(),
+          booking_date: new Date().toISOString().split('T')[0],
           booking_time: '',
           amount_paid: '',
           payment_method: 'cash',
@@ -192,8 +188,7 @@ function Sevas() {
   }
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3 }}>
         {/* Header */}
         <Paper sx={{ p: 2, mb: 3, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
           <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -413,12 +408,14 @@ function Sevas() {
               </FormControl>
 
               {/* Booking Date */}
-              <DatePicker
+              <TextField
                 label="Booking Date *"
+                type="date"
                 value={bookingForm.booking_date}
-                onChange={(newDate) => setBookingForm({...bookingForm, booking_date: newDate})}
-                minDate={new Date()}
-                renderInput={(params) => <TextField {...params} fullWidth />}
+                onChange={(e) => setBookingForm({...bookingForm, booking_date: e.target.value})}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ min: new Date().toISOString().split('T')[0] }}
+                fullWidth
               />
 
               {/* Booking Time (if applicable) */}
@@ -509,7 +506,6 @@ function Sevas() {
           </DialogActions>
         </Dialog>
       </Box>
-    </LocalizationProvider>
   );
 }
 
