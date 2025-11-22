@@ -23,6 +23,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import TempleHinduIcon from '@mui/icons-material/TempleHindu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SettingsIcon from '@mui/icons-material/Settings';
 
@@ -31,6 +32,7 @@ const drawerWidth = 260;
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Donations', icon: <AccountBalanceIcon />, path: '/donations' },
+  { text: 'Sevas', icon: <TempleHinduIcon />, path: '/sevas' },
   { text: 'Devotees', icon: <PeopleIcon />, path: '/devotees' },
   { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
   { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang' },

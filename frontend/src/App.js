@@ -8,6 +8,7 @@ import Donations from './pages/Donations';
 import Devotees from './pages/Devotees';
 import Reports from './pages/Reports';
 import Panchang from './pages/Panchang';
+import Sevas from './pages/Sevas';
 import Settings from './pages/Settings';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -66,6 +67,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Panchang />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sevas"
+            element={
+              <ProtectedRoute>
+                <Sevas />
               </ProtectedRoute>
             }
           />
