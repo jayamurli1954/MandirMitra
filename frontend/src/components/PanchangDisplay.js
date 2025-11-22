@@ -190,8 +190,20 @@ function PanchangDisplay({ data, settings, compact = false }) {
           {formatDate(data.date?.gregorian?.date)}
         </Typography>
         {data.date?.hindu && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Vikram Samvat {data.date.hindu.samvat_vikram} | {data.date.hindu.month} {data.date.hindu.paksha} Paksha
+          <>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Vikram Samvat {data.date.hindu.samvat_vikram} | {data.date.hindu.month} {data.date.hindu.paksha} Paksha
+            </Typography>
+            {data.date.hindu.samvatsara && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                {data.date.hindu.samvatsara.name} Nama Samvatsara ({data.date.hindu.samvatsara.cycle_year}/60)
+              </Typography>
+            )}
+          </>
+        )}
+        {data.location && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            📍 {data.location.city}
           </Typography>
         )}
       </Paper>
@@ -388,6 +400,16 @@ function PanchangDisplay({ data, settings, compact = false }) {
                     🌙 Moonset: {formatTime(data.sun_moon.moonset)}
                   </Typography>
                 )}
+                {data.moon_sign && (
+                  <Box sx={{ mt: 2, p: 1.5, bgcolor: '#E8F5E9', borderRadius: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      🌙 Moon Sign (Rashi)
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {data.moon_sign.name}
+                    </Typography>
+                  </Box>
+                )}
                 {data.auspicious_times?.brahma_muhurat && (
                   <Box sx={{ mt: 2, p: 1.5, bgcolor: '#E3F2FD', borderRadius: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -397,6 +419,29 @@ function PanchangDisplay({ data, settings, compact = false }) {
                       {formatTime(data.auspicious_times.brahma_muhurat.start)} - {formatTime(data.auspicious_times.brahma_muhurat.end)}
                     </Typography>
                   </Box>
+                )}
+              </Box>
+            </Paper>
+          </Grid>
+        )}
+
+        {/* Additional Panchang Information */}
+        {(data.ayana || data.ruthu) && (
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+                Additional Details
+              </Typography>
+              <Box sx={{ mt: 2 }}>
+                {data.ayana && (
+                  <Typography variant="body1" sx={{ mb: 1 }}>
+                    ☀️ Ayana: {data.ayana}
+                  </Typography>
+                )}
+                {data.ruthu && (
+                  <Typography variant="body1" sx={{ mb: 1 }}>
+                    🍃 Ruthu (Season): {data.ruthu}
+                  </Typography>
                 )}
               </Box>
             </Paper>
