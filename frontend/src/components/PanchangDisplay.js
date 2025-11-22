@@ -7,18 +7,17 @@ import {
   Chip,
   Divider,
   Alert,
+  Stack,
+  Card,
+  CardContent,
 } from '@mui/material';
 
 /**
- * Panchang Display Component
- * Based on Panchang_Display_Guide.md specifications
- *
- * Displays:
- * - Essential: Date, Tithi, Nakshatra, Yoga, Karana, Sun timings, Rahu Kaal, Abhijit Muhurat
- * - Color coding: Green (auspicious), Red (inauspicious), Blue (info)
+ * Modern Panchang Display Component - Compact and Visually Appealing
+ * Redesigned for better space utilization and modern aesthetics
  */
 function PanchangDisplay({ data, settings, compact = false }) {
-  // Default settings if not provided - show all essential fields
+  // Default settings
   const defaultSettings = {
     show_tithi: true,
     show_nakshatra: true,
@@ -34,7 +33,6 @@ function PanchangDisplay({ data, settings, compact = false }) {
     show_on_dashboard: true,
   };
 
-  // Use provided settings or fallback to defaults
   const displaySettings = settings || defaultSettings;
 
   if (!data) {
@@ -60,7 +58,6 @@ function PanchangDisplay({ data, settings, compact = false }) {
       return `${displayHour}:${min} ${period}`;
     }
 
-    // Handle full datetime strings
     const date = new Date(timeString);
     if (isNaN(date.getTime())) return 'N/A';
     return date.toLocaleTimeString('en-IN', {
@@ -81,6 +78,26 @@ function PanchangDisplay({ data, settings, compact = false }) {
     });
   };
 
+  // Compact info card component
+  const InfoCard = ({ title, value, color = '#1976d2', icon = '' }) => (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 1.5,
+        border: '1px solid #e0e0e0',
+        borderLeft: `4px solid ${color}`,
+        height: '100%'
+      }}
+    >
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+        {icon} {title}
+      </Typography>
+      <Typography variant="body1" sx={{ fontWeight: 600, color: color }}>
+        {value}
+      </Typography>
+    </Paper>
+  );
+
   // Compact view for dashboard
   if (compact) {
     return (
@@ -88,7 +105,7 @@ function PanchangDisplay({ data, settings, compact = false }) {
         <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#FF9933', mb: 2 }}>
           📅 Today's Panchang
         </Typography>
-        
+
         <Typography variant="body2" color="text.secondary" gutterBottom>
           {formatDate(data.date?.gregorian?.date)}
         </Typography>
@@ -101,7 +118,6 @@ function PanchangDisplay({ data, settings, compact = false }) {
               </Typography>
               <Typography variant="body2">
                 {data.panchang.tithi.full_name || data.panchang.tithi.name}
-                {data.panchang.tithi.end_time && ` → ${formatTime(data.panchang.tithi.end_time)}`}
               </Typography>
             </Box>
           )}
@@ -111,35 +127,10 @@ function PanchangDisplay({ data, settings, compact = false }) {
               <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                 Nakshatra:
               </Typography>
-              <Chip 
-                label={`${data.panchang.nakshatra.name} ${data.panchang.nakshatra.quality === 'very_auspicious' ? '⭐⭐' : data.panchang.nakshatra.quality === 'auspicious' ? '⭐' : ''}`}
-                size="small" 
-                sx={{ 
-                  bgcolor: data.panchang.nakshatra.quality === 'very_auspicious' ? '#E8F5E9' : '#E3F2FD',
-                  color: data.panchang.nakshatra.quality === 'very_auspicious' ? '#2E7D32' : '#1565C0',
-                  fontWeight: 'bold'
-                }}
-              />
-              {data.panchang.nakshatra.end_time && (
-                <Typography variant="body2" sx={{ mt: 0.5 }}>
-                  Until: {formatTime(data.panchang.nakshatra.end_time)}
-                </Typography>
-              )}
-            </Box>
-          )}
-
-          {settings?.show_yoga && data.panchang?.yoga && (
-            <Box sx={{ mb: 1.5 }}>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                Yoga:
-              </Typography>
-              <Chip 
-                label={`${data.panchang.yoga.name} ${data.panchang.yoga.nature === 'auspicious' ? '✅' : '⚠️'}`}
+              <Chip
+                label={data.panchang.nakshatra.name}
                 size="small"
-                sx={{
-                  bgcolor: data.panchang.yoga.nature === 'auspicious' ? '#E8F5E9' : '#FFF3E0',
-                  color: data.panchang.yoga.nature === 'auspicious' ? '#2E7D32' : '#E65100'
-                }}
+                sx={{ bgcolor: '#E3F2FD', color: '#1565C0', fontWeight: 'bold' }}
               />
             </Box>
           )}
@@ -151,396 +142,293 @@ function PanchangDisplay({ data, settings, compact = false }) {
               </Typography>
             </Box>
           )}
-
-          {settings?.show_rahu_kaal && data.inauspicious_times?.rahu_kaal && (
-            <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#FFEBEE', borderRadius: 1 }}>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#C62828' }}>
-                ⚠️ Rahu Kaal
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {formatTime(data.inauspicious_times.rahu_kaal.start)} - {formatTime(data.inauspicious_times.rahu_kaal.end)}
-              </Typography>
-            </Box>
-          )}
-
-          {settings?.show_abhijit_muhurat && data.auspicious_times?.abhijit_muhurat && (
-            <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#E8F5E9', borderRadius: 1 }}>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#2E7D32' }}>
-                ✅ Abhijit Muhurat
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {formatTime(data.auspicious_times.abhijit_muhurat.start)} - {formatTime(data.auspicious_times.abhijit_muhurat.end)}
-              </Typography>
-            </Box>
-          )}
         </Box>
       </Paper>
     );
   }
 
-  // Full page view
+  // Full page view - MODERN REDESIGN
   return (
     <Box>
-      {/* Header */}
-      <Paper sx={{ p: 3, mb: 3, bgcolor: '#FFF9E6', textAlign: 'center' }}>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 1 }}>
-          🕉️ Today's Panchang
-        </Typography>
-        <Typography variant="h6" color="text.secondary">
-          {formatDate(data.date?.gregorian?.date)}
-        </Typography>
-        {data.date?.hindu && (
-          <>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Vikram Samvat {data.date.hindu.samvat_vikram} | {data.date.hindu.month} {data.date.hindu.paksha} Paksha
+      {/* Compact Header */}
+      <Paper sx={{ p: 2, mb: 2, bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
+        <Grid container alignItems="center" spacing={2}>
+          <Grid item xs={12} md={8}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
+              📅 {formatDate(data.date?.gregorian?.date)}
             </Typography>
-            {data.date.hindu.samvatsara && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Shaka Samvat {data.date.hindu.samvatsara.shaka_year} | {data.date.hindu.samvatsara.name} Nama Samvatsara ({data.date.hindu.samvatsara.cycle_year}/60)
+            {data.date?.hindu && (
+              <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ gap: 0.5 }}>
+                <Chip
+                  label={`Vikram Samvat ${data.date.hindu.samvat_vikram}`}
+                  size="small"
+                  sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 500 }}
+                />
+                <Chip
+                  label={`${data.date.hindu.month} ${data.date.hindu.paksha} Paksha`}
+                  size="small"
+                  sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 500 }}
+                />
+                {data.date.hindu.samvatsara && (
+                  <Chip
+                    label={`${data.date.hindu.samvatsara.name} (${data.date.hindu.samvatsara.cycle_year}/60)`}
+                    size="small"
+                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 500 }}
+                  />
+                )}
+              </Stack>
+            )}
+          </Grid>
+          <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+            {data.location && (
+              <Typography variant="body1" sx={{ color: '#fff', fontWeight: 500 }}>
+                📍 {data.location.city}
               </Typography>
             )}
-          </>
-        )}
-        {data.location && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            📍 {data.location.city}
-          </Typography>
-        )}
+          </Grid>
+        </Grid>
       </Paper>
 
-      <Grid container spacing={3}>
-        {/* The Five Limbs (Panch-Anga) */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
-              The Five Limbs (Panch-Anga)
+      <Grid container spacing={2}>
+        {/* Panchang - Five Limbs - Compact 2x3 Grid */}
+        <Grid item xs={12} md={8}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: '#FF6B35' }}>
+              पञ्चाङ्ग - Five Limbs
             </Typography>
-            
-            <Grid container spacing={2}>
+            <Grid container spacing={1.5}>
               {/* Tithi */}
-              {settings?.show_tithi && data.panchang?.tithi && (
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                      1. TITHI (तिथि)
-                    </Typography>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
-                      {data.panchang.tithi.full_name || data.panchang.tithi.name}
-                    </Typography>
-                    {data.panchang.tithi.end_time && (
-                      <Typography variant="body2" color="text.secondary">
-                        Until: {formatTime(data.panchang.tithi.end_time)}
-                      </Typography>
-                    )}
-                    {data.panchang.tithi.next_tithi && (
-                      <Typography variant="body2" color="text.secondary">
-                        Then: {data.panchang.tithi.next_tithi}
-                      </Typography>
-                    )}
-                    {data.panchang.tithi.is_special && (
-                      <Chip 
-                        label={data.panchang.tithi.special_type || 'Special'}
-                        size="small"
-                        sx={{ mt: 1, bgcolor: '#E3F2FD' }}
-                      />
-                    )}
-                  </Box>
+              {displaySettings.show_tithi && data.panchang?.tithi && (
+                <Grid item xs={12} sm={6}>
+                  <InfoCard
+                    title="TITHI (तिथि)"
+                    value={data.panchang.tithi.full_name || data.panchang.tithi.name}
+                    color="#2E7D32"
+                    icon="🌙"
+                  />
                 </Grid>
               )}
 
               {/* Nakshatra */}
-              {settings?.show_nakshatra && data.panchang?.nakshatra && (
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                      2. NAKSHATRA (नक्षत्र)
-                    </Typography>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
-                      {data.panchang.nakshatra.name}
-                      {data.panchang.nakshatra.quality === 'very_auspicious' && ' ⭐⭐'}
-                      {data.panchang.nakshatra.quality === 'auspicious' && ' ⭐'}
-                    </Typography>
-                    {data.panchang.nakshatra.pada && (
-                      <Typography variant="body2" color="text.secondary">
-                        Pada: {data.panchang.nakshatra.pada}
-                      </Typography>
-                    )}
-                    {data.panchang.nakshatra.deity && (
-                      <Typography variant="body2" color="text.secondary">
-                        Deity: {data.panchang.nakshatra.deity}
-                      </Typography>
-                    )}
-                    {data.panchang.nakshatra.end_time && (
-                      <Typography variant="body2" color="text.secondary">
-                        Until: {formatTime(data.panchang.nakshatra.end_time)}
-                      </Typography>
-                    )}
-                    <Chip 
-                      label={data.panchang.nakshatra.quality === 'very_auspicious' ? 'Very Auspicious' : 
-                             data.panchang.nakshatra.quality === 'auspicious' ? 'Auspicious' : 'Mixed'}
-                      size="small"
-                      sx={{ 
-                        mt: 1,
-                        bgcolor: data.panchang.nakshatra.quality === 'very_auspicious' ? '#E8F5E9' : '#E3F2FD',
-                        color: data.panchang.nakshatra.quality === 'very_auspicious' ? '#2E7D32' : '#1565C0'
-                      }}
-                    />
-                  </Box>
+              {displaySettings.show_nakshatra && data.panchang?.nakshatra && (
+                <Grid item xs={12} sm={6}>
+                  <InfoCard
+                    title="NAKSHATRA (नक्षत्र)"
+                    value={`${data.panchang.nakshatra.name} (Pada ${data.panchang.nakshatra.pada || 1})`}
+                    color="#1565C0"
+                    icon="⭐"
+                  />
                 </Grid>
               )}
 
               {/* Yoga */}
-              {settings?.show_yoga && data.panchang?.yoga && (
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                      3. YOGA (योग)
-                    </Typography>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
-                      {data.panchang.yoga.name}
-                    </Typography>
-                    <Chip 
-                      label={data.panchang.yoga.nature === 'auspicious' ? '✅ Auspicious' : '⚠️ Inauspicious'}
-                      size="small"
-                      sx={{
-                        bgcolor: data.panchang.yoga.nature === 'auspicious' ? '#E8F5E9' : '#FFEBEE',
-                        color: data.panchang.yoga.nature === 'auspicious' ? '#2E7D32' : '#C62828'
-                      }}
-                    />
-                    {data.panchang.yoga.end_time && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Until: {formatTime(data.panchang.yoga.end_time)}
-                      </Typography>
-                    )}
-                    {data.panchang.yoga.is_bad_yoga && (
-                      <Alert severity="warning" sx={{ mt: 1 }}>
-                        ⚠️ Avoid all activities during this yoga
-                      </Alert>
-                    )}
-                  </Box>
+              {displaySettings.show_yoga && data.panchang?.yoga && (
+                <Grid item xs={12} sm={6}>
+                  <InfoCard
+                    title="YOGA (योग)"
+                    value={data.panchang.yoga.name}
+                    color={data.panchang.yoga.is_inauspicious ? "#D32F2F" : "#7B1FA2"}
+                    icon="🔗"
+                  />
                 </Grid>
               )}
 
               {/* Karana */}
-              {settings?.show_karana && data.panchang?.karana && (
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                      4. KARANA (करण)
+              {displaySettings.show_karana && data.panchang?.karana && (
+                <Grid item xs={12} sm={6}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 1.5,
+                      border: '1px solid #e0e0e0',
+                      borderLeft: '4px solid #F57C00',
+                      height: '100%'
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      ⚡ KARANA (करण)
                     </Typography>
-                    {data.panchang.karana.first_half && (
-                      <Typography variant="body1" sx={{ mb: 1 }}>
-                        First Half: {data.panchang.karana.first_half.name}
-                        {data.panchang.karana.first_half.end_time && ` (until ${formatTime(data.panchang.karana.first_half.end_time)})`}
-                      </Typography>
-                    )}
-                    {data.panchang.karana.second_half && (
-                      <Typography variant="body1">
-                        Second Half: {data.panchang.karana.second_half.name}
-                        {data.panchang.karana.second_half.end_time && ` (until ${formatTime(data.panchang.karana.second_half.end_time)})`}
-                      </Typography>
-                    )}
-                    {data.panchang.karana.is_bhadra && (
-                      <Alert severity="error" sx={{ mt: 1 }}>
-                        ⚠️ BHADRA (Vishti) - Avoid starting new activities
-                      </Alert>
-                    )}
-                  </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#F57C00' }}>
+                      {data.panchang.karana.first_half?.name} | {data.panchang.karana.second_half?.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      1st Half | 2nd Half
+                    </Typography>
+                  </Paper>
                 </Grid>
               )}
 
               {/* Vara */}
               {data.panchang?.vara && (
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                      5. VARA (वार)
-                    </Typography>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
-                      {data.panchang.vara.name} ({data.panchang.vara.sanskrit})
-                    </Typography>
-                    {data.panchang.vara.ruling_planet && (
-                      <Typography variant="body2" color="text.secondary">
-                        Ruling Planet: {data.panchang.vara.ruling_planet}
-                      </Typography>
-                    )}
-                    {data.panchang.vara.deity && (
-                      <Typography variant="body2" color="text.secondary">
-                        Deity: {data.panchang.vara.deity}
-                      </Typography>
-                    )}
-                  </Box>
+                <Grid item xs={12} sm={6}>
+                  <InfoCard
+                    title="VARA (वार)"
+                    value={`${data.panchang.vara.name} (${data.panchang.vara.sanskrit})`}
+                    color="#00796B"
+                    icon="📆"
+                  />
+                </Grid>
+              )}
+
+              {/* Moon Sign */}
+              {data.moon_sign && (
+                <Grid item xs={12} sm={6}>
+                  <InfoCard
+                    title="MOON SIGN (राशि)"
+                    value={data.moon_sign.name}
+                    color="#9C27B0"
+                    icon="🌙"
+                  />
                 </Grid>
               )}
             </Grid>
           </Paper>
         </Grid>
 
-        {/* Sun & Moon Timings */}
-        {settings?.show_sun_timings && data.sun_moon && (
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-                Sun & Moon
+        {/* Sun & Moon Times - Compact */}
+        <Grid item xs={12} md={4}>
+          <Stack spacing={2}>
+            {/* Sunrise/Sunset */}
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5, color: '#FF6B35' }}>
+                ☀️ Sun & Moon
               </Typography>
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="body1" sx={{ mb: 1 }}>
-                  🌅 Sunrise: {formatTime(data.sun_moon.sunrise)}
-                </Typography>
-                <Typography variant="body1" sx={{ mb: 1 }}>
-                  🌇 Sunset: {formatTime(data.sun_moon.sunset)}
-                </Typography>
-                {data.sun_moon.moonrise && (
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                    🌙 Moonrise: {formatTime(data.sun_moon.moonrise)}
+              <Stack spacing={1}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">🌅 Sunrise</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {formatTime(data.sun_moon?.sunrise)}
                   </Typography>
-                )}
-                {data.sun_moon.moonset && (
-                  <Typography variant="body1">
-                    🌙 Moonset: {formatTime(data.sun_moon.moonset)}
+                </Box>
+                <Divider />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">🌇 Sunset</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {formatTime(data.sun_moon?.sunset)}
                   </Typography>
-                )}
-                {data.moon_sign && (
-                  <Box sx={{ mt: 2, p: 1.5, bgcolor: '#E8F5E9', borderRadius: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      🌙 Moon Sign (Rashi)
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {data.moon_sign.name}
-                    </Typography>
-                  </Box>
-                )}
-                {data.auspicious_times?.brahma_muhurat && (
-                  <Box sx={{ mt: 2, p: 1.5, bgcolor: '#E3F2FD', borderRadius: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      🌄 Brahma Muhurat
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatTime(data.auspicious_times.brahma_muhurat.start)} - {formatTime(data.auspicious_times.brahma_muhurat.end)}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
+                </Box>
+              </Stack>
             </Paper>
-          </Grid>
-        )}
 
-        {/* Additional Panchang Information */}
-        {(data.ayana || data.ruthu) && (
+            {/* Ayana & Ruthu */}
+            {(data.ayana || data.ruthu) && (
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5, color: '#FF6B35' }}>
+                  🌍 Season & Ayana
+                </Typography>
+                <Stack spacing={1}>
+                  {data.ayana && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">Ayana</Typography>
+                      <Chip label={data.ayana} size="small" sx={{ bgcolor: '#E3F2FD', color: '#1565C0' }} />
+                    </Box>
+                  )}
+                  {data.ruthu && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">Ruthu</Typography>
+                      <Chip label={data.ruthu} size="small" sx={{ bgcolor: '#E8F5E9', color: '#2E7D32' }} />
+                    </Box>
+                  )}
+                </Stack>
+              </Paper>
+            )}
+          </Stack>
+        </Grid>
+
+        {/* Auspicious Times */}
+        {displaySettings.show_abhijit_muhurat && data.auspicious_times?.abhijit_muhurat && (
           <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-                Additional Details
+            <Paper sx={{ p: 2, bgcolor: '#E8F5E9', border: '2px solid #4CAF50' }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#2E7D32', mb: 1.5 }}>
+                ✅ Auspicious Timings
               </Typography>
-              <Box sx={{ mt: 2 }}>
-                {data.ayana && (
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                    ☀️ Ayana: {data.ayana}
+              <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1, mb: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    🌟 Abhijit Muhurat
                   </Typography>
-                )}
-                {data.ruthu && (
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                    🍃 Ruthu (Season): {data.ruthu}
+                  <Typography variant="body1" sx={{ fontWeight: 700, color: '#2E7D32' }}>
+                    {formatTime(data.auspicious_times.abhijit_muhurat.start)} - {formatTime(data.auspicious_times.abhijit_muhurat.end)}
                   </Typography>
-                )}
+                </Box>
+                <Typography variant="caption" color="text.secondary">
+                  Duration: {data.auspicious_times.abhijit_muhurat.duration_minutes} mins
+                </Typography>
               </Box>
             </Paper>
           </Grid>
         )}
 
         {/* Inauspicious Times */}
-        {(settings?.show_rahu_kaal || settings?.show_yamaganda || settings?.show_gulika) && data.inauspicious_times && (
+        {data.inauspicious_times && (
           <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3, bgcolor: '#FFEBEE' }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#C62828' }}>
-                ⚠️ Inauspicious Times - AVOID
+            <Paper sx={{ p: 2, bgcolor: '#FFEBEE', border: '2px solid #F44336' }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#C62828', mb: 1.5 }}>
+                ⚠️ Inauspicious Timings
               </Typography>
-              <Box sx={{ mt: 2 }}>
-                {settings?.show_rahu_kaal && data.inauspicious_times.rahu_kaal && (
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                      Rahu Kaal (राहु काल)
-                    </Typography>
-                    <Typography variant="body1">
-                      {formatTime(data.inauspicious_times.rahu_kaal.start)} - {formatTime(data.inauspicious_times.rahu_kaal.end)}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Duration: {data.inauspicious_times.rahu_kaal.duration_minutes} minutes
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
-                      ❌ Avoid: Starting new work, important meetings, travel, financial transactions
-                    </Typography>
+              <Stack spacing={1}>
+                {displaySettings.show_rahu_kaal && data.inauspicious_times.rahu_kaal && (
+                  <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        🔴 Rahu Kala
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: '#C62828' }}>
+                        {formatTime(data.inauspicious_times.rahu_kaal.start)} - {formatTime(data.inauspicious_times.rahu_kaal.end)}
+                      </Typography>
+                    </Box>
                   </Box>
                 )}
-                {settings?.show_yamaganda && data.inauspicious_times.yamaganda && (
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                      Yamaganda (यमगण्ड)
-                    </Typography>
-                    <Typography variant="body1">
-                      {formatTime(data.inauspicious_times.yamaganda.start)} - {formatTime(data.inauspicious_times.yamaganda.end)}
-                    </Typography>
+                {displaySettings.show_yamaganda && data.inauspicious_times.yamaganda && (
+                  <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        ⚫ Yamaganda Kala
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: '#C62828' }}>
+                        {formatTime(data.inauspicious_times.yamaganda.start)} - {formatTime(data.inauspicious_times.yamaganda.end)}
+                      </Typography>
+                    </Box>
                   </Box>
                 )}
-                {settings?.show_gulika && data.inauspicious_times.gulika && (
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                      Gulika (गुलिक)
-                    </Typography>
-                    <Typography variant="body1">
-                      {formatTime(data.inauspicious_times.gulika.start)} - {formatTime(data.inauspicious_times.gulika.end)}
-                    </Typography>
+                {displaySettings.show_gulika && data.inauspicious_times.gulika && (
+                  <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        🟤 Gulika Kala
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: '#C62828' }}>
+                        {formatTime(data.inauspicious_times.gulika.start)} - {formatTime(data.inauspicious_times.gulika.end)}
+                      </Typography>
+                    </Box>
                   </Box>
                 )}
-              </Box>
+              </Stack>
             </Paper>
           </Grid>
         )}
 
-        {/* Auspicious Times */}
-        {settings?.show_abhijit_muhurat && data.auspicious_times?.abhijit_muhurat && (
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3, bgcolor: '#E8F5E9' }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#2E7D32' }}>
-                ✅ Auspicious Times - BEST FOR ACTIVITIES
-              </Typography>
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                  Abhijit Muhurat (अभिजित मुहूर्त)
-                </Typography>
-                <Typography variant="h6" sx={{ mb: 1 }}>
-                  {formatTime(data.auspicious_times.abhijit_muhurat.start)} - {formatTime(data.auspicious_times.abhijit_muhurat.end)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Duration: {data.auspicious_times.abhijit_muhurat.duration_minutes} minutes
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
-                  ✅ Most auspicious time of the day - Good for all activities
-                </Typography>
-              </Box>
-            </Paper>
-          </Grid>
-        )}
-
-        {/* Festivals */}
+        {/* Special Days / Festivals */}
         {data.festivals && data.festivals.length > 0 && (
           <Grid item xs={12}>
-            <Paper sx={{ p: 3, bgcolor: '#FFF3E0' }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+            <Paper sx={{ p: 2, bgcolor: '#FFF3E0', border: '2px solid #FF9800' }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#E65100', mb: 1.5 }}>
                 🎉 Today's Significance
               </Typography>
-              {data.festivals.map((festival, index) => (
-                <Box key={index} sx={{ mt: 1 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                    • {festival.name}
-                  </Typography>
-                  {festival.description && (
-                    <Typography variant="body2" color="text.secondary">
-                      {festival.description}
-                    </Typography>
-                  )}
-                </Box>
-              ))}
+              <Grid container spacing={1}>
+                {data.festivals.map((festival, index) => (
+                  <Grid item xs={12} sm={6} md={4} key={index}>
+                    <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1, borderLeft: '4px solid #FF9800' }}>
+                      <Typography variant="body1" sx={{ fontWeight: 600, color: '#E65100', mb: 0.5 }}>
+                        {festival.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {festival.description}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
             </Paper>
           </Grid>
         )}
@@ -550,4 +438,3 @@ function PanchangDisplay({ data, settings, compact = false }) {
 }
 
 export default PanchangDisplay;
-
