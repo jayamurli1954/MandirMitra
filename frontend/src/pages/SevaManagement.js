@@ -104,7 +104,7 @@ function SevaManagement() {
   const fetchSevas = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/sevas/', { params: { is_active: false } }); // Get all sevas including inactive
+      const response = await api.get('/api/v1/sevas/', { params: { is_active: false } }); // Get all sevas including inactive
       setSevas(response.data);
       setLoading(false);
     } catch (err) {
@@ -187,10 +187,10 @@ function SevaManagement() {
       if (data.duration_minutes === '') data.duration_minutes = null;
 
       if (isEditMode) {
-        await api.put(`/sevas/${selectedSeva.id}`, data);
+        await api.put(`/api/v1/sevas/${selectedSeva.id}`, data);
         setSuccess('Seva updated successfully!');
       } else {
-        await api.post('/sevas/', data);
+        await api.post('/api/v1/sevas/', data);
         setSuccess('Seva created successfully!');
       }
 
@@ -206,7 +206,7 @@ function SevaManagement() {
 
   const handleConfirmDelete = async () => {
     try {
-      await api.delete(`/sevas/${selectedSeva.id}`);
+      await api.delete(`/api/v1/sevas/${selectedSeva.id}`);
       setSuccess('Seva deleted successfully!');
       setDeleteDialogOpen(false);
       fetchSevas();

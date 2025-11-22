@@ -67,7 +67,7 @@ function Sevas() {
   const fetchSevas = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/sevas/');
+      const response = await api.get('/api/v1/sevas/');
       setSevas(response.data);
 
       // Extract unique categories
@@ -83,7 +83,7 @@ function Sevas() {
 
   const fetchDevotees = async () => {
     try {
-      const response = await api.get('/devotees');
+      const response = await api.get('/api/v1/devotees/');
       setDevotees(response.data);
     } catch (err) {
       console.error('Failed to load devotees');
@@ -115,7 +115,7 @@ function Sevas() {
         seva_id: selectedSeva.id
       };
 
-      await api.post('/sevas/bookings/', bookingData);
+      await api.post('/api/v1/sevas/bookings/', bookingData);
       setBookingSuccess(true);
 
       // Reset and close after 2 seconds
