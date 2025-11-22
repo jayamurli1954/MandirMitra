@@ -25,26 +25,38 @@ function Login() {
     setLoading(true);
 
     try {
-      // TODO: Replace with actual API call
-      // For now, mock authentication
-      if (email && password) {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Store token (mock)
-        localStorage.setItem('token', 'mock-token');
-        localStorage.setItem('user', JSON.stringify({
-          email,
-          name: 'Admin User',
-          role: 'temple_manager'
-        }));
-        
-        navigate('/dashboard');
-      } else {
-        setError('Please enter email and password');
+      // Call backend authentication API
+      const formData = new URLSearchParams();
+      formData.append('username', email); // Backend expects 'username' field
+      formData.append('password', password);
+
+      const response = await fetch('http://localhost:8000/api/v1/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Login failed');
       }
+
+      const data = await response.json();
+
+      // Store token and user info
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('user', JSON.stringify({
+        email,
+        name: email.split('@')[0], // Extract name from email
+        role: 'temple_manager'
+      }));
+
+      navigate('/dashboard');
     } catch (err) {
-      setError('Login failed. Please try again.');
+      console.error('Login error:', err);
+      setError(err.message || 'Login failed. Please check your credentials and ensure the backend is running.');
     } finally {
       setLoading(false);
     }
@@ -114,7 +126,7 @@ function Login() {
               {loading ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>
             <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 2 }}>
-              Demo: Enter any email and password to continue
+              Use: admin@temple.com / admin123
             </Typography>
           </Box>
         </Paper>

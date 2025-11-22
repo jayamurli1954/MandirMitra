@@ -42,9 +42,36 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db():
     """
-    Initialize database (create tables)
+    Initialize database (create tables and create default admin user)
     Called on application startup
     """
+    from app.models.user import User
+    from app.core.security import get_password_hash
+
+    # Create all tables
     Base.metadata.create_all(bind=engine)
+
+    # Create default admin user if not exists
+    db = SessionLocal()
+    try:
+        admin_user = db.query(User).filter(User.email == "admin@temple.com").first()
+        if not admin_user:
+            admin_user = User(
+                email="admin@temple.com",
+                password_hash=get_password_hash("admin123"),
+                full_name="Admin User",
+                role="temple_manager",
+                is_active=True
+            )
+            db.add(admin_user)
+            db.commit()
+            print("✅ Default admin user created: admin@temple.com / admin123")
+        else:
+            print("ℹ️  Admin user already exists")
+    except Exception as e:
+        print(f"❌ Error creating admin user: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 
