@@ -219,7 +219,8 @@ def get_daily_report(
     current_user: User = Depends(get_current_user)
 ):
     """Get daily donation report"""
-    report_date = date if date else date.today().isoformat()
+    from datetime import date as date_class
+    report_date = date if date else date_class.today().isoformat()
     
     donations = db.query(Donation).filter(
         Donation.donation_date == report_date
