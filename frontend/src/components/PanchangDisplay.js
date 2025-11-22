@@ -12,12 +12,31 @@ import {
 /**
  * Panchang Display Component
  * Based on Panchang_Display_Guide.md specifications
- * 
+ *
  * Displays:
  * - Essential: Date, Tithi, Nakshatra, Yoga, Karana, Sun timings, Rahu Kaal, Abhijit Muhurat
  * - Color coding: Green (auspicious), Red (inauspicious), Blue (info)
  */
 function PanchangDisplay({ data, settings, compact = false }) {
+  // Default settings if not provided - show all essential fields
+  const defaultSettings = {
+    show_tithi: true,
+    show_nakshatra: true,
+    show_yoga: true,
+    show_karana: true,
+    show_sun_timings: true,
+    show_rahu_kaal: true,
+    show_yamaganda: true,
+    show_gulika: true,
+    show_abhijit_muhurat: true,
+    display_mode: 'full',
+    primary_language: 'English',
+    show_on_dashboard: true,
+  };
+
+  // Use provided settings or fallback to defaults
+  const displaySettings = settings || defaultSettings;
+
   if (!data) {
     return (
       <Paper sx={{ p: 2, bgcolor: '#FFF9E6' }}>
@@ -62,7 +81,7 @@ function PanchangDisplay({ data, settings, compact = false }) {
         </Typography>
 
         <Box sx={{ mt: 2 }}>
-          {settings?.show_tithi && data.panchang?.tithi && (
+          {displaySettings.show_tithi && data.panchang?.tithi && (
             <Box sx={{ mb: 1.5 }}>
               <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                 Tithi:

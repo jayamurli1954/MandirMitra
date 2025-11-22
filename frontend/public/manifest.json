@@ -1,0 +1,16 @@
+{
+  "short_name": "MandirSync",
+  "name": "MandirSync - Temple Management System",
+  "icons": [
+    {
+      "src": "temple-gopuram.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#FF9933",
+  "background_color": "#ffffff",
+  "description": "Comprehensive Temple Administration & Devotee Services Platform"
+}
