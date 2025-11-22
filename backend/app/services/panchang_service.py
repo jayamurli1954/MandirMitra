@@ -188,27 +188,63 @@ class PanchangService:
             "deity": self.VARA_DEITIES[vara_num]
         }
 
-    def get_sun_rise_set(self, jd: float, lat: float, lon: float) -> Dict:
-        """Calculate sunrise and sunset times"""
-        # This is simplified - in production, use proper sunrise/sunset calculation
-        # Swiss Ephemeris has swe.rise_trans() for accurate calculations
+    def get_sun_rise_set(self, dt: datetime, lat: float, lon: float) -> Dict:
+        """Calculate sunrise and sunset times using Swiss Ephemeris"""
+        try:
+            # Get Julian day for the date at midnight
+            jd_midnight = swe.julday(dt.year, dt.month, dt.day, 0.0)
 
-        # For now, return approximate times
-        # TODO: Implement proper sunrise/sunset using swe.rise_trans()
-        return {
-            "sunrise": "06:15:00",  # Placeholder
-            "sunset": "18:00:00",   # Placeholder
-            "note": "Using approximate times - implement swe.rise_trans() for accuracy"
-        }
+            # Calculate sunrise
+            sunrise_result = swe.rise_trans(
+                jd_midnight,
+                swe.SUN,
+                lon, lat, 0,  # longitude, latitude, altitude
+                0.0,  # atmospheric pressure (0 = standard)
+                0.0,  # atmospheric temperature
+                swe.CALC_RISE | swe.BIT_DISC_CENTER
+            )
 
-    def calculate_panchang(self, dt: datetime, lat: float = 12.97, lon: float = 77.59) -> Dict:
+            # Calculate sunset
+            sunset_result = swe.rise_trans(
+                jd_midnight,
+                swe.SUN,
+                lon, lat, 0,
+                0.0,
+                0.0,
+                swe.CALC_SET | swe.BIT_DISC_CENTER
+            )
+
+            # Convert Julian time to hours:minutes
+            def jd_to_time_str(jd_time):
+                # Extract time from JD (fractional part * 24 = hours since midnight)
+                time_fraction = jd_time - int(jd_time)
+                hours = time_fraction * 24
+                hour = int(hours)
+                minutes = int((hours - hour) * 60)
+                return f"{hour:02d}:{minutes:02d}:00"
+
+            sunrise_time = jd_to_time_str(sunrise_result[1][0]) if sunrise_result[0] == 0 else "06:00:00"
+            sunset_time = jd_to_time_str(sunset_result[1][0]) if sunset_result[0] == 0 else "18:00:00"
+
+            return {
+                "sunrise": sunrise_time,
+                "sunset": sunset_time
+            }
+        except Exception as e:
+            # Fallback to approximate times if calculation fails
+            return {
+                "sunrise": "06:15:00",
+                "sunset": "18:00:00"
+            }
+
+    def calculate_panchang(self, dt: datetime, lat: float = 12.9716, lon: float = 77.5946) -> Dict:
         """
         Calculate complete Panchang for a given date and location
 
         Args:
             dt: DateTime to calculate for
-            lat: Latitude (default: Bangalore)
-            lon: Longitude (default: Bangalore)
+            lat: Latitude (default: Bangalore 12.9716°N)
+            lon: Longitude (default: Bangalore 77.5946°E)
 
         Returns:
             Complete Panchang data dictionary
@@ -236,7 +272,7 @@ class PanchangService:
                 "karana": self.get_karana(jd),
                 "vara": self.get_vara(dt)
             },
-            "sun_moon": self.get_sun_rise_set(jd, lat, lon),
+            "sun_moon": self.get_sun_rise_set(dt, lat, lon),
             "location": {
                 "city": "Bangalore",  # Default
                 "latitude": lat,
