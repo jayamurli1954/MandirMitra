@@ -196,7 +196,7 @@ function PanchangDisplay({ data, settings, compact = false }) {
             </Typography>
             {data.date.hindu.samvatsara && (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                {data.date.hindu.samvatsara.name} Nama Samvatsara ({data.date.hindu.samvatsara.cycle_year}/60)
+                Shaka Samvat {data.date.hindu.samvatsara.shaka_year} | {data.date.hindu.samvatsara.name} Nama Samvatsara ({data.date.hindu.samvatsara.cycle_year}/60)
               </Typography>
             )}
           </>

@@ -326,24 +326,45 @@ class PanchangService:
             return "Dakshinayana"
 
     def get_ruthu(self, jd: float) -> str:
-        """Calculate Ruthu (season)"""
+        """Calculate Ruthu (season) based on Hindu solar calendar"""
         sun_long = self.get_sidereal_position(jd, swe.SUN)
 
-        # Each Ruthu spans 2 signs (60 degrees)
-        ruthu_num = int((sun_long % 360) / 60)
-        return self.RUTHUS[ruthu_num]
+        # Ruthus based on solar longitude (each Ruthu = 2 rashis = 60 degrees):
+        # Vasanta (Spring): 330° to 30° (Meena, Mesha)
+        # Grishma (Summer): 30° to 90° (Vrishabha, Mithuna)
+        # Varsha (Monsoon): 90° to 150° (Karka, Simha)
+        # Sharad (Autumn): 150° to 210° (Kanya, Tula)
+        # Hemanta (Pre-winter): 210° to 270° (Vrishchika, Dhanu)
+        # Shishira (Winter): 270° to 330° (Makara, Kumbha)
+
+        if 330 <= sun_long or sun_long < 30:
+            return "Vasanta"
+        elif 30 <= sun_long < 90:
+            return "Grishma"
+        elif 90 <= sun_long < 150:
+            return "Varsha"
+        elif 150 <= sun_long < 210:
+            return "Sharad"
+        elif 210 <= sun_long < 270:
+            return "Hemanta"
+        else:  # 270 <= sun_long < 330
+            return "Shishira"
 
     def get_samvatsara(self, year: int) -> Dict:
-        """Calculate Samvatsara name (60-year cycle)"""
-        # Prabhava (cycle 1) started in 1987-1988
-        # Current year 2025 is in Viswavasu (39th in cycle)
-        base_year = 1987
-        years_since_base = year - base_year
-        samvatsara_index = (years_since_base + 3) % 60  # +3 because 1987 was 4th year (index 3)
+        """Calculate Samvatsara name (60-year cycle) using Shaka Samvat"""
+        # Shaka Samvat = Gregorian Year - 78 (for dates after March/April)
+        # For 2025 CE -> Shaka Samvat 1947 -> Vishvavasu (39th, index 38)
+        shaka_year = year - 78
+
+        # Calculate position in 60-year cycle
+        # Shaka 1947 = Vishvavasu (index 38)
+        # Formula: (shaka_year + 11) mod 60 gives the correct index
+        samvatsara_index = (shaka_year + 11) % 60
 
         return {
             "number": samvatsara_index + 1,
             "name": self.SAMVATSARAS[samvatsara_index],
+            "shaka_year": shaka_year,
             "kali_year": year + 3102,  # Kali year calculation
             "cycle_year": samvatsara_index + 1
         }
@@ -368,13 +389,13 @@ class PanchangService:
         # Rahu Kala occurs at different times each day
         # Sunday=0, Monday=1, ..., Saturday=6
         rahu_segments = {
-            6: 1,  # Saturday: 2nd segment
-            0: 7,  # Sunday: 8th segment
-            1: 2,  # Monday: 3rd segment
-            2: 5,  # Tuesday: 6th segment
-            3: 4,  # Wednesday: 5th segment
-            4: 3,  # Thursday: 4th segment
-            5: 6   # Friday: 7th segment
+            6: 2,  # Saturday: 2nd segment
+            0: 8,  # Sunday: 8th segment
+            1: 3,  # Monday: 3rd segment
+            2: 6,  # Tuesday: 6th segment
+            3: 5,  # Wednesday: 5th segment
+            4: 4,  # Thursday: 4th segment
+            5: 7   # Friday: 7th segment
         }
 
         segment_num = rahu_segments.get(day_of_week, 1)
@@ -404,13 +425,13 @@ class PanchangService:
         segment = day_duration / 8
 
         yamaganda_segments = {
-            6: 6,  # Saturday: 7th segment
-            0: 5,  # Sunday: 6th segment
-            1: 4,  # Monday: 5th segment
-            2: 3,  # Tuesday: 4th segment
-            3: 2,  # Wednesday: 3rd segment
-            4: 1,  # Thursday: 2nd segment
-            5: 7   # Friday: 8th segment
+            6: 7,  # Saturday: 7th segment
+            0: 5,  # Sunday: 5th segment
+            1: 5,  # Monday: 5th segment
+            2: 4,  # Tuesday: 4th segment
+            3: 3,  # Wednesday: 3rd segment
+            4: 2,  # Thursday: 2nd segment
+            5: 8   # Friday: 8th segment
         }
 
         segment_num = yamaganda_segments.get(day_of_week, 1)
@@ -440,13 +461,13 @@ class PanchangService:
         segment = day_duration / 8
 
         gulika_segments = {
-            6: 7,  # Saturday: 8th segment
-            0: 6,  # Sunday: 7th segment
-            1: 5,  # Monday: 6th segment
-            2: 4,  # Tuesday: 5th segment
-            3: 3,  # Wednesday: 4th segment
-            4: 2,  # Thursday: 3rd segment
-            5: 1   # Friday: 2nd segment
+            6: 8,  # Saturday: 8th segment
+            0: 7,  # Sunday: 7th segment
+            1: 6,  # Monday: 6th segment
+            2: 5,  # Tuesday: 5th segment
+            3: 4,  # Wednesday: 4th segment
+            4: 3,  # Thursday: 3rd segment
+            5: 2   # Friday: 2nd segment
         }
 
         segment_num = gulika_segments.get(day_of_week, 1)
@@ -474,8 +495,10 @@ class PanchangService:
         sunset_min = time_to_minutes(sunset)
 
         # Abhijit Muhurat is at noon (midpoint of day)
+        # Standard duration is approximately 46 minutes (1/15th of day duration)
         midday = (sunrise_min + sunset_min) / 2
-        duration = 24  # 24 minutes duration
+        day_duration = sunset_min - sunrise_min
+        duration = day_duration / 15  # Approx 46 minutes for 11.5 hour day
 
         start_min = midday - (duration / 2)
         end_min = midday + (duration / 2)
