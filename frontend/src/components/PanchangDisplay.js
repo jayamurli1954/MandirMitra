@@ -49,11 +49,24 @@ function PanchangDisplay({ data, settings, compact = false }) {
 
   const formatTime = (timeString) => {
     if (!timeString) return 'N/A';
+
+    // Handle time-only strings like "06:25:00"
+    if (timeString.match(/^\d{2}:\d{2}:\d{2}$/)) {
+      const [hours, minutes] = timeString.split(':');
+      const hour = parseInt(hours);
+      const min = minutes;
+      const period = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+      return `${displayHour}:${min} ${period}`;
+    }
+
+    // Handle full datetime strings
     const date = new Date(timeString);
-    return date.toLocaleTimeString('en-IN', { 
-      hour: '2-digit', 
+    if (isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     });
   };
 

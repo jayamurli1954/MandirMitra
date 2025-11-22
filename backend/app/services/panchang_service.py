@@ -195,13 +195,15 @@ class PanchangService:
             # We need to account for timezone - IST is UTC+5:30
             jd_midnight = swe.julday(dt.year, dt.month, dt.day, 0.0)
 
+            # Geo position as tuple (longitude, latitude, altitude in meters)
+            geopos = (lon, lat, 0)
+
             # Calculate sunrise - returns JD in UTC
+            # rise_trans parameters: (jd, body, geopos, rsmi)
             sunrise_result = swe.rise_trans(
                 jd_midnight,
                 swe.SUN,
-                lon, lat, 0,  # longitude, latitude, altitude
-                0.0,  # atmospheric pressure (0 = standard)
-                0.0,  # atmospheric temperature
+                geopos,
                 swe.CALC_RISE | swe.BIT_DISC_CENTER
             )
 
@@ -209,9 +211,7 @@ class PanchangService:
             sunset_result = swe.rise_trans(
                 jd_midnight,
                 swe.SUN,
-                lon, lat, 0,
-                0.0,
-                0.0,
+                geopos,
                 swe.CALC_SET | swe.BIT_DISC_CENTER
             )
 
