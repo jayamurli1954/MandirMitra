@@ -17,7 +17,7 @@ from app.schemas.seva import (
     SevaBookingCreate, SevaBookingUpdate, SevaBookingResponse
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1/sevas", tags=["sevas"])
 
 # ===== SEVA MANAGEMENT =====
 

@@ -49,7 +49,7 @@ app.include_router(panchang_display_settings_router)
 app.include_router(devotees_router)
 app.include_router(donations_router)
 app.include_router(panchang_router)
-app.include_router(sevas_router, prefix="/api/sevas", tags=["sevas"])
+app.include_router(sevas_router)
 
 # Initialize database on startup
 @app.on_event("startup")
