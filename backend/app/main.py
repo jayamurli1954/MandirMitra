@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.donation import Donation, DonationCategory
 from app.models.devotee import Devotee
 from app.models.panchang_display_settings import PanchangDisplaySettings
+from app.models.seva import Seva, SevaBooking
 
 # Import routers
 from app.api.panchang_display_settings import router as panchang_display_settings_router
@@ -22,6 +23,7 @@ from app.api.devotees import router as devotees_router
 from app.api.donations import router as donations_router
 from app.api.panchang import router as panchang_router
 from app.api.auth import router as auth_router
+from app.api.sevas import router as sevas_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -47,6 +49,7 @@ app.include_router(panchang_display_settings_router)
 app.include_router(devotees_router)
 app.include_router(donations_router)
 app.include_router(panchang_router)
+app.include_router(sevas_router, prefix="/api/sevas", tags=["sevas"])
 
 # Initialize database on startup
 @app.on_event("startup")
