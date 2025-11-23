@@ -35,6 +35,8 @@ from app.api.auth import router as auth_router
 from app.api.sevas import router as sevas_router
 from app.api.accounts import router as accounts_router
 from app.api.journal_entries import router as journal_entries_router
+from app.api.vendors import router as vendors_router
+from app.api.upi_payments import router as upi_payments_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -63,6 +65,8 @@ app.include_router(panchang_router)
 app.include_router(sevas_router)
 app.include_router(accounts_router)
 app.include_router(journal_entries_router)
+app.include_router(vendors_router)
+app.include_router(upi_payments_router)
 
 # Initialize database on startup
 @app.on_event("startup")
