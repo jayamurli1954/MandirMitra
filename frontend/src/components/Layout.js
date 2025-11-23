@@ -34,6 +34,7 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import SummarizeIcon from '@mui/icons-material/Summarize';
+import MoneyOffIcon from '@mui/icons-material/MoneyOff';
 
 const drawerWidth = 260;
 
@@ -49,6 +50,7 @@ const menuItems = [
 
 const accountingMenuItems = [
   { text: 'Chart of Accounts', icon: <AccountTreeIcon />, path: '/accounting/chart-of-accounts' },
+  { text: 'Quick Expense', icon: <MoneyOffIcon />, path: '/accounting/quick-expense' },
   { text: 'Journal Entries', icon: <ReceiptIcon />, path: '/accounting/journal-entries' },
   { text: 'UPI Payments', icon: <PaymentIcon />, path: '/accounting/upi-payments' },
   { text: 'Accounting Reports', icon: <SummarizeIcon />, path: '/accounting/reports' },

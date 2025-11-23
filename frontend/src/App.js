@@ -12,6 +12,7 @@ import Sevas from './pages/Sevas';
 import SevaManagement from './pages/SevaManagement';
 import Settings from './pages/Settings';
 import ChartOfAccounts from './pages/accounting/ChartOfAccounts';
+import QuickExpense from './pages/accounting/QuickExpense';
 import JournalEntries from './pages/accounting/JournalEntries';
 import UpiPayments from './pages/accounting/UpiPayments';
 import AccountingReports from './pages/accounting/AccountingReports';
@@ -104,6 +105,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <ChartOfAccounts />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/accounting/quick-expense"
+            element={
+              <ProtectedRoute>
+                <QuickExpense />
               </ProtectedRoute>
             }
           />
