@@ -16,6 +16,7 @@ import {
   Avatar,
   Menu,
   MenuItem,
+  Collapse,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -26,6 +27,13 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import TempleHinduIcon from '@mui/icons-material/TempleHindu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SettingsIcon from '@mui/icons-material/Settings';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import PaymentIcon from '@mui/icons-material/Payment';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import SummarizeIcon from '@mui/icons-material/Summarize';
 
 const drawerWidth = 260;
 
@@ -39,9 +47,17 @@ const menuItems = [
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 
+const accountingMenuItems = [
+  { text: 'Chart of Accounts', icon: <AccountTreeIcon />, path: '/accounting/chart-of-accounts' },
+  { text: 'Journal Entries', icon: <ReceiptIcon />, path: '/accounting/journal-entries' },
+  { text: 'UPI Payments', icon: <PaymentIcon />, path: '/accounting/upi-payments' },
+  { text: 'Accounting Reports', icon: <SummarizeIcon />, path: '/accounting/reports' },
+];
+
 function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [accountingOpen, setAccountingOpen] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -114,6 +130,48 @@ function Layout({ children }) {
             </ListItemButton>
           </ListItem>
         ))}
+      </List>
+      <Divider />
+      <List>
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => setAccountingOpen(!accountingOpen)}>
+            <ListItemIcon>
+              <AccountBalanceWalletIcon />
+            </ListItemIcon>
+            <ListItemText primary="Accounting" />
+            {accountingOpen ? <ExpandLess /> : <ExpandMore />}
+          </ListItemButton>
+        </ListItem>
+        <Collapse in={accountingOpen} timeout="auto" unmountOnExit>
+          <List component="div" disablePadding>
+            {accountingMenuItems.map((item) => (
+              <ListItem key={item.text} disablePadding>
+                <ListItemButton
+                  selected={location.pathname === item.path}
+                  onClick={() => {
+                    navigate(item.path);
+                    setMobileOpen(false);
+                  }}
+                  sx={{
+                    pl: 4,
+                    '&.Mui-selected': {
+                      bgcolor: '#FFF3E0',
+                      borderLeft: '4px solid #FF9933',
+                      '&:hover': {
+                        bgcolor: '#FFF3E0',
+                      },
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: location.pathname === item.path ? '#FF9933' : 'inherit' }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText primary={item.text} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </Collapse>
       </List>
     </Box>
   );

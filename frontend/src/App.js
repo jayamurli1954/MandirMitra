@@ -11,6 +11,10 @@ import Panchang from './pages/Panchang';
 import Sevas from './pages/Sevas';
 import SevaManagement from './pages/SevaManagement';
 import Settings from './pages/Settings';
+import ChartOfAccounts from './pages/accounting/ChartOfAccounts';
+import JournalEntries from './pages/accounting/JournalEntries';
+import UpiPayments from './pages/accounting/UpiPayments';
+import AccountingReports from './pages/accounting/AccountingReports';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const theme = createTheme({
@@ -92,6 +96,38 @@ function App() {
             element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/accounting/chart-of-accounts"
+            element={
+              <ProtectedRoute>
+                <ChartOfAccounts />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/accounting/journal-entries"
+            element={
+              <ProtectedRoute>
+                <JournalEntries />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/accounting/upi-payments"
+            element={
+              <ProtectedRoute>
+                <UpiPayments />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/accounting/reports"
+            element={
+              <ProtectedRoute>
+                <AccountingReports />
               </ProtectedRoute>
             }
           />
