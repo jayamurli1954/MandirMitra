@@ -30,9 +30,119 @@ from app.models.donation import Donation, DonationCategory
 from app.models.devotee import Devotee
 from app.models.temple import Temple
 from app.models.user import User
+from app.models.accounting import Account, JournalEntry, JournalLine
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/donations", tags=["donations"])
+
+
+def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int):
+    """
+    Create journal entry for donation in accounting system
+    Dr: Cash/Bank Account (based on payment mode)
+    Cr: Donation Income Account (based on payment mode)
+    """
+    try:
+        # Determine debit account (payment method)
+        debit_account_code = None
+        if donation.payment_mode.upper() in ['CASH', 'COUNTER']:
+            debit_account_code = '1101'  # Cash in Hand - Counter
+        elif donation.payment_mode.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
+            debit_account_code = '1110'  # Bank - SBI Current Account
+        elif 'HUNDI' in donation.payment_mode.upper():
+            debit_account_code = '1102'  # Cash in Hand - Hundi
+        else:
+            debit_account_code = '1101'  # Default to cash counter
+
+        # Determine credit account (donation income type)
+        credit_account_code = None
+        if donation.payment_mode.upper() in ['CASH', 'COUNTER']:
+            credit_account_code = '4101'  # Donation - Cash
+        elif donation.payment_mode.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
+            credit_account_code = '4102'  # Donation - Online/UPI
+        elif 'HUNDI' in donation.payment_mode.upper():
+            credit_account_code = '4103'  # Hundi Collection
+        else:
+            credit_account_code = '4101'  # Default to cash donation
+
+        # Get accounts
+        debit_account = db.query(Account).filter(
+            Account.temple_id == temple_id,
+            Account.account_code == debit_account_code
+        ).first()
+
+        credit_account = db.query(Account).filter(
+            Account.temple_id == temple_id,
+            Account.account_code == credit_account_code
+        ).first()
+
+        if not debit_account or not credit_account:
+            print(f"Warning: Accounts not found for donation {donation.receipt_number}")
+            return None
+
+        # Create narration
+        narration = f"Donation from {donation.devotee.name if donation.devotee else 'Anonymous'}"
+        if donation.category:
+            narration += f" - {donation.category.name}"
+
+        # Create journal entry
+        journal_entry = JournalEntry(
+            temple_id=temple_id,
+            entry_date=donation.donation_date,
+            entry_number=None,  # Will be generated below
+            narration=narration,
+            reference_type='DONATION',
+            reference_id=donation.id,
+            reference_number=donation.receipt_number,
+            status='POSTED',
+            created_by=donation.created_by
+        )
+        db.add(journal_entry)
+        db.flush()  # Get journal_entry.id
+
+        # Generate entry number
+        year = donation.donation_date.year
+        last_entry = db.query(JournalEntry).filter(
+            JournalEntry.temple_id == temple_id,
+            JournalEntry.id < journal_entry.id
+        ).order_by(JournalEntry.id.desc()).first()
+
+        seq = 1
+        if last_entry and last_entry.entry_number:
+            try:
+                seq = int(last_entry.entry_number.split('-')[-1]) + 1
+            except:
+                seq = journal_entry.id
+
+        journal_entry.entry_number = f"JE-{year}-{str(seq).zfill(5)}"
+
+        # Create journal lines
+        # Debit: Payment Account (Cash/Bank increases)
+        debit_line = JournalLine(
+            journal_entry_id=journal_entry.id,
+            account_id=debit_account.id,
+            debit_amount=donation.amount,
+            credit_amount=0,
+            description=f"Donation received via {donation.payment_mode}"
+        )
+
+        # Credit: Donation Income (Income increases)
+        credit_line = JournalLine(
+            journal_entry_id=journal_entry.id,
+            account_id=credit_account.id,
+            debit_amount=0,
+            credit_amount=donation.amount,
+            description=f"Donation income - {donation.category.name if donation.category else 'General'}"
+        )
+
+        db.add(debit_line)
+        db.add(credit_line)
+
+        return journal_entry
+
+    except Exception as e:
+        print(f"Error posting donation to accounting: {str(e)}")
+        return None
 
 
 # Pydantic Schemas
@@ -151,12 +261,18 @@ def create_donation(
     db.add(db_donation)
     db.commit()
     db.refresh(db_donation)
-    
+
+    # Post to accounting system
+    journal_entry = post_donation_to_accounting(db, db_donation, current_user.temple_id if current_user else None)
+    if journal_entry:
+        db.commit()  # Commit the journal entry
+
     return {
         "id": db_donation.id,
         "receipt_number": db_donation.receipt_number,
         "amount": db_donation.amount,
-        "message": "Donation recorded successfully"
+        "journal_entry": journal_entry.entry_number if journal_entry else None,
+        "message": "Donation recorded successfully and posted to accounting"
     }
 
 
