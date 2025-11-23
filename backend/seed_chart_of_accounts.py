@@ -24,6 +24,7 @@ from app.models.vendor import Vendor
 from app.models.inkind_sponsorship import InKindDonation, InKindConsumption, Sponsorship, SponsorshipPayment
 from app.models.upi_banking import UpiPayment, BankAccount, BankTransaction, BankReconciliation
 from app.models.accounting import JournalEntry, JournalLine
+from app.models.panchang_display_settings import PanchangDisplaySettings
 
 
 def create_default_chart_of_accounts(db: Session, temple_id: int):
