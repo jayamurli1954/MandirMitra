@@ -2,7 +2,7 @@
 Temple Model - Master temple data
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, Text, Time
+from sqlalchemy import Column, Integer, String, Boolean, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -84,8 +84,8 @@ class Temple(Base):
     signature_image_url = Column(String(500))
     
     # Timings
-    opening_time = Column(Time)
-    closing_time = Column(Time)
+    opening_time = Column(String(10))  # HH:MM format
+    closing_time = Column(String(10))  # HH:MM format
     
     # Media
     logo_url = Column(String(500))
