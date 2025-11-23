@@ -91,7 +91,7 @@ class UpiPayment(Base):
     donation = relationship("Donation")
     seva_booking = relationship("SevaBooking")
     sponsorship = relationship("Sponsorship")
-    bank_transaction = relationship("BankTransaction")
+    bank_transaction = relationship("BankTransaction", foreign_keys="[UpiPayment.bank_transaction_id]")
     journal_entry = relationship("JournalEntry")
 
     def __repr__(self):
@@ -195,7 +195,7 @@ class BankTransaction(Base):
     bank_account = relationship("BankAccount", back_populates="bank_transactions")
     temple = relationship("Temple")
     reconciled_by_user = relationship("User")
-    matched_upi_payment = relationship("UpiPayment")
+    matched_upi_payment = relationship("UpiPayment", foreign_keys="[BankTransaction.matched_upi_payment_id]")
     matched_donation = relationship("Donation")
     matched_journal_entry = relationship("JournalEntry")
 
