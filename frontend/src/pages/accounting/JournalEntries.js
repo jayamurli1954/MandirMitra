@@ -16,8 +16,6 @@ import {
   TextField,
   Grid,
 } from '@mui/material';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import Layout from '../../components/Layout';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -157,24 +155,24 @@ function JournalEntries() {
         <Paper sx={{ p: 2, mb: 3 }}>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
-                  label="From Date"
-                  value={fromDate}
-                  onChange={(newValue) => setFromDate(newValue)}
-                  renderInput={(params) => <TextField {...params} fullWidth />}
-                />
-              </LocalizationProvider>
+              <TextField
+                label="From Date"
+                type="date"
+                value={fromDate.toISOString().split('T')[0]}
+                onChange={(e) => setFromDate(new Date(e.target.value))}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
             </Grid>
             <Grid item xs={12} md={3}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
-                  label="To Date"
-                  value={toDate}
-                  onChange={(newValue) => setToDate(newValue)}
-                  renderInput={(params) => <TextField {...params} fullWidth />}
-                />
-              </LocalizationProvider>
+              <TextField
+                label="To Date"
+                type="date"
+                value={toDate.toISOString().split('T')[0]}
+                onChange={(e) => setToDate(new Date(e.target.value))}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
             </Grid>
             <Grid item xs={12} md={2}>
               <Button

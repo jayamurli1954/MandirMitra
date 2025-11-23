@@ -26,8 +26,6 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import Layout from '../../components/Layout';
 import PaymentIcon from '@mui/icons-material/Payment';
 import QrCodeIcon from '@mui/icons-material/QrCode';
@@ -252,14 +250,15 @@ function UpiPayments() {
             <Paper sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6">Today's UPI Payments</Typography>
-                <LocalizationProvider dateAdapter={AdapterDateFns}>
-                  <DatePicker
-                    label="Select Date"
-                    value={selectedDate}
-                    onChange={(newValue) => setSelectedDate(newValue)}
-                    renderInput={(params) => <TextField {...params} size="small" />}
-                  />
-                </LocalizationProvider>
+                <TextField
+                  label="Select Date"
+                  type="date"
+                  value={selectedDate.toISOString().split('T')[0]}
+                  onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 200 }}
+                />
               </Box>
 
               <TableContainer>
