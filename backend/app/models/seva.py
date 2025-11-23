@@ -101,6 +101,7 @@ class SevaBooking(Base):
     devotee_names = Column(Text, nullable=True)  # JSON or comma-separated names
     gotra = Column(String(100), nullable=True)
     nakshatra = Column(String(50), nullable=True)
+    rashi = Column(String(50), nullable=True)
     special_request = Column(Text, nullable=True)
 
     # Admin notes

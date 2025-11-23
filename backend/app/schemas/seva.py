@@ -96,6 +96,7 @@ class SevaBookingBase(BaseModel):
     devotee_names: Optional[str] = None
     gotra: Optional[str] = Field(None, max_length=100)
     nakshatra: Optional[str] = Field(None, max_length=50)
+    rashi: Optional[str] = Field(None, max_length=50)
     special_request: Optional[str] = None
 
 class SevaBookingCreate(SevaBookingBase):
@@ -112,6 +113,7 @@ class SevaBookingUpdate(BaseModel):
     devotee_names: Optional[str] = None
     gotra: Optional[str] = Field(None, max_length=100)
     nakshatra: Optional[str] = Field(None, max_length=50)
+    rashi: Optional[str] = Field(None, max_length=50)
     special_request: Optional[str] = None
     admin_notes: Optional[str] = None
 

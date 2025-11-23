@@ -17,6 +17,7 @@ from app.schemas.seva import (
     SevaCreate, SevaUpdate, SevaResponse, SevaListResponse,
     SevaBookingCreate, SevaBookingUpdate, SevaBookingResponse
 )
+from app.constants.hindu_constants import GOTHRAS, NAKSHATRAS, RASHIS
 
 router = APIRouter(prefix="/api/v1/sevas", tags=["sevas"])
 
@@ -405,3 +406,14 @@ def cancel_booking(
     db.commit()
 
     return {"message": "Booking cancelled successfully"}
+
+# ===== DROPDOWN OPTIONS =====
+
+@router.get("/dropdown-options")
+def get_dropdown_options():
+    """Get dropdown options for Gothra, Nakshatra, and Rashi"""
+    return {
+        "gothras": GOTHRAS,
+        "nakshatras": NAKSHATRAS,
+        "rashis": RASHIS
+    }

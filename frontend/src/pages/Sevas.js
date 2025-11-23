@@ -50,6 +50,7 @@ function Sevas() {
     devotee_names: '',
     gotra: '',
     nakshatra: '',
+    rashi: '',
     special_request: ''
   });
   const [bookingSuccess, setBookingSuccess] = useState(false);
@@ -68,9 +69,17 @@ function Sevas() {
     pincode: ''
   });
 
+  // Dropdown options state
+  const [dropdownOptions, setDropdownOptions] = useState({
+    gothras: [],
+    nakshatras: [],
+    rashis: []
+  });
+
   useEffect(() => {
     fetchSevas();
     fetchDevotees();
+    fetchDropdownOptions();
   }, []);
 
   useEffect(() => {
@@ -100,6 +109,15 @@ function Sevas() {
       setDevotees(response.data);
     } catch (err) {
       console.error('Failed to load devotees');
+    }
+  };
+
+  const fetchDropdownOptions = async () => {
+    try {
+      const response = await api.get('/api/v1/sevas/dropdown-options');
+      setDropdownOptions(response.data);
+    } catch (err) {
+      console.error('Failed to load dropdown options');
     }
   };
 
@@ -207,6 +225,7 @@ function Sevas() {
           devotee_names: '',
           gotra: '',
           nakshatra: '',
+          rashi: '',
           special_request: ''
         });
       }, 2000);
@@ -665,20 +684,61 @@ function Sevas() {
               />
 
               {/* Gotra */}
-              <TextField
-                label="Gotra"
-                value={bookingForm.gotra}
-                onChange={(e) => setBookingForm({...bookingForm, gotra: e.target.value})}
-                fullWidth
-              />
+              <FormControl fullWidth>
+                <InputLabel>Gotra</InputLabel>
+                <Select
+                  value={bookingForm.gotra}
+                  onChange={(e) => setBookingForm({...bookingForm, gotra: e.target.value})}
+                  label="Gotra"
+                >
+                  <MenuItem value="">
+                    <em>Select Gotra</em>
+                  </MenuItem>
+                  {dropdownOptions.gothras.map((gotra) => (
+                    <MenuItem key={gotra} value={gotra}>
+                      {gotra}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
               {/* Nakshatra */}
-              <TextField
-                label="Nakshatra"
-                value={bookingForm.nakshatra}
-                onChange={(e) => setBookingForm({...bookingForm, nakshatra: e.target.value})}
-                fullWidth
-              />
+              <FormControl fullWidth>
+                <InputLabel>Nakshatra</InputLabel>
+                <Select
+                  value={bookingForm.nakshatra}
+                  onChange={(e) => setBookingForm({...bookingForm, nakshatra: e.target.value})}
+                  label="Nakshatra"
+                >
+                  <MenuItem value="">
+                    <em>Select Nakshatra</em>
+                  </MenuItem>
+                  {dropdownOptions.nakshatras.map((nakshatra) => (
+                    <MenuItem key={nakshatra} value={nakshatra}>
+                      {nakshatra}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* Rashi */}
+              <FormControl fullWidth>
+                <InputLabel>Rashi</InputLabel>
+                <Select
+                  value={bookingForm.rashi}
+                  onChange={(e) => setBookingForm({...bookingForm, rashi: e.target.value})}
+                  label="Rashi"
+                >
+                  <MenuItem value="">
+                    <em>Select Rashi</em>
+                  </MenuItem>
+                  {dropdownOptions.rashis.map((rashi) => (
+                    <MenuItem key={rashi} value={rashi}>
+                      {rashi}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
               {/* Special Request */}
               <TextField
