@@ -12,12 +12,121 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.seva import Seva, SevaBooking, SevaCategory, SevaAvailability, SevaBookingStatus
+from app.models.accounting import Account, JournalEntry, JournalLine
 from app.schemas.seva import (
     SevaCreate, SevaUpdate, SevaResponse, SevaListResponse,
     SevaBookingCreate, SevaBookingUpdate, SevaBookingResponse
 )
 
 router = APIRouter(prefix="/api/v1/sevas", tags=["sevas"])
+
+
+def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
+    """
+    Create journal entry for seva booking in accounting system
+    Dr: Cash/Bank Account (based on payment method)
+    Cr: Seva Income Account (based on seva type if linked, else default)
+    """
+    try:
+        # Determine debit account (payment method)
+        debit_account_code = None
+        payment_method = booking.payment_method or 'CASH'
+
+        if payment_method.upper() in ['CASH', 'COUNTER']:
+            debit_account_code = '1101'  # Cash in Hand - Counter
+        elif payment_method.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
+            debit_account_code = '1110'  # Bank - SBI Current Account
+        else:
+            debit_account_code = '1101'  # Default to cash counter
+
+        # Get debit account
+        debit_account = db.query(Account).filter(
+            Account.temple_id == temple_id,
+            Account.account_code == debit_account_code
+        ).first()
+
+        # Determine credit account - PRIORITY: Seva-linked account
+        credit_account = None
+
+        # First, try to use seva-linked account
+        if booking.seva and hasattr(booking.seva, 'account_id') and booking.seva.account_id:
+            credit_account = db.query(Account).filter(Account.id == booking.seva.account_id).first()
+
+        # Fallback: Use default Special Pooja account
+        if not credit_account:
+            credit_account_code = '4208'  # Special Pooja (default)
+            credit_account = db.query(Account).filter(
+                Account.temple_id == temple_id,
+                Account.account_code == credit_account_code
+            ).first()
+
+        if not debit_account or not credit_account:
+            print(f"Warning: Accounts not found for seva booking {booking.receipt_number}")
+            return None
+
+        # Create narration
+        devotee_name = booking.devotee.name if booking.devotee else 'Unknown'
+        seva_name = booking.seva.name_english if booking.seva else 'Seva'
+        narration = f"Seva booking - {seva_name} by {devotee_name}"
+
+        # Create journal entry
+        journal_entry = JournalEntry(
+            temple_id=temple_id,
+            entry_date=booking.booking_date,
+            entry_number=None,  # Will be generated below
+            narration=narration,
+            reference_type='SEVA',
+            reference_id=booking.id,
+            reference_number=booking.receipt_number,
+            status='POSTED',
+            created_by=booking.user_id
+        )
+        db.add(journal_entry)
+        db.flush()  # Get journal_entry.id
+
+        # Generate entry number
+        year = booking.booking_date.year
+        last_entry = db.query(JournalEntry).filter(
+            JournalEntry.temple_id == temple_id,
+            JournalEntry.id < journal_entry.id
+        ).order_by(JournalEntry.id.desc()).first()
+
+        seq = 1
+        if last_entry and last_entry.entry_number:
+            try:
+                seq = int(last_entry.entry_number.split('-')[-1]) + 1
+            except:
+                seq = journal_entry.id
+
+        journal_entry.entry_number = f"JE-{year}-{str(seq).zfill(5)}"
+
+        # Create journal lines
+        # Debit: Payment Account (Cash/Bank increases)
+        debit_line = JournalLine(
+            journal_entry_id=journal_entry.id,
+            account_id=debit_account.id,
+            debit_amount=booking.amount_paid,
+            credit_amount=0,
+            description=f"Seva booking received via {payment_method}"
+        )
+
+        # Credit: Seva Income (Income increases)
+        credit_line = JournalLine(
+            journal_entry_id=journal_entry.id,
+            account_id=credit_account.id,
+            debit_amount=0,
+            credit_amount=booking.amount_paid,
+            description=f"Seva income - {seva_name}"
+        )
+
+        db.add(debit_line)
+        db.add(credit_line)
+
+        return journal_entry
+
+    except Exception as e:
+        print(f"Error posting seva to accounting: {str(e)}")
+        return None
 
 # ===== SEVA MANAGEMENT =====
 
@@ -241,6 +350,13 @@ def create_booking(
     db.add(booking)
     db.commit()
     db.refresh(booking)
+
+    # Post to accounting system (get temple_id from current_user)
+    if current_user and current_user.temple_id:
+        journal_entry = post_seva_to_accounting(db, booking, current_user.temple_id)
+        if journal_entry:
+            db.commit()  # Commit the journal entry
+
     return booking
 
 @router.put("/bookings/{booking_id}", response_model=SevaBookingResponse)

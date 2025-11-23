@@ -40,7 +40,7 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
     """
     Create journal entry for donation in accounting system
     Dr: Cash/Bank Account (based on payment mode)
-    Cr: Donation Income Account (based on payment mode)
+    Cr: Donation Income Account (based on category if linked, else payment mode)
     """
     try:
         # Determine debit account (payment method)
@@ -54,27 +54,35 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
         else:
             debit_account_code = '1101'  # Default to cash counter
 
-        # Determine credit account (donation income type)
-        credit_account_code = None
-        if donation.payment_mode.upper() in ['CASH', 'COUNTER']:
-            credit_account_code = '4101'  # Donation - Cash
-        elif donation.payment_mode.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
-            credit_account_code = '4102'  # Donation - Online/UPI
-        elif 'HUNDI' in donation.payment_mode.upper():
-            credit_account_code = '4103'  # Hundi Collection
-        else:
-            credit_account_code = '4101'  # Default to cash donation
-
-        # Get accounts
+        # Get debit account
         debit_account = db.query(Account).filter(
             Account.temple_id == temple_id,
             Account.account_code == debit_account_code
         ).first()
 
-        credit_account = db.query(Account).filter(
-            Account.temple_id == temple_id,
-            Account.account_code == credit_account_code
-        ).first()
+        # Determine credit account - PRIORITY: Category-linked account
+        credit_account = None
+
+        # First, try to use category-linked account
+        if donation.category and hasattr(donation.category, 'account_id') and donation.category.account_id:
+            credit_account = db.query(Account).filter(Account.id == donation.category.account_id).first()
+
+        # Fallback: Use payment-mode-based account (old logic)
+        if not credit_account:
+            credit_account_code = None
+            if donation.payment_mode.upper() in ['CASH', 'COUNTER']:
+                credit_account_code = '4102'  # Cash Donation
+            elif donation.payment_mode.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
+                credit_account_code = '4103'  # Online/UPI Donation
+            elif 'HUNDI' in donation.payment_mode.upper():
+                credit_account_code = '4104'  # Hundi Collection
+            else:
+                credit_account_code = '4101'  # General Donation
+
+            credit_account = db.query(Account).filter(
+                Account.temple_id == temple_id,
+                Account.account_code == credit_account_code
+            ).first()
 
         if not debit_account or not credit_account:
             print(f"Warning: Accounts not found for donation {donation.receipt_number}")

@@ -356,7 +356,8 @@ def create_default_chart_of_accounts(db: Session, temple_id: int):
             "description": "All income received"
         },
 
-        # Donation Income
+        # ===== DONATION INCOME BLOCK (4100-4199) =====
+        # Parent Account
         {
             "account_code": "4100",
             "account_name": "Donation Income",
@@ -366,54 +367,124 @@ def create_default_chart_of_accounts(db: Session, temple_id: int):
             "parent_code": "4000",
             "is_system_account": True,
             "allow_manual_entry": False,
-            "description": "All donation income"
+            "description": "All donation income (4100-4199 block)"
         },
+        # General/Method-based Donations (4101-4109)
         {
             "account_code": "4101",
-            "account_name": "Donation - Cash",
-            "account_name_kannada": "ದಾನ - ನಗದು",
+            "account_name": "General Donation",
+            "account_name_kannada": "ಸಾಮಾನ್ಯ ದಾನ",
             "account_type": AccountType.INCOME,
             "account_subtype": AccountSubType.DONATION_INCOME,
             "parent_code": "4100",
-            "is_system_account": True,
+            "is_system_account": False,
             "allow_manual_entry": False,
-            "description": "Cash donations received"
+            "description": "General donations without specific category"
         },
         {
             "account_code": "4102",
-            "account_name": "Donation - Online/UPI",
-            "account_name_kannada": "ದಾನ - ಆನ್‌ಲೈನ್/ಯುಪಿಐ",
+            "account_name": "Cash Donation",
+            "account_name_kannada": "ನಗದು ದಾನ",
             "account_type": AccountType.INCOME,
             "account_subtype": AccountSubType.DONATION_INCOME,
             "parent_code": "4100",
-            "is_system_account": True,
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Cash donations received at counter"
+        },
+        {
+            "account_code": "4103",
+            "account_name": "Online/UPI Donation",
+            "account_name_kannada": "ಆನ್‌ಲೈನ್/ಯುಪಿಐ ದಾನ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.DONATION_INCOME,
+            "parent_code": "4100",
+            "is_system_account": False,
             "allow_manual_entry": False,
             "description": "Online and UPI donations"
         },
         {
-            "account_code": "4103",
+            "account_code": "4104",
             "account_name": "Hundi Collection",
             "account_name_kannada": "ಹುಂಡಿ ಸಂಗ್ರಹ",
             "account_type": AccountType.INCOME,
             "account_subtype": AccountSubType.DONATION_INCOME,
             "parent_code": "4100",
-            "is_system_account": True,
+            "is_system_account": False,
             "allow_manual_entry": False,
             "description": "Collections from hundi"
         },
+        # Purpose-based Donations (4110-4149)
         {
-            "account_code": "4104",
-            "account_name": "Donation - Direct Payment",
-            "account_name_kannada": "ದಾನ - ನೇರ ಪಾವತಿ",
+            "account_code": "4110",
+            "account_name": "Annadana Fund Donation",
+            "account_name_kannada": "ಅನ್ನದಾನ ನಿಧಿ ದಾನ",
             "account_type": AccountType.INCOME,
             "account_subtype": AccountSubType.DONATION_INCOME,
             "parent_code": "4100",
-            "is_system_account": True,
+            "is_system_account": False,
             "allow_manual_entry": False,
-            "description": "Devotee paid vendor directly for temple"
+            "description": "Donations for free food distribution"
         },
+        {
+            "account_code": "4111",
+            "account_name": "Building/Construction Fund",
+            "account_name_kannada": "ಕಟ್ಟಡ ನಿಧಿ ದಾನ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.DONATION_INCOME,
+            "parent_code": "4100",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Donations for temple construction/renovation"
+        },
+        {
+            "account_code": "4112",
+            "account_name": "Festival Fund Donation",
+            "account_name_kannada": "ಉತ್ಸವ ನಿಧಿ ದಾನ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.DONATION_INCOME,
+            "parent_code": "4100",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Donations for festival celebrations"
+        },
+        {
+            "account_code": "4113",
+            "account_name": "Education Fund Donation",
+            "account_name_kannada": "ಶಿಕ್ಷಣ ನಿಧಿ ದಾನ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.DONATION_INCOME,
+            "parent_code": "4100",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Donations for educational activities"
+        },
+        {
+            "account_code": "4114",
+            "account_name": "Corpus Fund Donation",
+            "account_name_kannada": "ಮೂಲ ನಿಧಿ ದಾನ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.DONATION_INCOME,
+            "parent_code": "4100",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Donations to permanent endowment fund"
+        },
+        {
+            "account_code": "4115",
+            "account_name": "Medical Aid Fund Donation",
+            "account_name_kannada": "ವೈದ್ಯಕೀಯ ಸಹಾಯ ನಿಧಿ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.DONATION_INCOME,
+            "parent_code": "4100",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Donations for medical assistance programs"
+        },
+        # Codes 4116-4199 reserved for future donation categories
 
-        # Seva Income
+        # ===== SEVA INCOME BLOCK (4200-4299) =====
+        # Parent Account
         {
             "account_code": "4200",
             "account_name": "Seva Income",
@@ -423,41 +494,175 @@ def create_default_chart_of_accounts(db: Session, temple_id: int):
             "parent_code": "4000",
             "is_system_account": True,
             "allow_manual_entry": False,
-            "description": "Income from sevas and poojas"
+            "description": "All seva and pooja income (4200-4299 block)"
         },
+        # Individual Seva Types (4201-4249)
         {
             "account_code": "4201",
-            "account_name": "Abhisheka Seva Income",
-            "account_name_kannada": "ಅಭಿಷೇಕ ಸೇವಾ ಆದಾಯ",
+            "account_name": "Abhisheka Seva",
+            "account_name_kannada": "ಅಭಿಷೇಕ ಸೇವೆ",
             "account_type": AccountType.INCOME,
             "account_subtype": AccountSubType.SEVA_INCOME,
             "parent_code": "4200",
-            "is_system_account": True,
+            "is_system_account": False,
             "allow_manual_entry": False,
-            "description": "Income from Abhisheka sevas"
+            "description": "Income from Abhisheka seva bookings"
         },
         {
             "account_code": "4202",
-            "account_name": "Archana Income",
-            "account_name_kannada": "ಅರ್ಚನೆ ಆದಾಯ",
+            "account_name": "Archana",
+            "account_name_kannada": "ಅರ್ಚನೆ",
             "account_type": AccountType.INCOME,
             "account_subtype": AccountSubType.SEVA_INCOME,
             "parent_code": "4200",
-            "is_system_account": True,
+            "is_system_account": False,
             "allow_manual_entry": False,
-            "description": "Income from Archanas"
+            "description": "Income from Archana bookings"
         },
         {
             "account_code": "4203",
-            "account_name": "Special Pooja Income",
-            "account_name_kannada": "ವಿಶೇಷ ಪೂಜಾ ಆದಾಯ",
+            "account_name": "Kumkumarchana",
+            "account_name_kannada": "ಕುಂಕುಮಾರ್ಚನೆ",
             "account_type": AccountType.INCOME,
             "account_subtype": AccountSubType.SEVA_INCOME,
             "parent_code": "4200",
-            "is_system_account": True,
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Kumkumarchana seva"
+        },
+        {
+            "account_code": "4204",
+            "account_name": "Alankara Seva",
+            "account_name_kannada": "ಅಲಂಕಾರ ಸೇವೆ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Alankara (decoration) seva"
+        },
+        {
+            "account_code": "4205",
+            "account_name": "Vahana Seva",
+            "account_name_kannada": "ವಾಹನ ಸೇವೆ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Vahana seva bookings"
+        },
+        {
+            "account_code": "4206",
+            "account_name": "Satyanarayana Pooja",
+            "account_name_kannada": "ಸತ್ಯನಾರಾಯಣ ಪೂಜೆ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Satyanarayana Pooja"
+        },
+        {
+            "account_code": "4207",
+            "account_name": "Navagraha Pooja",
+            "account_name_kannada": "ನವಗ್ರಹ ಪೂಜೆ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Navagraha Pooja"
+        },
+        {
+            "account_code": "4208",
+            "account_name": "Special Pooja",
+            "account_name_kannada": "ವಿಶೇಷ ಪೂಜೆ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
             "allow_manual_entry": False,
             "description": "Income from special poojas"
         },
+        {
+            "account_code": "4209",
+            "account_name": "Kalyanam/Marriage Ceremony",
+            "account_name_kannada": "ಕಲ್ಯಾಣ / ವಿವಾಹ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from temple marriage ceremonies"
+        },
+        {
+            "account_code": "4210",
+            "account_name": "Upanayana/Thread Ceremony",
+            "account_name_kannada": "ಉಪನಯನ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Upanayana ceremonies"
+        },
+        {
+            "account_code": "4211",
+            "account_name": "Annaprasana/First Rice Ceremony",
+            "account_name_kannada": "ಅನ್ನಪ್ರಾಶನ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Annaprasana ceremonies"
+        },
+        {
+            "account_code": "4212",
+            "account_name": "Namakarana/Naming Ceremony",
+            "account_name_kannada": "ನಾಮಕರಣ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Namakarana ceremonies"
+        },
+        {
+            "account_code": "4213",
+            "account_name": "Ayushya Homam",
+            "account_name_kannada": "ಆಯುಷ್ಯ ಹೋಮ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Ayushya Homam"
+        },
+        {
+            "account_code": "4214",
+            "account_name": "Mrityunjaya Homam",
+            "account_name_kannada": "ಮೃತ್ಯುಂಜಯ ಹೋಮ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Mrityunjaya Homam"
+        },
+        {
+            "account_code": "4215",
+            "account_name": "Ganapathi Homam",
+            "account_name_kannada": "ಗಣಪತಿ ಹೋಮ",
+            "account_type": AccountType.INCOME,
+            "account_subtype": AccountSubType.SEVA_INCOME,
+            "parent_code": "4200",
+            "is_system_account": False,
+            "allow_manual_entry": False,
+            "description": "Income from Ganapathi Homam"
+        },
+        # Codes 4216-4299 reserved for future seva types
 
         # Sponsorship Income
         {
