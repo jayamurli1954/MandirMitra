@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.donation import DonationCategory
+from app.models.devotee import Devotee  # Needed for SQLAlchemy relationship resolution
 from app.models.seva import Seva
 from app.models.accounting import Account
 from app.models.temple import Temple
