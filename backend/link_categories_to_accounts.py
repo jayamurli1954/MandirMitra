@@ -19,6 +19,7 @@ from app.models.seva import Seva
 from app.models.accounting import Account
 from app.models.temple import Temple
 from app.models.user import User  # Needed for SQLAlchemy relationship resolution
+from app.models.panchang_display_settings import PanchangDisplaySettings  # Needed for SQLAlchemy relationship resolution
 
 # Mapping for donation categories to account codes
 DONATION_CATEGORY_MAPPING = {
