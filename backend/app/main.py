@@ -16,6 +16,15 @@ from app.models.donation import Donation, DonationCategory
 from app.models.devotee import Devotee
 from app.models.panchang_display_settings import PanchangDisplaySettings
 from app.models.seva import Seva, SevaBooking
+from app.models.accounting import Account, JournalEntry, JournalLine
+from app.models.vendor import Vendor
+from app.models.inkind_sponsorship import (
+    InKindDonation, InKindConsumption,
+    Sponsorship, SponsorshipPayment
+)
+from app.models.upi_banking import (
+    UpiPayment, BankAccount, BankTransaction, BankReconciliation
+)
 
 # Import routers
 from app.api.panchang_display_settings import router as panchang_display_settings_router
