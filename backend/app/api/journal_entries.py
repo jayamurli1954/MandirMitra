@@ -20,8 +20,13 @@ from app.schemas.accounting import (
     JournalEntryCreate, JournalEntryUpdate, JournalEntryResponse,
     JournalEntryPost, JournalEntryCancel,
     TrialBalanceResponse, TrialBalanceItem,
-    AccountLedgerResponse, LedgerEntry
+    AccountLedgerResponse, LedgerEntry,
+    ProfitLossResponse, PLCategoryGroup, PLAccountItem,
+    CategoryIncomeResponse, CategoryIncomeItem,
+    TopDonorsResponse, TopDonorItem
 )
+from app.models.donation import Donation
+from app.models.devotee import Devotee
 
 router = APIRouter(prefix="/api/v1/journal-entries", tags=["journal-entries"])
 
@@ -497,4 +502,304 @@ def get_account_ledger(
         opening_balance=opening_balance,
         closing_balance=running_balance,
         entries=ledger_entries
+    )
+
+
+@router.get("/reports/profit-loss", response_model=ProfitLossResponse)
+def get_profit_loss_statement(
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate Profit & Loss Statement (Income & Expenditure Account)
+    Shows categorized income and expenses with net surplus/deficit
+    """
+    # Get all income accounts (4000-4999) with balances
+    income_accounts = db.query(
+        Account.account_code,
+        Account.account_name,
+        func.sum(JournalLine.credit_amount - JournalLine.debit_amount).label('amount')
+    ).join(JournalLine).join(JournalEntry).filter(
+        Account.temple_id == current_user.temple_id,
+        Account.account_code.between('4000', '4999'),
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) >= from_date,
+        func.date(JournalEntry.entry_date) <= to_date
+    ).group_by(Account.account_code, Account.account_name).all()
+
+    # Get all expense accounts (5000-5999) with balances
+    expense_accounts = db.query(
+        Account.account_code,
+        Account.account_name,
+        func.sum(JournalLine.debit_amount - JournalLine.credit_amount).label('amount')
+    ).join(JournalLine).join(JournalEntry).filter(
+        Account.temple_id == current_user.temple_id,
+        Account.account_code.between('5000', '5999'),
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) >= from_date,
+        func.date(JournalEntry.entry_date) <= to_date
+    ).group_by(Account.account_code, Account.account_name).all()
+
+    # Group income by categories
+    income_groups = []
+
+    # Donation Income (4100-4199)
+    donation_accounts = [acc for acc in income_accounts if '4100' <= acc.account_code <= '4199' and acc.amount > 0]
+    if donation_accounts:
+        income_groups.append(PLCategoryGroup(
+            category_name="Donation Income",
+            accounts=[PLAccountItem(account_code=acc.account_code, account_name=acc.account_name, amount=float(acc.amount))
+                     for acc in donation_accounts],
+            total=sum(float(acc.amount) for acc in donation_accounts)
+        ))
+
+    # Seva Income (4200-4299)
+    seva_accounts = [acc for acc in income_accounts if '4200' <= acc.account_code <= '4299' and acc.amount > 0]
+    if seva_accounts:
+        income_groups.append(PLCategoryGroup(
+            category_name="Seva Income",
+            accounts=[PLAccountItem(account_code=acc.account_code, account_name=acc.account_name, amount=float(acc.amount))
+                     for acc in seva_accounts],
+            total=sum(float(acc.amount) for acc in seva_accounts)
+        ))
+
+    # Sponsorship Income (4300-4399)
+    sponsorship_accounts = [acc for acc in income_accounts if '4300' <= acc.account_code <= '4399' and acc.amount > 0]
+    if sponsorship_accounts:
+        income_groups.append(PLCategoryGroup(
+            category_name="Sponsorship Income",
+            accounts=[PLAccountItem(account_code=acc.account_code, account_name=acc.account_name, amount=float(acc.amount))
+                     for acc in sponsorship_accounts],
+            total=sum(float(acc.amount) for acc in sponsorship_accounts)
+        ))
+
+    # Other Income (4500-4599)
+    other_income_accounts = [acc for acc in income_accounts if '4500' <= acc.account_code <= '4599' and acc.amount > 0]
+    if other_income_accounts:
+        income_groups.append(PLCategoryGroup(
+            category_name="Other Income",
+            accounts=[PLAccountItem(account_code=acc.account_code, account_name=acc.account_name, amount=float(acc.amount))
+                     for acc in other_income_accounts],
+            total=sum(float(acc.amount) for acc in other_income_accounts)
+        ))
+
+    total_income = sum(group.total for group in income_groups)
+
+    # Group expenses by categories
+    expense_groups = []
+
+    # Operating Expenses (5100-5199)
+    operating_accounts = [acc for acc in expense_accounts if '5100' <= acc.account_code <= '5199' and acc.amount > 0]
+    if operating_accounts:
+        expense_groups.append(PLCategoryGroup(
+            category_name="Operating Expenses",
+            accounts=[PLAccountItem(account_code=acc.account_code, account_name=acc.account_name, amount=float(acc.amount))
+                     for acc in operating_accounts],
+            total=sum(float(acc.amount) for acc in operating_accounts)
+        ))
+
+    # Administrative Expenses (5200-5299)
+    admin_accounts = [acc for acc in expense_accounts if '5200' <= acc.account_code <= '5299' and acc.amount > 0]
+    if admin_accounts:
+        expense_groups.append(PLCategoryGroup(
+            category_name="Administrative Expenses",
+            accounts=[PLAccountItem(account_code=acc.account_code, account_name=acc.account_name, amount=float(acc.amount))
+                     for acc in admin_accounts],
+            total=sum(float(acc.amount) for acc in admin_accounts)
+        ))
+
+    # Other Expenses (5300-5999)
+    other_expense_accounts = [acc for acc in expense_accounts if '5300' <= acc.account_code <= '5999' and acc.amount > 0]
+    if other_expense_accounts:
+        expense_groups.append(PLCategoryGroup(
+            category_name="Other Expenses",
+            accounts=[PLAccountItem(account_code=acc.account_code, account_name=acc.account_name, amount=float(acc.amount))
+                     for acc in other_expense_accounts],
+            total=sum(float(acc.amount) for acc in other_expense_accounts)
+        ))
+
+    total_expenses = sum(group.total for group in expense_groups)
+    net_surplus = total_income - total_expenses
+
+    return ProfitLossResponse(
+        from_date=from_date,
+        to_date=to_date,
+        income_groups=income_groups,
+        total_income=total_income,
+        expense_groups=expense_groups,
+        total_expenses=total_expenses,
+        net_surplus=net_surplus
+    )
+
+
+@router.get("/reports/category-income", response_model=CategoryIncomeResponse)
+def get_category_income_report(
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate Category-wise Income Report
+    Breaks down income by donation categories, seva types, etc.
+    """
+    # Get donation income (4100-4199)
+    donation_data = db.query(
+        Account.account_code,
+        Account.account_name,
+        func.sum(JournalLine.credit_amount - JournalLine.debit_amount).label('amount'),
+        func.count(JournalLine.id).label('transaction_count')
+    ).join(JournalLine).join(JournalEntry).filter(
+        Account.temple_id == current_user.temple_id,
+        Account.account_code.between('4100', '4199'),
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) >= from_date,
+        func.date(JournalEntry.entry_date) <= to_date
+    ).group_by(Account.account_code, Account.account_name).all()
+
+    # Get seva income (4200-4299)
+    seva_data = db.query(
+        Account.account_code,
+        Account.account_name,
+        func.sum(JournalLine.credit_amount - JournalLine.debit_amount).label('amount'),
+        func.count(JournalLine.id).label('transaction_count')
+    ).join(JournalLine).join(JournalEntry).filter(
+        Account.temple_id == current_user.temple_id,
+        Account.account_code.between('4200', '4299'),
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) >= from_date,
+        func.date(JournalEntry.entry_date) <= to_date
+    ).group_by(Account.account_code, Account.account_name).all()
+
+    # Get other income (4300-4599)
+    other_data = db.query(
+        Account.account_code,
+        Account.account_name,
+        func.sum(JournalLine.credit_amount - JournalLine.debit_amount).label('amount'),
+        func.count(JournalLine.id).label('transaction_count')
+    ).join(JournalLine).join(JournalEntry).filter(
+        Account.temple_id == current_user.temple_id,
+        Account.account_code.between('4300', '4599'),
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) >= from_date,
+        func.date(JournalEntry.entry_date) <= to_date
+    ).group_by(Account.account_code, Account.account_name).all()
+
+    # Calculate total income for percentage
+    total_income = sum(float(d.amount) for d in donation_data if d.amount > 0) + \
+                  sum(float(s.amount) for s in seva_data if s.amount > 0) + \
+                  sum(float(o.amount) for o in other_data if o.amount > 0)
+
+    # Build donation income items
+    donation_income = []
+    for item in donation_data:
+        if item.amount > 0:
+            donation_income.append(CategoryIncomeItem(
+                account_code=item.account_code,
+                account_name=item.account_name,
+                amount=float(item.amount),
+                percentage=round((float(item.amount) / total_income * 100) if total_income > 0 else 0, 2),
+                transaction_count=int(item.transaction_count)
+            ))
+    donation_income.sort(key=lambda x: x.amount, reverse=True)
+
+    # Build seva income items
+    seva_income = []
+    for item in seva_data:
+        if item.amount > 0:
+            seva_income.append(CategoryIncomeItem(
+                account_code=item.account_code,
+                account_name=item.account_name,
+                amount=float(item.amount),
+                percentage=round((float(item.amount) / total_income * 100) if total_income > 0 else 0, 2),
+                transaction_count=int(item.transaction_count)
+            ))
+    seva_income.sort(key=lambda x: x.amount, reverse=True)
+
+    # Build other income items
+    other_income = []
+    for item in other_data:
+        if item.amount > 0:
+            other_income.append(CategoryIncomeItem(
+                account_code=item.account_code,
+                account_name=item.account_name,
+                amount=float(item.amount),
+                percentage=round((float(item.amount) / total_income * 100) if total_income > 0 else 0, 2),
+                transaction_count=int(item.transaction_count)
+            ))
+    other_income.sort(key=lambda x: x.amount, reverse=True)
+
+    return CategoryIncomeResponse(
+        from_date=from_date,
+        to_date=to_date,
+        donation_income=donation_income,
+        seva_income=seva_income,
+        other_income=other_income,
+        total_income=total_income
+    )
+
+
+@router.get("/reports/top-donors", response_model=TopDonorsResponse)
+def get_top_donors_report(
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    limit: int = Query(10, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate Top Donors Report
+    Shows top donors by total donation amount
+    """
+    # Get donations with devotee info
+    donations = db.query(
+        Devotee.id.label('devotee_id'),
+        Devotee.name.label('devotee_name'),
+        func.sum(Donation.amount).label('total_donated'),
+        func.count(Donation.id).label('donation_count'),
+        func.max(Donation.date).label('last_donation_date')
+    ).join(Donation, Devotee.id == Donation.devotee_id).filter(
+        Devotee.temple_id == current_user.temple_id,
+        func.date(Donation.date) >= from_date,
+        func.date(Donation.date) <= to_date
+    ).group_by(Devotee.id, Devotee.name).order_by(
+        func.sum(Donation.amount).desc()
+    ).limit(limit).all()
+
+    donors = []
+    total_amount = 0.0
+
+    for donor in donations:
+        # Get categories this donor donated to
+        categories_query = db.query(
+            func.distinct(Account.account_name)
+        ).join(JournalLine).join(JournalEntry).join(Donation, JournalEntry.reference_id == Donation.id).filter(
+            Donation.devotee_id == donor.devotee_id,
+            JournalEntry.reference_type == 'DONATION',
+            Account.account_code.between('4100', '4199'),
+            func.date(Donation.date) >= from_date,
+            func.date(Donation.date) <= to_date
+        ).all()
+
+        categories = [cat[0] for cat in categories_query] if categories_query else []
+
+        donors.append(TopDonorItem(
+            devotee_id=donor.devotee_id,
+            devotee_name=donor.devotee_name,
+            total_donated=float(donor.total_donated),
+            donation_count=int(donor.donation_count),
+            last_donation_date=donor.last_donation_date.date() if hasattr(donor.last_donation_date, 'date') else donor.last_donation_date,
+            categories=categories
+        ))
+
+        total_amount += float(donor.total_donated)
+
+    return TopDonorsResponse(
+        from_date=from_date,
+        to_date=to_date,
+        donors=donors,
+        total_donors=len(donors),
+        total_amount=total_amount
     )

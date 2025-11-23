@@ -227,3 +227,72 @@ class AccountLedgerResponse(BaseModel):
     opening_balance: float
     closing_balance: float
     entries: List[LedgerEntry]
+
+
+# ===== PROFIT & LOSS SCHEMA =====
+
+class PLAccountItem(BaseModel):
+    """Individual account in P&L statement"""
+    account_code: str
+    account_name: str
+    amount: float
+
+
+class PLCategoryGroup(BaseModel):
+    """Category group (e.g., Donation Income, Seva Income)"""
+    category_name: str
+    accounts: List[PLAccountItem]
+    total: float
+
+
+class ProfitLossResponse(BaseModel):
+    """Profit & Loss Statement (Income & Expenditure)"""
+    from_date: date
+    to_date: date
+    income_groups: List[PLCategoryGroup]
+    total_income: float
+    expense_groups: List[PLCategoryGroup]
+    total_expenses: float
+    net_surplus: float  # Positive = surplus, Negative = deficit
+
+
+# ===== CATEGORY-WISE INCOME SCHEMA =====
+
+class CategoryIncomeItem(BaseModel):
+    """Category-wise income breakdown"""
+    account_code: str
+    account_name: str
+    amount: float
+    percentage: float  # Percentage of total income
+    transaction_count: int
+
+
+class CategoryIncomeResponse(BaseModel):
+    """Category-wise Income Report"""
+    from_date: date
+    to_date: date
+    donation_income: List[CategoryIncomeItem]
+    seva_income: List[CategoryIncomeItem]
+    other_income: List[CategoryIncomeItem]
+    total_income: float
+
+
+# ===== TOP DONORS SCHEMA =====
+
+class TopDonorItem(BaseModel):
+    """Top donor information"""
+    devotee_id: int
+    devotee_name: str
+    total_donated: float
+    donation_count: int
+    last_donation_date: date
+    categories: List[str]  # Categories donated to
+
+
+class TopDonorsResponse(BaseModel):
+    """Top Donors Report"""
+    from_date: date
+    to_date: date
+    donors: List[TopDonorItem]
+    total_donors: int
+    total_amount: float
