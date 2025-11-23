@@ -33,6 +33,8 @@ from app.api.donations import router as donations_router
 from app.api.panchang import router as panchang_router
 from app.api.auth import router as auth_router
 from app.api.sevas import router as sevas_router
+from app.api.accounts import router as accounts_router
+from app.api.journal_entries import router as journal_entries_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -59,6 +61,8 @@ app.include_router(devotees_router)
 app.include_router(donations_router)
 app.include_router(panchang_router)
 app.include_router(sevas_router)
+app.include_router(accounts_router)
+app.include_router(journal_entries_router)
 
 # Initialize database on startup
 @app.on_event("startup")
