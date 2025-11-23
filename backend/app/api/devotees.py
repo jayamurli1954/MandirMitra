@@ -63,6 +63,24 @@ def get_devotees(
     return devotees
 
 
+@router.get("/search/by-mobile/{mobile}", response_model=Optional[DevoteeResponse])
+def search_devotee_by_mobile(
+    mobile: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Search for a devotee by mobile number"""
+    # Clean up mobile number (remove spaces, dashes, etc.)
+    clean_mobile = mobile.replace(" ", "").replace("-", "").replace("+91", "")
+
+    # Search for devotee
+    devotee = db.query(Devotee).filter(
+        Devotee.phone.like(f"%{clean_mobile}%")
+    ).first()
+
+    return devotee
+
+
 @router.get("/{devotee_id}", response_model=DevoteeResponse)
 def get_devotee(
     devotee_id: int,

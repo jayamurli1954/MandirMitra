@@ -85,7 +85,11 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
             ).first()
 
         if not debit_account or not credit_account:
-            print(f"Warning: Accounts not found for donation {donation.receipt_number}")
+            print(f"ERROR: Accounts not found for donation {donation.receipt_number}")
+            print(f"  - Debit account ({debit_account_code}): {'FOUND' if debit_account else 'NOT FOUND'}")
+            print(f"  - Credit account: {'FOUND' if credit_account else 'NOT FOUND'}")
+            print(f"  - Category: {donation.category.name if donation.category else 'None'}")
+            print(f"  - Category has account_id: {donation.category.account_id if donation.category and hasattr(donation.category, 'account_id') else 'NO'}")
             return None
 
         # Create narration
@@ -274,13 +278,17 @@ def create_donation(
     journal_entry = post_donation_to_accounting(db, db_donation, current_user.temple_id if current_user else None)
     if journal_entry:
         db.commit()  # Commit the journal entry
+        message = "Donation recorded successfully and posted to accounting"
+    else:
+        message = "Donation recorded but accounting entry failed. Please check chart of accounts."
 
     return {
         "id": db_donation.id,
         "receipt_number": db_donation.receipt_number,
         "amount": db_donation.amount,
-        "journal_entry": journal_entry.entry_number if journal_entry else None,
-        "message": "Donation recorded successfully and posted to accounting"
+        "journal_entry": journal_entry.entry_number if journal_entry else "NOT_POSTED",
+        "message": message,
+        "accounting_posted": journal_entry is not None
     }
 
 

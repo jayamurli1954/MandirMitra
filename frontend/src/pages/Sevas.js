@@ -55,6 +55,19 @@ function Sevas() {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState(null);
 
+  // Mobile-first workflow state
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [searchingDevotee, setSearchingDevotee] = useState(false);
+  const [foundDevotee, setFoundDevotee] = useState(null);
+  const [showNewDevoteeForm, setShowNewDevoteeForm] = useState(false);
+  const [newDevoteeData, setNewDevoteeData] = useState({
+    name: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: ''
+  });
+
   useEffect(() => {
     fetchSevas();
     fetchDevotees();
@@ -107,6 +120,66 @@ function Sevas() {
     setBookingDialogOpen(true);
   };
 
+  const handleSearchByMobile = async () => {
+    if (!mobileNumber || mobileNumber.length < 10) {
+      setBookingError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    setSearchingDevotee(true);
+    setBookingError(null);
+
+    try {
+      const response = await api.get(`/api/v1/devotees/search/by-mobile/${mobileNumber}`);
+
+      if (response.data) {
+        // Devotee found
+        setFoundDevotee(response.data);
+        setShowNewDevoteeForm(false);
+        setBookingForm({ ...bookingForm, devotee_id: response.data.id });
+      } else {
+        // Devotee not found - show create form
+        setFoundDevotee(null);
+        setShowNewDevoteeForm(true);
+        setNewDevoteeData({ ...newDevoteeData, name: '' });
+      }
+    } catch (err) {
+      // Devotee not found - show create form
+      setFoundDevotee(null);
+      setShowNewDevoteeForm(true);
+    } finally {
+      setSearchingDevotee(false);
+    }
+  };
+
+  const handleCreateDevotee = async () => {
+    if (!newDevoteeData.name) {
+      setBookingError('Please enter devotee name');
+      return;
+    }
+
+    try {
+      const devoteeData = {
+        name: newDevoteeData.name,
+        phone: mobileNumber,
+        address: newDevoteeData.address,
+        city: newDevoteeData.city,
+        state: newDevoteeData.state,
+        pincode: newDevoteeData.pincode
+      };
+
+      const response = await api.post('/api/v1/devotees/', devoteeData);
+      setFoundDevotee(response.data);
+      setShowNewDevoteeForm(false);
+      setBookingForm({ ...bookingForm, devotee_id: response.data.id });
+
+      // Refresh devotees list
+      fetchDevotees();
+    } catch (err) {
+      setBookingError(err.response?.data?.detail || 'Failed to create devotee');
+    }
+  };
+
   const handleBookingSubmit = async () => {
     try {
       setBookingError(null);
@@ -122,6 +195,9 @@ function Sevas() {
       setTimeout(() => {
         setBookingDialogOpen(false);
         setBookingSuccess(false);
+        setMobileNumber('');
+        setFoundDevotee(null);
+        setShowNewDevoteeForm(false);
         setBookingForm({
           devotee_id: '',
           booking_date: new Date().toISOString().split('T')[0],
@@ -391,21 +467,142 @@ function Sevas() {
             )}
 
             <Stack spacing={2}>
-              {/* Devotee Selection */}
-              <FormControl fullWidth>
-                <InputLabel>Select Devotee *</InputLabel>
-                <Select
-                  value={bookingForm.devotee_id}
-                  onChange={(e) => setBookingForm({...bookingForm, devotee_id: e.target.value})}
-                  label="Select Devotee *"
-                >
-                  {devotees.map(d => (
-                    <MenuItem key={d.id} value={d.id}>
-                      {d.name} - {d.phone}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              {/* Mobile Number Input - STEP 1 */}
+              {!foundDevotee && !showNewDevoteeForm && (
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                    Step 1: Enter Devotee Mobile Number *
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      label="Mobile Number"
+                      value={mobileNumber}
+                      onChange={(e) => setMobileNumber(e.target.value)}
+                      placeholder="Enter 10-digit mobile"
+                      fullWidth
+                      inputProps={{ maxLength: 10 }}
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={handleSearchByMobile}
+                      disabled={searchingDevotee || mobileNumber.length < 10}
+                      sx={{ minWidth: 100 }}
+                    >
+                      {searchingDevotee ? <CircularProgress size={24} /> : 'Search'}
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Found Devotee - STEP 2a */}
+              {foundDevotee && (
+                <Box>
+                  <Alert severity="success" sx={{ mb: 2 }}>
+                    ✅ Devotee Found!
+                  </Alert>
+                  <Paper sx={{ p: 2, bgcolor: '#E8F5E9' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                      Devotee Details:
+                    </Typography>
+                    <Typography variant="body2"><strong>Name:</strong> {foundDevotee.name}</Typography>
+                    <Typography variant="body2"><strong>Phone:</strong> {foundDevotee.phone}</Typography>
+                    {foundDevotee.address && (
+                      <Typography variant="body2"><strong>Address:</strong> {foundDevotee.address}</Typography>
+                    )}
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setFoundDevotee(null);
+                        setMobileNumber('');
+                        setBookingForm({ ...bookingForm, devotee_id: '' });
+                      }}
+                      sx={{ mt: 1 }}
+                    >
+                      Change Devotee
+                    </Button>
+                  </Paper>
+                </Box>
+              )}
+
+              {/* New Devotee Form - STEP 2b */}
+              {showNewDevoteeForm && (
+                <Box>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    ℹ️ Devotee not found. Please enter details to create new devotee.
+                  </Alert>
+                  <Paper sx={{ p: 2, bgcolor: '#FFF3E0' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
+                      New Devotee Details:
+                    </Typography>
+                    <Stack spacing={2}>
+                      <TextField
+                        label="Name *"
+                        value={newDevoteeData.name}
+                        onChange={(e) => setNewDevoteeData({ ...newDevoteeData, name: e.target.value })}
+                        fullWidth
+                        size="small"
+                      />
+                      <TextField
+                        label="Address"
+                        value={newDevoteeData.address}
+                        onChange={(e) => setNewDevoteeData({ ...newDevoteeData, address: e.target.value })}
+                        fullWidth
+                        size="small"
+                      />
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <TextField
+                          label="City"
+                          value={newDevoteeData.city}
+                          onChange={(e) => setNewDevoteeData({ ...newDevoteeData, city: e.target.value })}
+                          size="small"
+                          sx={{ flex: 1 }}
+                        />
+                        <TextField
+                          label="Pincode"
+                          value={newDevoteeData.pincode}
+                          onChange={(e) => setNewDevoteeData({ ...newDevoteeData, pincode: e.target.value })}
+                          size="small"
+                          inputProps={{ maxLength: 6 }}
+                          sx={{ width: '120px' }}
+                        />
+                      </Box>
+                      <TextField
+                        label="State"
+                        value={newDevoteeData.state}
+                        onChange={(e) => setNewDevoteeData({ ...newDevoteeData, state: e.target.value })}
+                        fullWidth
+                        size="small"
+                      />
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          variant="contained"
+                          onClick={handleCreateDevotee}
+                          fullWidth
+                          disabled={!newDevoteeData.name}
+                        >
+                          Create & Continue
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          onClick={() => {
+                            setShowNewDevoteeForm(false);
+                            setMobileNumber('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </Box>
+                    </Stack>
+                  </Paper>
+                </Box>
+              )}
+
+              {/* Booking Details - Only show after devotee is selected */}
+              {foundDevotee && (
+                <>
+                  <Typography variant="subtitle2" sx={{ mt: 2, fontWeight: 600, color: '#FF9933' }}>
+                    Step 2: Seva Booking Details
+                  </Typography>
 
               {/* Booking Date */}
               <TextField
@@ -492,6 +689,8 @@ function Sevas() {
                 rows={3}
                 fullWidth
               />
+                </>
+              )}
             </Stack>
           </DialogContent>
           <DialogActions>
