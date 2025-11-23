@@ -61,6 +61,9 @@ class Seva(Base):
     requires_approval = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
 
+    # Accounting Link
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+
     # Additional info
     benefits = Column(Text, nullable=True)
     instructions = Column(Text, nullable=True)
@@ -72,6 +75,7 @@ class Seva(Base):
 
     # Relationships
     bookings = relationship("SevaBooking", back_populates="seva")
+    account = relationship("Account")
 
 class SevaBooking(Base):
     """Seva booking model"""

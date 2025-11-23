@@ -30,14 +30,18 @@ class DonationCategory(Base):
     # Status
     is_active = Column(Boolean, default=True)
     display_order = Column(Integer, default=0)
-    
+
+    # Accounting Link
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+
     # Timestamps
     created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
     updated_at = Column(String, default=lambda: datetime.utcnow().isoformat(), onupdate=lambda: datetime.utcnow().isoformat())
-    
+
     # Relationships
     temple = relationship("Temple", back_populates="donation_categories")
     donations = relationship("Donation", back_populates="category")
+    account = relationship("Account")
     
     def __repr__(self):
         return f"<DonationCategory(id={self.id}, name='{self.name}')>"
