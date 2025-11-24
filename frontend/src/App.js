@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { NotificationProvider } from './contexts/NotificationContext';
+import { LoadingProvider } from './contexts/LoadingContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Donations from './pages/Donations';
@@ -33,8 +35,10 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <Routes>
+      <NotificationProvider>
+        <LoadingProvider>
+          <Router>
+            <Routes>
           <Route path="/login" element={<Login />} />
           <Route
             path="/dashboard"
@@ -140,9 +144,11 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Router>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </Router>
+        </LoadingProvider>
+      </NotificationProvider>
     </ThemeProvider>
   );
 }
