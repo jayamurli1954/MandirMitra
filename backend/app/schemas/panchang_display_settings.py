@@ -10,7 +10,13 @@ from datetime import datetime
 
 class PanchangDisplaySettingsBase(BaseModel):
     """Base schema with all display settings fields"""
-    
+
+    # Location Settings (for accurate Panchang calculation)
+    latitude: str = Field(default="12.9716", description="Temple latitude for accurate calculations")
+    longitude: str = Field(default="77.5946", description="Temple longitude for accurate calculations")
+    city_name: str = Field(default="Bengaluru", max_length=100, description="City name for display")
+    timezone: str = Field(default="Asia/Kolkata", max_length=50, description="Temple timezone")
+
     # Element Visibility
     show_tithi: bool = True
     show_nakshatra: bool = True
@@ -91,7 +97,13 @@ class PanchangDisplaySettingsCreate(PanchangDisplaySettingsBase):
 
 class PanchangDisplaySettingsUpdate(BaseModel):
     """Schema for updating panchang display settings (all fields optional)"""
-    
+
+    # Location Settings
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
+    city_name: Optional[str] = Field(None, max_length=100)
+    timezone: Optional[str] = Field(None, max_length=50)
+
     # Element Visibility
     show_tithi: Optional[bool] = None
     show_nakshatra: Optional[bool] = None

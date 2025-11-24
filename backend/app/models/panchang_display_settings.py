@@ -20,7 +20,13 @@ class PanchangDisplaySettings(Base):
     
     # Temple (one-to-one relationship)
     temple_id = Column(Integer, ForeignKey("temples.id"), unique=True, nullable=False, index=True)
-    
+
+    # ========== LOCATION SETTINGS (For Accurate Panchang Calculations) ==========
+    latitude = Column(String(20), default="12.9716")  # Default: Bangalore
+    longitude = Column(String(20), default="77.5946")  # Default: Bangalore
+    city_name = Column(String(100), default="Bengaluru")  # For display
+    timezone = Column(String(50), default="Asia/Kolkata")  # Timezone
+
     # ========== ELEMENT VISIBILITY SETTINGS ==========
     # Essential Elements (Priority 1)
     show_tithi = Column(Boolean, default=True)
@@ -124,6 +130,10 @@ class PanchangDisplaySettings(Base):
         return {
             "id": self.id,
             "temple_id": self.temple_id,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "city_name": self.city_name,
+            "timezone": self.timezone,
             "show_tithi": self.show_tithi,
             "show_nakshatra": self.show_nakshatra,
             "show_yoga": self.show_yoga,
