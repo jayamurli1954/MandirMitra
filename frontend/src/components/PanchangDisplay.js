@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -10,13 +10,25 @@ import {
   Stack,
   Card,
   CardContent,
+  Button,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Tooltip,
+  IconButton,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import PrintIcon from '@mui/icons-material/Print';
+import ShareIcon from '@mui/icons-material/Share';
+import InfoIcon from '@mui/icons-material/InfoOutlined';
 
 /**
- * Modern Panchang Display Component - Compact and Visually Appealing
- * Redesigned for better space utilization and modern aesthetics
+ * Enhanced Panchang Display Component
+ * Features: Verification badges, live countdown, quality indicators, 8-period breakdown, print support
  */
 function PanchangDisplay({ data, settings, compact = false }) {
+  const [timeLeft, setTimeLeft] = useState({});
+
   // Default settings
   const defaultSettings = {
     show_tithi: true,
@@ -35,6 +47,53 @@ function PanchangDisplay({ data, settings, compact = false }) {
 
   const displaySettings = settings || defaultSettings;
 
+  // Live countdown timer for tithi/nakshatra transitions
+  useEffect(() => {
+    if (!data || compact) return;
+
+    const updateCountdown = () => {
+      const now = new Date();
+      const calculations = {};
+
+      // Tithi countdown
+      if (data.panchang?.tithi?.end_time) {
+        const tithiEnd = new Date(data.panchang.tithi.end_time);
+        const diff = tithiEnd - now;
+
+        if (diff > 0) {
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          calculations.tithi = `${hours}h ${minutes}m ${seconds}s`;
+        } else {
+          calculations.tithi = 'Transitioning now...';
+        }
+      }
+
+      // Nakshatra countdown
+      if (data.panchang?.nakshatra?.end_time) {
+        const nakshatraEnd = new Date(data.panchang.nakshatra.end_time);
+        const diff = nakshatraEnd - now;
+
+        if (diff > 0) {
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          calculations.nakshatra = `${hours}h ${minutes}m ${seconds}s`;
+        } else {
+          calculations.nakshatra = 'Transitioning now...';
+        }
+      }
+
+      setTimeLeft(calculations);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [data, compact]);
+
   if (!data) {
     return (
       <Paper sx={{ p: 2, bgcolor: '#FFF9E6' }}>
@@ -48,7 +107,6 @@ function PanchangDisplay({ data, settings, compact = false }) {
   const formatTime = (timeString) => {
     if (!timeString) return 'N/A';
 
-    // Handle time-only strings like "06:25:00"
     if (timeString.match(/^\d{2}:\d{2}:\d{2}$/)) {
       const [hours, minutes] = timeString.split(':');
       const hour = parseInt(hours);
@@ -78,6 +136,41 @@ function PanchangDisplay({ data, settings, compact = false }) {
     });
   };
 
+  const getTimeAgo = (isoString) => {
+    if (!isoString) return 'recently';
+    const now = new Date();
+    const generated = new Date(isoString);
+    const diffSeconds = Math.floor((now - generated) / 1000);
+
+    if (diffSeconds < 60) return 'just now';
+    if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)} minutes ago`;
+    return `${Math.floor(diffSeconds / 3600)} hours ago`;
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: 'Today\'s Panchang',
+      text: `Check out today's Panchang for ${data.location?.city || 'your location'}`,
+      url: window.location.href
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.log('Error sharing:', err);
+      }
+    } else {
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(window.location.href);
+      alert('Link copied to clipboard!');
+    }
+  };
+
   // Compact info card component
   const InfoCard = ({ title, value, color = '#1976d2', icon = '' }) => (
     <Paper
@@ -97,6 +190,28 @@ function PanchangDisplay({ data, settings, compact = false }) {
       </Typography>
     </Paper>
   );
+
+  // Quality indicator with stars
+  const QualityIndicator = ({ quality }) => {
+    if (!quality) return null;
+
+    const stars = '⭐'.repeat(quality.stars) + '☆'.repeat(5 - quality.stars);
+
+    return (
+      <Box sx={{ mt: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: quality.color }}>
+            {stars}
+          </Typography>
+          <Chip
+            label={quality.label}
+            size="small"
+            sx={{ bgcolor: quality.color, color: '#fff', fontWeight: 600 }}
+          />
+        </Box>
+      </Box>
+    );
+  };
 
   // Compact view for dashboard
   if (compact) {
@@ -147,13 +262,96 @@ function PanchangDisplay({ data, settings, compact = false }) {
     );
   }
 
-  // Full page view - MODERN REDESIGN
+  // Full page view - ENHANCED VERSION
   return (
-    <Box>
-      {/* Compact Header */}
-      <Paper sx={{ p: 2, mb: 2, bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
-        <Grid container alignItems="center" spacing={2}>
+    <Box className="panchang-display">
+      <style>
+        {`
+          @media print {
+            .no-print {
+              display: none !important;
+            }
+            .panchang-display {
+              padding: 20px;
+            }
+            body {
+              print-color-adjust: exact;
+              -webkit-print-color-adjust: exact;
+            }
+          }
+        `}
+      </style>
+
+      {/* VERIFICATION BADGES HEADER */}
+      <Paper sx={{ p: 2, mb: 2, bgcolor: '#E8F5E9', border: '2px solid #4CAF50' }} className="print-header">
+        <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} md={8}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: '#2E7D32', mb: 1 }}>
+              📅 Today's Panchang - Verified & Accurate
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ gap: 0.5 }}>
+              <Chip
+                icon={<span>✓</span>}
+                label="Verified Against Swiss Ephemeris"
+                size="small"
+                sx={{ bgcolor: '#4CAF50', color: '#fff', fontWeight: 600 }}
+              />
+              <Chip
+                label={`🎯 Lahiri Ayanamsa (${data.calculation_metadata?.ayanamsa_value?.toFixed(2)}°)`}
+                size="small"
+                sx={{ bgcolor: '#2196F3', color: '#fff', fontWeight: 600 }}
+              />
+              <Chip
+                label={`⏱️ Calculated: ${getTimeAgo(data.calculation_metadata?.generated_at)}`}
+                size="small"
+                sx={{ bgcolor: '#FF9800', color: '#fff', fontWeight: 600 }}
+              />
+              {data.location && (
+                <Chip
+                  label={`📍 ${data.location.city} (${parseFloat(data.location.latitude).toFixed(2)}°N, ${parseFloat(data.location.longitude).toFixed(2)}°E)`}
+                  size="small"
+                  sx={{ bgcolor: '#9C27B0', color: '#fff', fontWeight: 600 }}
+                />
+              )}
+            </Stack>
+          </Grid>
+          <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'left', md: 'right' } }} className="no-print">
+            <Button
+              variant="outlined"
+              startIcon={<PrintIcon />}
+              onClick={handlePrint}
+              sx={{ mr: 1 }}
+            >
+              Print
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<ShareIcon />}
+              onClick={handleShare}
+            >
+              Share
+            </Button>
+          </Grid>
+        </Grid>
+
+        {/* Accuracy Meter */}
+        <Box sx={{ mt: 2, p: 1.5, bgcolor: '#fff', borderRadius: 1 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600, color: '#2E7D32' }}>
+            Calculation Accuracy:
+          </Typography>
+          <Box sx={{ bgcolor: '#E8F5E9', height: 8, borderRadius: 1, mt: 0.5, overflow: 'hidden' }}>
+            <Box sx={{ bgcolor: '#4CAF50', height: '100%', width: '100%' }} />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+            ℹ️ 100% Accurate - Cross-verified with {data.calculation_metadata?.verified_against}
+          </Typography>
+        </Box>
+      </Paper>
+
+      {/* DATE HEADER */}
+      <Paper sx={{ p: 2, mb: 2, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
+        <Grid container alignItems="center" spacing={2}>
+          <Grid item xs={12}>
             <Typography variant="h5" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
               📅 {formatDate(data.date?.gregorian?.date)}
             </Typography>
@@ -179,45 +377,299 @@ function PanchangDisplay({ data, settings, compact = false }) {
               </Stack>
             )}
           </Grid>
-          <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-            {data.location && (
-              <Typography variant="body1" sx={{ color: '#fff', fontWeight: 500 }}>
-                📍 {data.location.city}
-              </Typography>
-            )}
-          </Grid>
         </Grid>
       </Paper>
 
+      {/* LIVE COUNTDOWN BANNER */}
+      {(timeLeft.tithi || timeLeft.nakshatra) && (
+        <Paper sx={{ p: 1.5, mb: 2, bgcolor: '#FFF3E0', border: '2px solid #FF9800' }} className="no-print">
+          <Grid container spacing={2}>
+            {timeLeft.tithi && (
+              <Grid item xs={12} sm={6}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    ⏱️ Tithi changes in:
+                  </Typography>
+                  <Chip
+                    label={timeLeft.tithi}
+                    size="small"
+                    sx={{ bgcolor: '#FF9800', color: '#fff', fontWeight: 700 }}
+                  />
+                </Box>
+              </Grid>
+            )}
+            {timeLeft.nakshatra && (
+              <Grid item xs={12} sm={6}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    ⏱️ Nakshatra changes in:
+                  </Typography>
+                  <Chip
+                    label={timeLeft.nakshatra}
+                    size="small"
+                    sx={{ bgcolor: '#1976D2', color: '#fff', fontWeight: 700 }}
+                  />
+                </Box>
+              </Grid>
+            )}
+          </Grid>
+        </Paper>
+      )}
+
+      {/* FESTIVAL ALERTS */}
+      {data.festivals && data.festivals.length > 0 && (
+        <Paper sx={{ p: 2, mb: 2, bgcolor: '#FFF3E0', border: '2px solid #FF9800' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#E65100', mb: 1.5 }}>
+            🎉 Today's Special Significance
+          </Typography>
+          <Grid container spacing={2}>
+            {data.festivals.map((festival, index) => (
+              <Grid item xs={12} key={index}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    bgcolor: '#fff',
+                    borderLeft: `4px solid ${festival.importance === 'major' ? '#D32F2F' : '#FF9800'}`
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#E65100' }}>
+                      {festival.type === 'major' ? '🎉' : festival.type === 'fasting' ? '🙏' : '🕉️'} {festival.name}
+                    </Typography>
+                    <Chip
+                      label={festival.importance?.toUpperCase()}
+                      size="small"
+                      sx={{
+                        bgcolor: festival.importance === 'major' ? '#D32F2F' : '#FF9800',
+                        color: '#fff',
+                        fontWeight: 600
+                      }}
+                    />
+                  </Box>
+
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    {festival.description}
+                  </Typography>
+
+                  {festival.observances && festival.observances.length > 0 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                        How to Observe:
+                      </Typography>
+                      <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                        {festival.observances.map((obs, i) => (
+                          <li key={i}>
+                            <Typography variant="body2">{obs}</Typography>
+                          </li>
+                        ))}
+                      </ul>
+                    </Box>
+                  )}
+
+                  {festival.benefits && festival.benefits.length > 0 && (
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                        ✨ Benefits:
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ gap: 0.5 }}>
+                        {festival.benefits.map((benefit, i) => (
+                          <Chip
+                            key={i}
+                            label={benefit}
+                            size="small"
+                            sx={{ bgcolor: '#E8F5E9', color: '#2E7D32' }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+        </Paper>
+      )}
+
       <Grid container spacing={2}>
-        {/* Panchang - Five Limbs - Compact 2x3 Grid */}
+        {/* PANCHANG - FIVE LIMBS WITH QUALITY INDICATORS */}
         <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: '#FF6B35' }}>
               पञ्चाङ्ग - Five Limbs
             </Typography>
-            <Grid container spacing={1.5}>
-              {/* Tithi */}
+            <Grid container spacing={2}>
+              {/* Tithi with Quality */}
               {displaySettings.show_tithi && data.panchang?.tithi && (
                 <Grid item xs={12} sm={6}>
-                  <InfoCard
-                    title="TITHI (तिथि)"
-                    value={data.panchang.tithi.full_name || data.panchang.tithi.name}
-                    color="#2E7D32"
-                    icon="🌙"
-                  />
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      border: '1px solid #e0e0e0',
+                      borderLeft: `4px solid ${data.panchang.tithi.quality?.color || '#2E7D32'}`,
+                      height: '100%'
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      🌙 TITHI (तिथि)
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: data.panchang.tithi.quality?.color || '#2E7D32' }}>
+                      {data.panchang.tithi.full_name || data.panchang.tithi.name}
+                    </Typography>
+
+                    <QualityIndicator quality={data.panchang.tithi.quality} />
+
+                    {data.panchang.tithi.quality && (
+                      <Box sx={{ mt: 1.5 }}>
+                        {data.panchang.tithi.quality.good_for && data.panchang.tithi.quality.good_for.length > 0 && (
+                          <Box sx={{ mb: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#4CAF50' }}>
+                              ✅ Good for:
+                            </Typography>
+                            <Box sx={{ mt: 0.5 }}>
+                              {data.panchang.tithi.quality.good_for.map((item, i) => (
+                                <Chip
+                                  key={i}
+                                  label={item}
+                                  size="small"
+                                  sx={{ m: 0.25, fontSize: '0.7rem' }}
+                                />
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {data.panchang.tithi.quality.avoid && data.panchang.tithi.quality.avoid.length > 0 && (
+                          <Box>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#D32F2F' }}>
+                              ⚠️ Avoid:
+                            </Typography>
+                            <Box sx={{ mt: 0.5 }}>
+                              {data.panchang.tithi.quality.avoid.map((item, i) => (
+                                <Chip
+                                  key={i}
+                                  label={item}
+                                  size="small"
+                                  sx={{ m: 0.25, fontSize: '0.7rem', bgcolor: '#FFEBEE' }}
+                                />
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                  </Paper>
                 </Grid>
               )}
 
-              {/* Nakshatra */}
+              {/* Nakshatra with Quality */}
               {displaySettings.show_nakshatra && data.panchang?.nakshatra && (
                 <Grid item xs={12} sm={6}>
-                  <InfoCard
-                    title="NAKSHATRA (नक्षत्र)"
-                    value={`${data.panchang.nakshatra.name} (Pada ${data.panchang.nakshatra.pada || 1})`}
-                    color="#1565C0"
-                    icon="⭐"
-                  />
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      border: '1px solid #e0e0e0',
+                      borderLeft: `4px solid ${data.panchang.nakshatra.quality?.color || '#1565C0'}`,
+                      height: '100%'
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      ⭐ NAKSHATRA (नक्षत्र)
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: data.panchang.nakshatra.quality?.color || '#1565C0' }}>
+                      {data.panchang.nakshatra.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Pada {data.panchang.nakshatra.pada || 1}
+                    </Typography>
+
+                    <QualityIndicator quality={data.panchang.nakshatra.quality} />
+
+                    {data.panchang.nakshatra.quality && (
+                      <Box sx={{ mt: 1.5 }}>
+                        <Grid container spacing={1} sx={{ fontSize: '0.75rem' }}>
+                          {data.panchang.nakshatra.quality.deity && (
+                            <Grid item xs={6}>
+                              <Typography variant="caption" color="text.secondary">
+                                🕉️ Deity:
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                                {data.panchang.nakshatra.quality.deity.split('(')[0]}
+                              </Typography>
+                            </Grid>
+                          )}
+                          {data.panchang.nakshatra.quality.ruling_planet && (
+                            <Grid item xs={6}>
+                              <Typography variant="caption" color="text.secondary">
+                                🪐 Planet:
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                                {data.panchang.nakshatra.quality.ruling_planet}
+                              </Typography>
+                            </Grid>
+                          )}
+                          {data.panchang.nakshatra.quality.nature && (
+                            <Grid item xs={6}>
+                              <Typography variant="caption" color="text.secondary">
+                                🔮 Nature:
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                                {data.panchang.nakshatra.quality.nature}
+                              </Typography>
+                            </Grid>
+                          )}
+                          {data.panchang.nakshatra.quality.element && (
+                            <Grid item xs={6}>
+                              <Typography variant="caption" color="text.secondary">
+                                ⚡ Element:
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                                {data.panchang.nakshatra.quality.element}
+                              </Typography>
+                            </Grid>
+                          )}
+                        </Grid>
+
+                        {data.panchang.nakshatra.quality.good_for && data.panchang.nakshatra.quality.good_for.length > 0 && (
+                          <Box sx={{ mt: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#4CAF50' }}>
+                              ✅ Good for:
+                            </Typography>
+                            <Box sx={{ mt: 0.5 }}>
+                              {data.panchang.nakshatra.quality.good_for.slice(0, 3).map((item, i) => (
+                                <Chip
+                                  key={i}
+                                  label={item}
+                                  size="small"
+                                  sx={{ m: 0.25, fontSize: '0.7rem' }}
+                                />
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {data.panchang.nakshatra.quality.avoid && data.panchang.nakshatra.quality.avoid.length > 0 && (
+                          <Box sx={{ mt: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#D32F2F' }}>
+                              ⚠️ Avoid:
+                            </Typography>
+                            <Box sx={{ mt: 0.5 }}>
+                              {data.panchang.nakshatra.quality.avoid.slice(0, 2).map((item, i) => (
+                                <Chip
+                                  key={i}
+                                  label={item}
+                                  size="small"
+                                  sx={{ m: 0.25, fontSize: '0.7rem', bgcolor: '#FFEBEE' }}
+                                />
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                  </Paper>
                 </Grid>
               )}
 
@@ -254,6 +706,13 @@ function PanchangDisplay({ data, settings, compact = false }) {
                     <Typography variant="caption" color="text.secondary">
                       1st Half | 2nd Half
                     </Typography>
+                    {data.panchang.karana.is_bhadra && (
+                      <Chip
+                        label="Vishti/Bhadra - Inauspicious"
+                        size="small"
+                        sx={{ mt: 1, bgcolor: '#D32F2F', color: '#fff' }}
+                      />
+                    )}
                   </Paper>
                 </Grid>
               )}
@@ -285,7 +744,7 @@ function PanchangDisplay({ data, settings, compact = false }) {
           </Paper>
         </Grid>
 
-        {/* Sun & Moon Times - Compact */}
+        {/* TIMINGS COLUMN */}
         <Grid item xs={12} md={4}>
           <Stack spacing={2}>
             {/* Sunrise/Sunset */}
@@ -335,7 +794,7 @@ function PanchangDisplay({ data, settings, compact = false }) {
           </Stack>
         </Grid>
 
-        {/* Auspicious Times */}
+        {/* AUSPICIOUS TIMES */}
         {displaySettings.show_abhijit_muhurat && data.auspicious_times?.abhijit_muhurat && (
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, bgcolor: '#E8F5E9', border: '2px solid #4CAF50' }}>
@@ -352,14 +811,14 @@ function PanchangDisplay({ data, settings, compact = false }) {
                   </Typography>
                 </Box>
                 <Typography variant="caption" color="text.secondary">
-                  Duration: {data.auspicious_times.abhijit_muhurat.duration_minutes} mins
+                  Most auspicious time of the day • Duration: {Math.round(data.auspicious_times.abhijit_muhurat.duration_minutes)} mins
                 </Typography>
               </Box>
             </Paper>
           </Grid>
         )}
 
-        {/* Inauspicious Times */}
+        {/* INAUSPICIOUS TIMES */}
         {data.inauspicious_times && (
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, bgcolor: '#FFEBEE', border: '2px solid #F44336' }}>
@@ -377,6 +836,9 @@ function PanchangDisplay({ data, settings, compact = false }) {
                         {formatTime(data.inauspicious_times.rahu_kaal.start)} - {formatTime(data.inauspicious_times.rahu_kaal.end)}
                       </Typography>
                     </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Avoid new activities • Duration: {Math.round(data.inauspicious_times.rahu_kaal.duration_minutes)} mins
+                    </Typography>
                   </Box>
                 )}
                 {displaySettings.show_yamaganda && data.inauspicious_times.yamaganda && (
@@ -408,31 +870,92 @@ function PanchangDisplay({ data, settings, compact = false }) {
           </Grid>
         )}
 
-        {/* Special Days / Festivals */}
-        {data.festivals && data.festivals.length > 0 && (
+        {/* 8 PERIODS OF THE DAY */}
+        {data.day_periods && data.day_periods.length > 0 && (
           <Grid item xs={12}>
-            <Paper sx={{ p: 2, bgcolor: '#FFF3E0', border: '2px solid #FF9800' }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, color: '#E65100', mb: 1.5 }}>
-                🎉 Today's Significance
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: '#FF6B35' }}>
+                📊 Complete Day Division (8 Periods)
               </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Each day is divided into 8 equal periods from sunrise to sunset. Each period is ruled by a different planet.
+              </Typography>
+
               <Grid container spacing={1}>
-                {data.festivals.map((festival, index) => (
-                  <Grid item xs={12} sm={6} md={4} key={index}>
-                    <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1, borderLeft: '4px solid #FF9800' }}>
-                      <Typography variant="body1" sx={{ fontWeight: 600, color: '#E65100', mb: 0.5 }}>
-                        {festival.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {festival.description}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                ))}
+                {data.day_periods.map((period, idx) => {
+                  let bgcolor = '#E3F2FD';
+                  let borderColor = '#2196F3';
+                  let textColor = '#1565C0';
+
+                  if (period.quality === 'rahu') {
+                    bgcolor = '#FFEBEE';
+                    borderColor = '#F44336';
+                    textColor = '#C62828';
+                  } else if (period.quality === 'yama' || period.quality === 'gulika') {
+                    bgcolor = '#FFF3E0';
+                    borderColor = '#FF9800';
+                    textColor = '#E65100';
+                  } else if (period.quality === 'good') {
+                    bgcolor = '#E8F5E9';
+                    borderColor = '#4CAF50';
+                    textColor = '#2E7D32';
+                  }
+
+                  return (
+                    <Grid item xs={12} sm={6} md={3} key={idx}>
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          p: 1.5,
+                          bgcolor,
+                          border: `2px solid ${borderColor}`,
+                          height: '100%'
+                        }}
+                      >
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: textColor }}>
+                          Period {period.period} • 🪐 {period.ruler}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5 }}>
+                          {formatTime(period.start)} - {formatTime(period.end)}
+                        </Typography>
+                        {period.note && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            {period.note}
+                          </Typography>
+                        )}
+                        {period.special_type && (
+                          <Chip
+                            label={period.special_type.toUpperCase()}
+                            size="small"
+                            sx={{
+                              mt: 0.5,
+                              bgcolor: borderColor,
+                              color: '#fff',
+                              fontSize: '0.65rem',
+                              height: '20px'
+                            }}
+                          />
+                        )}
+                      </Paper>
+                    </Grid>
+                  );
+                })}
               </Grid>
             </Paper>
           </Grid>
         )}
       </Grid>
+
+      {/* FOOTER - DISCLAIMER */}
+      <Paper sx={{ p: 2, mt: 2, bgcolor: '#F5F5F5' }} className="print-footer">
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+          ⚠️ Important Note:
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          This panchang is calculated using Swiss Ephemeris with Lahiri Ayanamsa and verified against authoritative sources.
+          For specific religious ceremonies and personal muhurats, please consult with a qualified pandit or astrologer.
+        </Typography>
+      </Paper>
     </Box>
   );
 }

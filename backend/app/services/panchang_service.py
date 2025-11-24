@@ -512,6 +512,504 @@ class PanchangService:
             "duration_minutes": int(segment)
         }
 
+    def get_nakshatra_quality(self, nakshatra_name: str) -> Dict:
+        """Get quality assessment and properties for a nakshatra"""
+        nakshatra_qualities = {
+            "Ashwini": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Ashwini Kumaras (Divine Physicians)",
+                "nature": "Light (Laghu) - Swift",
+                "ruling_planet": "Ketu",
+                "element": "Earth",
+                "good_for": [
+                    "Starting new ventures",
+                    "Medical treatments",
+                    "Travel and journeys",
+                    "Buying vehicles"
+                ],
+                "avoid": []
+            },
+            "Bharani": {
+                "stars": 3,
+                "label": "Moderate",
+                "color": "#FF9800",
+                "deity": "Yama (God of Death)",
+                "nature": "Fierce (Ugra)",
+                "ruling_planet": "Venus",
+                "element": "Earth",
+                "good_for": [
+                    "Endings and transformations",
+                    "Occult practices",
+                    "Agriculture"
+                ],
+                "avoid": [
+                    "Marriage",
+                    "Starting new ventures",
+                    "Celebrations"
+                ]
+            },
+            "Krittika": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Agni (Fire God)",
+                "nature": "Sharp (Tikshna)",
+                "ruling_planet": "Sun",
+                "element": "Fire",
+                "good_for": [
+                    "Spiritual practices",
+                    "Cutting ties",
+                    "Starting education",
+                    "Creative work"
+                ],
+                "avoid": []
+            },
+            "Rohini": {
+                "stars": 5,
+                "label": "Extremely Auspicious",
+                "color": "#00C853",
+                "deity": "Brahma (Creator)",
+                "nature": "Fixed (Dhruva)",
+                "ruling_planet": "Moon",
+                "element": "Earth",
+                "good_for": [
+                    "Marriage ceremonies",
+                    "Business ventures",
+                    "Property purchase",
+                    "Starting education",
+                    "All auspicious activities"
+                ],
+                "avoid": []
+            },
+            "Mrigashira": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Chandra (Moon God)",
+                "nature": "Soft (Mridu)",
+                "ruling_planet": "Mars",
+                "element": "Earth",
+                "good_for": [
+                    "Marriage",
+                    "Travel",
+                    "Artistic work",
+                    "Buying clothes/jewelry"
+                ],
+                "avoid": []
+            },
+            "Ardra": {
+                "stars": 2,
+                "label": "Inauspicious",
+                "color": "#D32F2F",
+                "deity": "Rudra (Destroyer)",
+                "nature": "Sharp (Tikshna)",
+                "ruling_planet": "Rahu",
+                "element": "Water",
+                "good_for": [
+                    "Destruction of enemies",
+                    "Occult practices",
+                    "Research work"
+                ],
+                "avoid": [
+                    "Marriage ceremonies",
+                    "Starting business",
+                    "House warming",
+                    "Important celebrations"
+                ]
+            },
+            "Punarvasu": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Aditi (Mother of Gods)",
+                "nature": "Movable (Chara)",
+                "ruling_planet": "Jupiter",
+                "element": "Water",
+                "good_for": [
+                    "Marriage",
+                    "Starting business",
+                    "Travel",
+                    "Religious ceremonies"
+                ],
+                "avoid": []
+            },
+            "Pushya": {
+                "stars": 5,
+                "label": "Extremely Auspicious",
+                "color": "#00C853",
+                "deity": "Brihaspati (Jupiter)",
+                "nature": "Light (Laghu)",
+                "ruling_planet": "Saturn",
+                "element": "Water",
+                "good_for": [
+                    "All auspicious activities",
+                    "Marriage",
+                    "Business ventures",
+                    "Education",
+                    "Property purchase"
+                ],
+                "avoid": []
+            },
+            "Ashlesha": {
+                "stars": 2,
+                "label": "Inauspicious",
+                "color": "#D32F2F",
+                "deity": "Serpent (Naga)",
+                "nature": "Sharp (Tikshna)",
+                "ruling_planet": "Mercury",
+                "element": "Water",
+                "good_for": [
+                    "Occult practices",
+                    "Snake worship",
+                    "Dealing with enemies"
+                ],
+                "avoid": [
+                    "Marriage",
+                    "Starting new ventures",
+                    "Important celebrations"
+                ]
+            },
+            "Magha": {
+                "stars": 3,
+                "label": "Moderate",
+                "color": "#FF9800",
+                "deity": "Pitris (Ancestors)",
+                "nature": "Fierce (Ugra)",
+                "ruling_planet": "Ketu",
+                "element": "Water",
+                "good_for": [
+                    "Ancestor worship",
+                    "Religious ceremonies",
+                    "Authority matters"
+                ],
+                "avoid": [
+                    "Marriage of certain combinations"
+                ]
+            },
+            "Purva Phalguni": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Bhaga (God of Fortune)",
+                "nature": "Fierce (Ugra)",
+                "ruling_planet": "Venus",
+                "element": "Water",
+                "good_for": [
+                    "Marriage",
+                    "Arts and entertainment",
+                    "Celebrations",
+                    "Social gatherings"
+                ],
+                "avoid": []
+            },
+            "Uttara Phalguni": {
+                "stars": 5,
+                "label": "Extremely Auspicious",
+                "color": "#00C853",
+                "deity": "Aryaman (God of Contracts)",
+                "nature": "Fixed (Dhruva)",
+                "ruling_planet": "Sun",
+                "element": "Fire",
+                "good_for": [
+                    "Marriage",
+                    "Business partnerships",
+                    "Contracts and agreements",
+                    "All auspicious activities"
+                ],
+                "avoid": []
+            },
+            "Hasta": {
+                "stars": 5,
+                "label": "Extremely Auspicious",
+                "color": "#00C853",
+                "deity": "Savitar (Sun God)",
+                "nature": "Light (Laghu)",
+                "ruling_planet": "Moon",
+                "element": "Fire",
+                "good_for": [
+                    "Marriage",
+                    "Business transactions",
+                    "Buying vehicles",
+                    "Crafts and arts",
+                    "All auspicious activities"
+                ],
+                "avoid": []
+            },
+            "Chitra": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Vishwakarma (Divine Architect)",
+                "nature": "Soft (Mridu)",
+                "ruling_planet": "Mars",
+                "element": "Fire",
+                "good_for": [
+                    "Construction",
+                    "Arts and creativity",
+                    "Wearing new clothes",
+                    "Jewelry making"
+                ],
+                "avoid": []
+            },
+            "Swati": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Vayu (Wind God)",
+                "nature": "Movable (Chara)",
+                "ruling_planet": "Rahu",
+                "element": "Fire",
+                "good_for": [
+                    "Trade and commerce",
+                    "Travel",
+                    "Education",
+                    "Business ventures"
+                ],
+                "avoid": []
+            },
+            "Vishakha": {
+                "stars": 3,
+                "label": "Moderate",
+                "color": "#FF9800",
+                "deity": "Indra-Agni (King of Gods & Fire)",
+                "nature": "Sharp (Tikshna)",
+                "ruling_planet": "Jupiter",
+                "element": "Fire",
+                "good_for": [
+                    "Achieving goals",
+                    "Competition",
+                    "Starting ventures"
+                ],
+                "avoid": [
+                    "Marriage (requires careful consideration)"
+                ]
+            },
+            "Anuradha": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Mitra (God of Friendship)",
+                "nature": "Soft (Mridu)",
+                "ruling_planet": "Saturn",
+                "element": "Fire",
+                "good_for": [
+                    "Marriage",
+                    "Friendships",
+                    "Travel",
+                    "Religious ceremonies"
+                ],
+                "avoid": []
+            },
+            "Jyeshtha": {
+                "stars": 2,
+                "label": "Inauspicious",
+                "color": "#D32F2F",
+                "deity": "Indra (King of Gods)",
+                "nature": "Sharp (Tikshna)",
+                "ruling_planet": "Mercury",
+                "element": "Air",
+                "good_for": [
+                    "Authority matters",
+                    "Protection rituals"
+                ],
+                "avoid": [
+                    "Marriage",
+                    "Starting new ventures",
+                    "Celebrations"
+                ]
+            },
+            "Moola": {
+                "stars": 2,
+                "label": "Inauspicious",
+                "color": "#D32F2F",
+                "deity": "Nirriti (Goddess of Destruction)",
+                "nature": "Sharp (Tikshna)",
+                "ruling_planet": "Ketu",
+                "element": "Air",
+                "good_for": [
+                    "Endings and conclusions",
+                    "Research",
+                    "Occult practices"
+                ],
+                "avoid": [
+                    "Marriage",
+                    "Starting new ventures",
+                    "Important celebrations"
+                ]
+            },
+            "Purva Ashadha": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Apas (Water Goddess)",
+                "nature": "Fierce (Ugra)",
+                "ruling_planet": "Venus",
+                "element": "Air",
+                "good_for": [
+                    "Purification rituals",
+                    "Water-related activities",
+                    "Spiritual practices"
+                ],
+                "avoid": []
+            },
+            "Uttara Ashadha": {
+                "stars": 5,
+                "label": "Extremely Auspicious",
+                "color": "#00C853",
+                "deity": "Vishwadevas (Universal Gods)",
+                "nature": "Fixed (Dhruva)",
+                "ruling_planet": "Sun",
+                "element": "Air",
+                "good_for": [
+                    "Marriage",
+                    "Starting ventures",
+                    "All auspicious activities",
+                    "Leadership roles"
+                ],
+                "avoid": []
+            },
+            "Shravana": {
+                "stars": 4,
+                "label": "Auspicious",
+                "color": "#4CAF50",
+                "deity": "Vishnu (Preserver)",
+                "nature": "Movable (Chara)",
+                "ruling_planet": "Moon",
+                "element": "Air",
+                "good_for": [
+                    "Education",
+                    "Learning",
+                    "Travel",
+                    "Religious ceremonies"
+                ],
+                "avoid": []
+            },
+            "Dhanishta": {
+                "stars": 3,
+                "label": "Moderate",
+                "color": "#FF9800",
+                "deity": "Vasus (Gods of Wealth)",
+                "nature": "Movable (Chara)",
+                "ruling_planet": "Mars",
+                "element": "Ether",
+                "good_for": [
+                    "Music and arts",
+                    "Wealth accumulation",
+                    "Group activities"
+                ],
+                "avoid": []
+            },
+            "Shatabhisha": {
+                "stars": 3,
+                "label": "Moderate",
+                "color": "#FF9800",
+                "deity": "Varuna (God of Waters)",
+                "nature": "Movable (Chara)",
+                "ruling_planet": "Rahu",
+                "element": "Ether",
+                "good_for": [
+                    "Healing",
+                    "Medical treatment",
+                    "Research",
+                    "Mystical practices"
+                ],
+                "avoid": []
+            },
+            "Purva Bhadrapada": {
+                "stars": 3,
+                "label": "Moderate",
+                "color": "#FF9800",
+                "deity": "Aja Ekapada (One-footed Goat)",
+                "nature": "Fierce (Ugra)",
+                "ruling_planet": "Jupiter",
+                "element": "Ether",
+                "good_for": [
+                    "Spiritual practices",
+                    "Occult studies",
+                    "Transformation"
+                ],
+                "avoid": [
+                    "Marriage (first half)"
+                ]
+            },
+            "Uttara Bhadrapada": {
+                "stars": 5,
+                "label": "Extremely Auspicious",
+                "color": "#00C853",
+                "deity": "Ahir Budhnya (Serpent of Depths)",
+                "nature": "Fixed (Dhruva)",
+                "ruling_planet": "Saturn",
+                "element": "Ether",
+                "good_for": [
+                    "Marriage",
+                    "Spiritual practices",
+                    "All auspicious activities",
+                    "Meditation and yoga"
+                ],
+                "avoid": []
+            },
+            "Revati": {
+                "stars": 5,
+                "label": "Extremely Auspicious",
+                "color": "#00C853",
+                "deity": "Pushan (Nourisher)",
+                "nature": "Soft (Mridu)",
+                "ruling_planet": "Mercury",
+                "element": "Ether",
+                "good_for": [
+                    "Marriage",
+                    "Travel",
+                    "Beginning journeys",
+                    "All auspicious activities",
+                    "Starting education"
+                ],
+                "avoid": []
+            }
+        }
+
+        return nakshatra_qualities.get(nakshatra_name, {
+            "stars": 3,
+            "label": "Moderate",
+            "color": "#FF9800",
+            "deity": "Unknown",
+            "nature": "Variable",
+            "ruling_planet": "Unknown",
+            "element": "Unknown",
+            "good_for": [],
+            "avoid": []
+        })
+
+    def get_tithi_quality(self, tithi_name: str) -> Dict:
+        """Get quality assessment for a tithi"""
+        tithi_qualities = {
+            "Pratipada": {"stars": 3, "label": "Moderate", "color": "#FF9800", "good_for": ["Starting new ventures", "Beginning education"], "avoid": ["Marriage"]},
+            "Dwitiya": {"stars": 4, "label": "Auspicious", "color": "#4CAF50", "good_for": ["Marriage", "Religious ceremonies", "All good works"], "avoid": []},
+            "Tritiya": {"stars": 5, "label": "Extremely Auspicious", "color": "#00C853", "good_for": ["Marriage", "Business", "Education", "Travel"], "avoid": []},
+            "Chaturthi": {"stars": 3, "label": "Moderate", "color": "#FF9800", "good_for": ["Worship of Ganesha", "Removing obstacles"], "avoid": ["Long journeys"]},
+            "Panchami": {"stars": 5, "label": "Extremely Auspicious", "color": "#00C853", "good_for": ["Marriage", "Education", "Religious ceremonies", "All auspicious activities"], "avoid": []},
+            "Shashthi": {"stars": 3, "label": "Moderate", "color": "#FF9800", "good_for": ["War activities", "Competition"], "avoid": ["Marriage", "Peace activities"]},
+            "Saptami": {"stars": 4, "label": "Auspicious", "color": "#4CAF50", "good_for": ["Marriage", "Travel", "Business transactions"], "avoid": []},
+            "Ashtami": {"stars": 2, "label": "Inauspicious", "color": "#D32F2F", "good_for": ["Worship of fierce deities", "Protection rituals"], "avoid": ["Marriage", "Starting new ventures", "Celebrations"]},
+            "Navami": {"stars": 3, "label": "Moderate", "color": "#FF9800", "good_for": ["Worship of Durga", "Strength building"], "avoid": ["Marriage in some traditions"]},
+            "Dashami": {"stars": 4, "label": "Auspicious", "color": "#4CAF50", "good_for": ["Marriage", "Business", "Religious ceremonies"], "avoid": []},
+            "Ekadashi": {"stars": 5, "label": "Highly Spiritual", "color": "#00C853", "good_for": ["Fasting", "Spiritual practices", "Worship of Vishnu"], "avoid": ["Material activities", "Consumption of grains"]},
+            "Dwadashi": {"stars": 4, "label": "Auspicious", "color": "#4CAF50", "good_for": ["Breaking Ekadashi fast", "Religious ceremonies"], "avoid": []},
+            "Trayodashi": {"stars": 3, "label": "Moderate", "color": "#FF9800", "good_for": ["Worship of Shiva (Pradosha)", "Spiritual practices"], "avoid": []},
+            "Chaturdashi": {"stars": 2, "label": "Inauspicious", "color": "#D32F2F", "good_for": ["Worship of fierce deities", "Tantra practices"], "avoid": ["Marriage", "Important celebrations"]},
+            "Purnima": {"stars": 5, "label": "Extremely Auspicious", "color": "#00C853", "good_for": ["All spiritual activities", "Meditation", "Religious ceremonies", "Charity"], "avoid": []},
+            "Amavasya": {"stars": 2, "label": "New Moon", "color": "#D32F2F", "good_for": ["Ancestor worship", "Ending old things"], "avoid": ["Marriage", "Starting new ventures", "Celebrations"]}
+        }
+
+        return tithi_qualities.get(tithi_name, {
+            "stars": 3,
+            "label": "Moderate",
+            "color": "#FF9800",
+            "good_for": [],
+            "avoid": []
+        })
+
     def get_abhijit_muhurat(self, sunrise: str, sunset: str) -> Dict:
         """Calculate Abhijit Muhurat (most auspicious time)"""
         def time_to_minutes(time_str):
@@ -551,43 +1049,201 @@ class PanchangService:
         if tithi_name == "Ekadashi":
             special_days.append({
                 "name": "Ekadashi",
+                "type": "fasting",
+                "importance": "major",
                 "description": "Fasting day dedicated to Lord Vishnu",
-                "observance": "Fast from grains and beans"
+                "observance": "Fast from grains and beans",
+                "observances": [
+                    "Avoid all grains (rice, wheat, etc.)",
+                    "Avoid beans and lentils",
+                    "Avoid onion and garlic",
+                    "Fruits and milk products are allowed",
+                    "Sabudana, potato, sweet potato allowed"
+                ],
+                "benefits": [
+                    "Spiritual purification",
+                    "Removes sins",
+                    "Improves health",
+                    "Increases devotion"
+                ]
             })
 
         # Pradosha (13th tithi)
         if tithi_name == "Trayodashi":
             special_days.append({
                 "name": "Pradosha Vrat",
+                "type": "worship",
+                "importance": "medium",
                 "description": "Auspicious time to worship Lord Shiva during twilight",
-                "observance": "Worship Shiva during sunset time"
+                "observance": "Worship Shiva during sunset time",
+                "observances": [
+                    "Visit Shiva temple during sunset (5-7 PM)",
+                    "Offer Bilva leaves",
+                    "Chant Om Namah Shivaya",
+                    "Perform Pradosha Vrat if possible"
+                ],
+                "benefits": [
+                    "Removes obstacles",
+                    "Fulfills desires",
+                    "Brings peace and prosperity"
+                ]
             })
 
         # Sankashta Chaturthi (4th tithi in Krishna Paksha)
         if tithi_name == "Chaturthi" and tithi_data.get("paksha") == "Krishna":
             special_days.append({
                 "name": "Sankashta Chaturthi",
+                "type": "fasting",
+                "importance": "medium",
                 "description": "Day dedicated to Lord Ganesha",
-                "observance": "Fast and worship Ganesha, break fast after moonrise"
+                "observance": "Fast and worship Ganesha, break fast after moonrise",
+                "observances": [
+                    "Fast throughout the day",
+                    "Worship Ganesha in evening",
+                    "Break fast only after sighting moon",
+                    "Offer modak and durva grass"
+                ],
+                "benefits": [
+                    "Removes obstacles",
+                    "Success in endeavors",
+                    "Mental peace"
+                ]
             })
 
         # Amavasya (New Moon)
         if tithi_name == "Amavasya":
             special_days.append({
                 "name": "Amavasya",
+                "type": "ancestor",
+                "importance": "major",
                 "description": "New Moon day, sacred for ancestor worship",
-                "observance": "Perform Tarpanam for ancestors"
+                "observance": "Perform Tarpanam for ancestors",
+                "observances": [
+                    "Perform Tarpanam (water offering)",
+                    "Offer food to ancestors",
+                    "Donate to poor",
+                    "Light lamp in evening"
+                ],
+                "benefits": [
+                    "Blessings of ancestors",
+                    "Removes ancestral curses",
+                    "Family prosperity"
+                ]
             })
 
         # Purnima (Full Moon)
         if tithi_name == "Purnima":
             special_days.append({
                 "name": "Purnima",
+                "type": "worship",
+                "importance": "major",
                 "description": "Full Moon day, auspicious for all spiritual activities",
-                "observance": "Fasting and meditation"
+                "observance": "Fasting and meditation",
+                "observances": [
+                    "Take bath during moonrise",
+                    "Worship Satyanarayan",
+                    "Meditation and spiritual practices",
+                    "Charity and donations"
+                ],
+                "benefits": [
+                    "Spiritual growth",
+                    "Mental peace",
+                    "Fulfillment of wishes"
+                ]
             })
 
         return special_days
+
+    def get_day_periods(self, sunrise: str, sunset: str, day_of_week: int) -> list:
+        """
+        Calculate 8 periods of the day with their planetary rulers and qualities
+        Each period is 1/8th of the day duration from sunrise to sunset
+        """
+        def time_to_datetime(time_str, base_date):
+            """Convert HH:MM:SS string to datetime object"""
+            parts = time_str.split(':')
+            return base_date.replace(
+                hour=int(parts[0]),
+                minute=int(parts[1]),
+                second=int(parts[2]) if len(parts) > 2 else 0
+            )
+
+        def datetime_to_time_str(dt):
+            """Convert datetime to HH:MM:SS string"""
+            return dt.strftime("%H:%M:%S")
+
+        # Use today's date as base
+        from datetime import datetime, timedelta
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        sunrise_dt = time_to_datetime(sunrise, today)
+        sunset_dt = time_to_datetime(sunset, today)
+
+        # Calculate period duration (1/8th of day)
+        total_duration = (sunset_dt - sunrise_dt).total_seconds()
+        period_duration = total_duration / 8
+
+        # Planetary rulers for each period (fixed order)
+        period_rulers = [
+            {"name": "Sun", "quality": "neutral"},
+            {"name": "Venus", "quality": "neutral"},
+            {"name": "Mercury", "quality": "neutral"},
+            {"name": "Moon", "quality": "neutral"},
+            {"name": "Saturn", "quality": "neutral"},
+            {"name": "Jupiter", "quality": "good"},
+            {"name": "Mars", "quality": "neutral"},
+            {"name": "Rahu", "quality": "neutral"}
+        ]
+
+        # Day-specific inauspicious periods
+        inauspicious_periods = {
+            0: {"rahu": 7, "yama": 4, "gulika": 6},  # Sunday
+            1: {"rahu": 1, "yama": 3, "gulika": 1},  # Monday
+            2: {"rahu": 6, "yama": 2, "gulika": 0},  # Tuesday
+            3: {"rahu": 4, "yama": 1, "gulika": 5},  # Wednesday
+            4: {"rahu": 5, "yama": 0, "gulika": 4},  # Thursday
+            5: {"rahu": 3, "yama": 6, "gulika": 3},  # Friday
+            6: {"rahu": 2, "yama": 5, "gulika": 2}   # Saturday
+        }
+
+        weekday_map = inauspicious_periods.get(day_of_week, {})
+
+        periods = []
+        for i in range(8):
+            period_start = sunrise_dt + timedelta(seconds=period_duration * i)
+            period_end = sunrise_dt + timedelta(seconds=period_duration * (i + 1))
+
+            # Determine quality and note
+            quality = period_rulers[i]["quality"]
+            note = ""
+            special_type = None
+
+            if i == weekday_map.get("rahu"):
+                quality = "rahu"
+                note = "Rahu Kaal - Avoid new activities"
+                special_type = "rahu"
+            elif i == weekday_map.get("yama"):
+                quality = "yama"
+                note = "Yamaganda - Inauspicious period"
+                special_type = "yamaganda"
+            elif i == weekday_map.get("gulika"):
+                quality = "gulika"
+                note = "Gulika Kala - Inauspicious period"
+                special_type = "gulika"
+            elif quality == "good":
+                note = "Generally favorable time"
+
+            periods.append({
+                "period": i + 1,
+                "start": datetime_to_time_str(period_start),
+                "end": datetime_to_time_str(period_end),
+                "ruler": period_rulers[i]["name"],
+                "quality": quality,
+                "note": note,
+                "special_type": special_type
+            })
+
+        return periods
 
     def calculate_panchang(self, dt: datetime, lat: float = 12.9716, lon: float = 77.5946, city: str = "Bengaluru") -> Dict:
         """
@@ -627,6 +1283,17 @@ class PanchangService:
         # Detect special days
         special_days = self.detect_special_days(tithi_data, vara_data, nakshatra_data)
 
+        # Calculate day periods
+        day_periods = self.get_day_periods(sun_moon_data["sunrise"], sun_moon_data["sunset"], day_of_week)
+
+        # Add quality information to nakshatra
+        nakshatra_quality = self.get_nakshatra_quality(nakshatra_data["name"])
+        nakshatra_data["quality"] = nakshatra_quality
+
+        # Add quality information to tithi
+        tithi_quality = self.get_tithi_quality(tithi_data["name"])
+        tithi_data["quality"] = tithi_quality
+
         return {
             "date": {
                 "gregorian": {
@@ -660,6 +1327,7 @@ class PanchangService:
             "auspicious_times": {
                 "abhijit_muhurat": abhijit_muhurat
             },
+            "day_periods": day_periods,
             "festivals": special_days,
             "location": {
                 "city": city,
