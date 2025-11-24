@@ -45,13 +45,37 @@ function Panchang() {
       if (panchangRes.status === 'fulfilled' && panchangRes.value.data) {
         setPanchangData(panchangRes.value.data);
       } else if (panchangRes.status === 'rejected') {
-        const errorMsg = panchangRes.reason?.response?.data?.detail || panchangRes.reason?.message || 'Unknown error';
-        console.error('Panchang API error:', panchangRes.reason);
-        setError(`Failed to load panchang data: ${errorMsg}. The panchang calculation service may not be fully implemented yet.`);
+        const error = panchangRes.reason;
+        let errorMsg = 'Unknown error';
+        
+        if (error?.response?.data?.detail) {
+          errorMsg = error.response.data.detail;
+        } else if (error?.response?.data?.message) {
+          errorMsg = error.response.data.message;
+        } else if (error?.message) {
+          errorMsg = error.message;
+        } else if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Network Error')) {
+          errorMsg = 'Cannot connect to backend server. Please ensure the backend is running on http://localhost:8000';
+        }
+        
+        console.error('Panchang API error:', error);
+        setError(`Failed to load panchang data: ${errorMsg}`);
       }
     } catch (err) {
       console.error('Error fetching panchang data:', err);
-      setError(`Failed to load panchang data: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
+      let errorMsg = 'Unknown error';
+      
+      if (err?.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
+      } else if (err?.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      } else if (err?.message) {
+        errorMsg = err.message;
+      } else if (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')) {
+        errorMsg = 'Cannot connect to backend server. Please ensure the backend is running on http://localhost:8000';
+      }
+      
+      setError(`Failed to load panchang data: ${errorMsg}`);
     } finally {
       setLoading(false);
     }

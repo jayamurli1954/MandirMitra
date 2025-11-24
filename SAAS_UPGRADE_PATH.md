@@ -340,3 +340,4 @@ def verify_tenant_access(user_temple_id, requested_temple_id):
 
 The foundation is solid - you're in a great position to scale! 🚀
 
+

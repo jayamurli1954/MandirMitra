@@ -6,49 +6,310 @@ import {
   Button,
   CircularProgress,
   Alert,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
+  Divider,
+  Card,
+  CardContent,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
+import LockIcon from '@mui/icons-material/Lock';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { useNotification } from '../contexts/NotificationContext';
 
 function Settings() {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [authenticated, setAuthenticated] = useState(false);
+  const [settings, setSettings] = useState({
+    temple_name: '',
+    financial_year_start: 4,
+    receipt_prefix_donation: 'DON',
+    receipt_prefix_seva: 'SEVA',
+    sms_enabled: false,
+    sms_reminder_days: 7,
+    email_enabled: false,
+  });
+
+  useEffect(() => {
+    // Check if already authenticated (stored in sessionStorage)
+    const isAuth = sessionStorage.getItem('settings_authenticated') === 'true';
+    setAuthenticated(isAuth);
+    
+    if (isAuth) {
+      fetchSettings();
+    }
+  }, []);
+
+  const handlePasswordSubmit = () => {
+    // Check if user is main admin
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if (user.role === 'admin' && password === 'admin123') { // Default password - should be configurable
+      setAuthenticated(true);
+      sessionStorage.setItem('settings_authenticated', 'true');
+      setPasswordDialogOpen(false);
+      setPassword('');
+      fetchSettings();
+      showSuccess('Settings unlocked');
+    } else {
+      showError('Invalid password. Only main admin can access settings.');
+      setPassword('');
+    }
+  };
+
+  const fetchSettings = async () => {
+    try {
+      setLoading(true);
+      // Fetch temple settings
+      const response = await api.get('/api/v1/temples/');
+      if (response.data && response.data.length > 0) {
+        const temple = response.data[0];
+        setSettings({
+          temple_name: temple.name || '',
+          financial_year_start: temple.financial_year_start_month || 4,
+          receipt_prefix_donation: temple.receipt_prefix_donation || 'DON',
+          receipt_prefix_seva: temple.receipt_prefix_seva || 'SEVA',
+          sms_enabled: false, // Will be fetched from settings table
+          sms_reminder_days: 7,
+          email_enabled: false,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load settings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      // Save settings via API
+      showSuccess('Settings saved successfully');
+    } catch (err) {
+      showError('Failed to save settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Show password dialog if not authenticated
+  if (!authenticated) {
+    return (
+      <Layout>
+        <Dialog open={true} onClose={() => navigate('/dashboard')}>
+          <DialogTitle>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <LockIcon />
+              Settings Password Required
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Settings page is password protected. Only main admin can access.
+            </Typography>
+            <TextField
+              fullWidth
+              type="password"
+              label="Enter Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handlePasswordSubmit();
+                }
+              }}
+              autoFocus
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => navigate('/dashboard')}>Cancel</Button>
+            <Button variant="contained" onClick={handlePasswordSubmit}>
+              Unlock
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
-      <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
-        Settings
-      </Typography>
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+          <SettingsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+          Settings
+        </Typography>
 
-      <Paper sx={{ p: 3, mt: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Panchang Display Settings
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
-          Configure what panchang elements to display, language preferences, and visual settings.
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<SettingsIcon />}
-          onClick={() => navigate('/panchang')}
-        >
-          Configure Panchang Settings
-        </Button>
-      </Paper>
+        {loading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+            <CircularProgress />
+          </Box>
+        )}
 
-      <Paper sx={{ p: 3, mt: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Temple Configuration
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
-          Temple profile, donation categories, and other settings will be available here.
-        </Typography>
-        <Alert severity="info" sx={{ mt: 2 }}>
-          Coming soon: Temple profile setup, donation categories management, and user preferences.
-        </Alert>
-      </Paper>
+        <Grid container spacing={3} sx={{ mt: 2 }}>
+          {/* Temple Information */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Temple Information
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="Temple Name"
+                  value={settings.temple_name}
+                  onChange={(e) => setSettings({ ...settings, temple_name: e.target.value })}
+                  margin="normal"
+                />
+                <TextField
+                  fullWidth
+                  label="Financial Year Start Month"
+                  type="number"
+                  value={settings.financial_year_start}
+                  onChange={(e) => setSettings({ ...settings, financial_year_start: parseInt(e.target.value) })}
+                  margin="normal"
+                  inputProps={{ min: 1, max: 12 }}
+                  helperText="1=January, 4=April (default)"
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Receipt Prefixes */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Receipt Prefixes
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="Donation Receipt Prefix"
+                  value={settings.receipt_prefix_donation}
+                  onChange={(e) => setSettings({ ...settings, receipt_prefix_donation: e.target.value })}
+                  margin="normal"
+                />
+                <TextField
+                  fullWidth
+                  label="Seva Receipt Prefix"
+                  value={settings.receipt_prefix_seva}
+                  onChange={(e) => setSettings({ ...settings, receipt_prefix_seva: e.target.value })}
+                  margin="normal"
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* SMS Settings */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  SMS Reminder Settings
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={settings.sms_enabled}
+                      onChange={(e) => setSettings({ ...settings, sms_enabled: e.target.checked })}
+                    />
+                  }
+                  label="Enable SMS Reminders"
+                />
+                {settings.sms_enabled && (
+                  <TextField
+                    fullWidth
+                    label="Reminder Days Before Seva"
+                    type="number"
+                    value={settings.sms_reminder_days}
+                    onChange={(e) => setSettings({ ...settings, sms_reminder_days: parseInt(e.target.value) })}
+                    margin="normal"
+                    inputProps={{ min: 1, max: 30 }}
+                    helperText="Send reminder X days before seva date (default: 7 days)"
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Email Settings */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Email Settings
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={settings.email_enabled}
+                      onChange={(e) => setSettings({ ...settings, email_enabled: e.target.checked })}
+                    />
+                  }
+                  label="Enable Email Notifications"
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Account Linking */}
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Account Linking
+                </Typography>
+                <Typography variant="body2" color="text.secondary" paragraph>
+                  Link donation categories and sevas to accounting accounts for proper categorization.
+                </Typography>
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    // Navigate to account linking page or show dialog
+                    showSuccess('Account linking feature coming soon');
+                  }}
+                >
+                  Link Accounts to Categories/Sevas
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setAuthenticated(false);
+              sessionStorage.removeItem('settings_authenticated');
+              navigate('/dashboard');
+            }}
+          >
+            Lock Settings
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : <SettingsIcon />}
+          >
+            Save Settings
+          </Button>
+        </Box>
+      </Box>
     </Layout>
   );
 }

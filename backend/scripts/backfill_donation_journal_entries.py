@@ -16,8 +16,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.core.database import SessionLocal, engine
-from app.models.donation import Donation
+
+# Import all models to ensure relationships are properly configured
+# This must be done before querying any models with relationships
+from app.models.temple import Temple
+from app.models.panchang_display_settings import PanchangDisplaySettings
+from app.models.donation import Donation, DonationCategory
+from app.models.devotee import Devotee
+from app.models.user import User
+from app.models.seva import Seva, SevaBooking
 from app.models.accounting import Account, JournalEntry, JournalLine, JournalEntryStatus, TransactionType
+
 from app.api.donations import post_donation_to_accounting
 
 
@@ -95,7 +104,6 @@ def main():
     
     try:
         # Auto-detect temple for standalone installation
-        from app.models.temple import Temple
         temples = db.query(Temple).all()
         
         temple_id = None

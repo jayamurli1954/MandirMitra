@@ -28,6 +28,25 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
     
+    # Data Encryption
+    ENCRYPTION_KEY: Optional[str] = None  # Set in .env for production
+    
+    # Password Policy
+    PASSWORD_MIN_LENGTH: int = 8
+    PASSWORD_REQUIRE_UPPERCASE: bool = True
+    PASSWORD_REQUIRE_LOWERCASE: bool = True
+    PASSWORD_REQUIRE_DIGITS: bool = True
+    PASSWORD_REQUIRE_SPECIAL: bool = True
+    
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_REQUESTS: int = 100  # Requests per window
+    RATE_LIMIT_WINDOW: int = 60  # Seconds
+    
+    # Session Security
+    SESSION_TIMEOUT_MINUTES: int = 120
+    FORCE_HTTPS: bool = False  # Set to True in production
+    
     # Database
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/temple_db"
     

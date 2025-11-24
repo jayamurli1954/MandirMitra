@@ -115,9 +115,41 @@ function Sevas() {
   const fetchDropdownOptions = async () => {
     try {
       const response = await api.get('/api/v1/sevas/dropdown-options');
-      setDropdownOptions(response.data);
+      console.log('Dropdown options response:', response.data);
+      if (response.data) {
+        setDropdownOptions({
+          gothras: response.data.gothras || response.data.GOTHRAS || [],
+          nakshatras: response.data.nakshatras || response.data.NAKSHATRAS || [],
+          rashis: response.data.rashis || response.data.RASHIS || []
+        });
+      }
     } catch (err) {
-      console.error('Failed to load dropdown options');
+      console.error('Failed to load dropdown options:', err);
+      // Fallback to hardcoded values if API fails
+      setDropdownOptions({
+        gothras: [
+          "Agastya", "Angirasa", "Atri", "Bharadwaja", "Bhargava", "Bhrigu",
+          "Dhananjaya", "Garga", "Gautama", "Harita", "Jamadagni", "Kashyapa",
+          "Katyayana", "Kaundinya", "Kausika", "Kaushika", "Kratu", "Kutsa",
+          "Lomasha", "Mandavya", "Marichi", "Moudgalya", "Naidhruva", "Parashara",
+          "Pulaha", "Pulastya", "Sandilya", "Shandilya", "Sankrithi", "Srivatsa",
+          "Upamanyu", "Valmiki", "Vashishta", "Vatsa", "Vishwamitra", "Viswamitra",
+          "Vrigu", "Yaska", "Kanva", "Mudgala", "Raibhya", "Uddālaka", "Agni",
+          "Aliman", "Kapi", "Krivi", "Saunaka", "Vadula", "Vasistha"
+        ],
+        nakshatras: [
+          "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
+          "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni",
+          "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha",
+          "Moola", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishta",
+          "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
+        ],
+        rashis: [
+          "Mesha (Aries)", "Vrishabha (Taurus)", "Mithuna (Gemini)", "Karka (Cancer)",
+          "Simha (Leo)", "Kanya (Virgo)", "Tula (Libra)", "Vrishchika (Scorpio)",
+          "Dhanu (Sagittarius)", "Makara (Capricorn)", "Kumbha (Aquarius)", "Meena (Pisces)"
+        ]
+      });
     }
   };
 
@@ -206,8 +238,14 @@ function Sevas() {
         seva_id: selectedSeva.id
       };
 
-      await api.post('/api/v1/sevas/bookings/', bookingData);
+      console.log('Submitting booking:', bookingData);
+      const response = await api.post('/api/v1/sevas/bookings/', bookingData);
+      console.log('Booking created successfully:', response.data);
+      
       setBookingSuccess(true);
+
+      // Refresh sevas list to show updated availability
+      await fetchSevas();
 
       // Reset and close after 2 seconds
       setTimeout(() => {
@@ -230,7 +268,10 @@ function Sevas() {
         });
       }, 2000);
     } catch (err) {
-      setBookingError(err.response?.data?.detail || 'Failed to book seva');
+      console.error('Booking error:', err);
+      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Failed to book seva';
+      setBookingError(errorMessage);
+      console.error('Error details:', err.response?.data);
     }
   };
 
@@ -694,11 +735,15 @@ function Sevas() {
                   <MenuItem value="">
                     <em>Select Gotra</em>
                   </MenuItem>
-                  {dropdownOptions.gothras.map((gotra) => (
-                    <MenuItem key={gotra} value={gotra}>
-                      {gotra}
-                    </MenuItem>
-                  ))}
+                  {dropdownOptions.gothras && dropdownOptions.gothras.length > 0 ? (
+                    dropdownOptions.gothras.map((gotra) => (
+                      <MenuItem key={gotra} value={gotra}>
+                        {gotra}
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem disabled>Loading...</MenuItem>
+                  )}
                 </Select>
               </FormControl>
 
@@ -713,11 +758,15 @@ function Sevas() {
                   <MenuItem value="">
                     <em>Select Nakshatra</em>
                   </MenuItem>
-                  {dropdownOptions.nakshatras.map((nakshatra) => (
-                    <MenuItem key={nakshatra} value={nakshatra}>
-                      {nakshatra}
-                    </MenuItem>
-                  ))}
+                  {dropdownOptions.nakshatras && dropdownOptions.nakshatras.length > 0 ? (
+                    dropdownOptions.nakshatras.map((nakshatra) => (
+                      <MenuItem key={nakshatra} value={nakshatra}>
+                        {nakshatra}
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem disabled>Loading...</MenuItem>
+                  )}
                 </Select>
               </FormControl>
 
@@ -732,11 +781,15 @@ function Sevas() {
                   <MenuItem value="">
                     <em>Select Rashi</em>
                   </MenuItem>
-                  {dropdownOptions.rashis.map((rashi) => (
-                    <MenuItem key={rashi} value={rashi}>
-                      {rashi}
-                    </MenuItem>
-                  ))}
+                  {dropdownOptions.rashis && dropdownOptions.rashis.length > 0 ? (
+                    dropdownOptions.rashis.map((rashi) => (
+                      <MenuItem key={rashi} value={rashi}>
+                        {rashi}
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem disabled>Loading...</MenuItem>
+                  )}
                 </Select>
               </FormControl>
 

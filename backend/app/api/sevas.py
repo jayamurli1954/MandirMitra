@@ -210,6 +210,26 @@ def list_sevas(
 
     return result
 
+# ===== DROPDOWN OPTIONS (Must be before /{seva_id} route) =====
+
+@router.get("/dropdown-options")
+def get_dropdown_options():
+    """Get dropdown options for Gothra, Nakshatra, and Rashi"""
+    try:
+        return {
+            "gothras": GOTHRAS,
+            "nakshatras": NAKSHATRAS,
+            "rashis": RASHIS
+        }
+    except Exception as e:
+        print(f"Error in dropdown-options endpoint: {e}")
+        # Return empty arrays as fallback
+        return {
+            "gothras": [],
+            "nakshatras": [],
+            "rashis": []
+        }
+
 @router.get("/{seva_id}", response_model=SevaResponse)
 def get_seva(
     seva_id: int,
@@ -382,9 +402,19 @@ def create_booking(
 
     # Post to accounting system (get temple_id from current_user)
     if current_user and current_user.temple_id:
-        journal_entry = post_seva_to_accounting(db, booking, current_user.temple_id)
-        if journal_entry:
-            db.commit()  # Commit the journal entry
+        try:
+            journal_entry = post_seva_to_accounting(db, booking, current_user.temple_id)
+            if journal_entry:
+                db.commit()  # Commit the journal entry
+                print(f"✓ Created journal entry {journal_entry.entry_number} for seva booking {booking.receipt_number}")
+            else:
+                print(f"⚠ WARNING: Failed to create journal entry for seva booking {booking.receipt_number}")
+                print(f"  Booking was saved but accounting entry was not created. Check accounts.")
+        except Exception as e:
+            print(f"⚠ ERROR creating journal entry for seva booking: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Don't fail the booking if accounting fails
 
     return booking
 
@@ -435,13 +465,96 @@ def cancel_booking(
 
     return {"message": "Booking cancelled successfully"}
 
-# ===== DROPDOWN OPTIONS =====
+# ===== SEVA RESCHEDULE (POSTPONE/PREPONE) =====
 
-@router.get("/dropdown-options")
-def get_dropdown_options():
-    """Get dropdown options for Gothra, Nakshatra, and Rashi"""
+@router.put("/bookings/{booking_id}/reschedule")
+def request_reschedule(
+    booking_id: int,
+    new_date: date = Query(..., description="New booking date"),
+    reason: str = Query(..., description="Reason for reschedule"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Request to reschedule (postpone/prepone) a seva booking
+    Requires admin approval
+    """
+    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    # Check permissions - user can request reschedule for their own bookings
+    if current_user.role != "admin" and booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to reschedule this booking")
+
+    # Validate new date
+    if new_date == booking.booking_date:
+        raise HTTPException(status_code=400, detail="New date must be different from current date")
+
+    # Store original date if not already stored
+    if not booking.original_booking_date:
+        booking.original_booking_date = booking.booking_date
+
+    # Set reschedule request
+    booking.reschedule_requested_date = new_date
+    booking.reschedule_reason = reason
+    booking.reschedule_approved = None  # Pending approval
+
+    db.commit()
+    db.refresh(booking)
+
     return {
-        "gothras": GOTHRAS,
-        "nakshatras": NAKSHATRAS,
-        "rashis": RASHIS
+        "message": "Reschedule request submitted. Waiting for admin approval.",
+        "booking_id": booking.id,
+        "original_date": booking.original_booking_date,
+        "requested_date": new_date,
+        "status": "pending_approval"
     }
+
+@router.post("/bookings/{booking_id}/approve-reschedule")
+def approve_reschedule(
+    booking_id: int,
+    approve: bool = Query(..., description="Approve (true) or reject (false)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Approve or reject a reschedule request (admin only)
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can approve reschedule requests")
+
+    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if booking.reschedule_approved is not None:
+        raise HTTPException(status_code=400, detail="Reschedule request already processed")
+
+    if not booking.reschedule_requested_date:
+        raise HTTPException(status_code=400, detail="No reschedule request found")
+
+    if approve:
+        # Approve: Update booking date
+        booking.booking_date = booking.reschedule_requested_date
+        booking.reschedule_approved = True
+        booking.reschedule_approved_by = current_user.id
+        booking.reschedule_approved_at = datetime.utcnow()
+        
+        db.commit()
+        return {
+            "message": "Reschedule approved. Booking date updated.",
+            "new_date": booking.booking_date,
+            "original_date": booking.original_booking_date
+        }
+    else:
+        # Reject: Clear reschedule request
+        booking.reschedule_approved = False
+        booking.reschedule_approved_by = current_user.id
+        booking.reschedule_approved_at = datetime.utcnow()
+        
+        db.commit()
+        return {
+            "message": "Reschedule request rejected.",
+            "booking_date": booking.booking_date  # Unchanged
+        }

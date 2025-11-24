@@ -451,7 +451,7 @@ function AccountingReports() {
                       <Table size="small">
                         <TableBody>
                           {group.accounts.map((acc, accIdx) => (
-                            <TableRow key={accIdx}>
+                            <TableRow key={`${group.category_name}-${acc.account_code}-${accIdx}`}>
                               <TableCell sx={{ pl: 4 }}>{acc.account_code}</TableCell>
                               <TableCell>{acc.account_name}</TableCell>
                               <TableCell align="right">₹{acc.amount.toFixed(2)}</TableCell>
@@ -494,7 +494,7 @@ function AccountingReports() {
                       <Table size="small">
                         <TableBody>
                           {group.accounts.map((acc, accIdx) => (
-                            <TableRow key={accIdx}>
+                            <TableRow key={`${group.category_name}-${acc.account_code}-${accIdx}`}>
                               <TableCell sx={{ pl: 4 }}>{acc.account_code}</TableCell>
                               <TableCell>{acc.account_name}</TableCell>
                               <TableCell align="right">₹{acc.amount.toFixed(2)}</TableCell>

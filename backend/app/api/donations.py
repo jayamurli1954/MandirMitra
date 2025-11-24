@@ -26,6 +26,8 @@ from urllib.parse import urlparse
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.audit import log_action, get_entity_dict
+from fastapi import Request
 from app.models.donation import Donation, DonationCategory
 from app.models.devotee import Devotee
 from app.models.temple import Temple
@@ -34,6 +36,30 @@ from app.models.accounting import Account, JournalEntry, JournalLine, JournalEnt
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/donations", tags=["donations"])
+
+
+@router.get("/categories/", response_model=List[dict])
+def get_donation_categories(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get list of donation categories
+    """
+    categories = db.query(DonationCategory).filter(
+        DonationCategory.is_active == True
+    ).all()
+    
+    return [
+        {
+            "id": cat.id,
+            "name": cat.name,
+            "description": cat.description,
+            "is_80g_eligible": cat.is_80g_eligible,
+            "account_id": cat.account_id
+        }
+        for cat in categories
+    ]
 
 
 def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int):
@@ -63,26 +89,26 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
         # Determine credit account - PRIORITY: Category-linked account
         credit_account = None
 
-        # First, try to use category-linked account
+        # First, try to use category-linked account (PRIORITY)
         if donation.category and hasattr(donation.category, 'account_id') and donation.category.account_id:
             credit_account = db.query(Account).filter(Account.id == donation.category.account_id).first()
+            if credit_account:
+                print(f"  Using category-linked account: {credit_account.account_code} - {credit_account.account_name}")
 
-        # Fallback: Use payment-mode-based account (old logic)
+        # Fallback: Only use default General Donation account if category not linked
+        # DO NOT use payment-mode accounts (4102, 4103) - all should go to category accounts
         if not credit_account:
-            credit_account_code = None
-            if donation.payment_mode.upper() in ['CASH', 'COUNTER']:
-                credit_account_code = '4102'  # Cash Donation
-            elif donation.payment_mode.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
-                credit_account_code = '4103'  # Online/UPI Donation
-            elif 'HUNDI' in donation.payment_mode.upper():
-                credit_account_code = '4104'  # Hundi Collection
-            else:
-                credit_account_code = '4101'  # General Donation
-
+            # Use 4101 as absolute last resort only
+            credit_account_code = '4101'  # General Donation (default fallback)
             credit_account = db.query(Account).filter(
                 Account.temple_id == temple_id,
                 Account.account_code == credit_account_code
             ).first()
+            
+            if credit_account:
+                print(f"  WARNING: Category '{donation.category.name if donation.category else 'Unknown'}' not linked to account. Using default: {credit_account_code}")
+            else:
+                print(f"  ERROR: Default account {credit_account_code} not found. Please link category to account or create default account.")
 
         if not debit_account:
             error_msg = f"Debit account ({debit_account_code}) not found for temple {temple_id}. Please create the account in Chart of Accounts."
@@ -217,7 +243,8 @@ class DonationResponse(BaseModel):
 def create_donation(
     donation: DonationCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = None
 ):
     """Create a new donation"""
     # Find or create devotee
@@ -305,6 +332,19 @@ def create_donation(
         message = "Donation recorded successfully and posted to accounting"
     else:
         message = "Donation recorded but accounting entry failed. Please check chart of accounts."
+
+    # Audit log
+    log_action(
+        db=db,
+        user=current_user,
+        action="CREATE_DONATION",
+        entity_type="Donation",
+        entity_id=db_donation.id,
+        new_values=get_entity_dict(db_donation),
+        description=f"Created donation: ₹{db_donation.amount} from {devotee.name} (Receipt: {db_donation.receipt_number})",
+        ip_address=request.client.host if request else None,
+        user_agent=request.headers.get("user-agent") if request else None
+    )
 
     return {
         "id": db_donation.id,
@@ -413,8 +453,10 @@ def get_monthly_report(
 ):
     """Get monthly donation report"""
     donations = db.query(Donation).filter(
+        Donation.temple_id == current_user.temple_id,
         func.extract('year', Donation.donation_date) == year,
-        func.extract('month', Donation.donation_date) == month
+        func.extract('month', Donation.donation_date) == month,
+        Donation.is_cancelled == False
     ).all()
     
     total = sum(d.amount for d in donations)
@@ -437,6 +479,131 @@ def get_monthly_report(
             {"category": k, "amount": v["amount"], "count": v["count"]}
             for k, v in by_category.items()
         ]
+    }
+
+
+@router.get("/report/category-wise")
+def get_category_wise_report(
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD). Default: today"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD). Default: today"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get category-wise donation report for a date range
+    Default: Today's donations grouped by category
+    """
+    from datetime import date as date_class
+    
+    # Default to today if not specified
+    if not date_from:
+        date_from = date_class.today().isoformat()
+    if not date_to:
+        date_to = date_from
+    
+    # Parse dates
+    start_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+    end_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+    
+    donations = db.query(Donation).filter(
+        Donation.temple_id == current_user.temple_id,
+        Donation.donation_date >= start_date,
+        Donation.donation_date <= end_date,
+        Donation.is_cancelled == False
+    ).all()
+    
+    total = sum(d.amount for d in donations)
+    
+    # Group by category
+    by_category = {}
+    for d in donations:
+        cat_name = d.category.name if d.category else "Unknown"
+        if cat_name not in by_category:
+            by_category[cat_name] = {"amount": 0, "count": 0}
+        by_category[cat_name]["amount"] += d.amount
+        by_category[cat_name]["count"] += 1
+    
+    return {
+        "date_from": date_from,
+        "date_to": date_to,
+        "total": total,
+        "count": len(donations),
+        "by_category": [
+            {"category": k, "amount": v["amount"], "count": v["count"]}
+            for k, v in sorted(by_category.items(), key=lambda x: x[1]["amount"], reverse=True)
+        ]
+    }
+
+
+@router.get("/report/detailed")
+def get_detailed_donation_report(
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    payment_mode: Optional[str] = Query(None, description="Filter by payment mode"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailed donation report with:
+    - Date
+    - Devotee Name
+    - Mobile Number
+    - Donation Category
+    - Payment Mode
+    - Amount
+    """
+    from datetime import date as date_class
+    
+    query = db.query(Donation).filter(
+        Donation.temple_id == current_user.temple_id,
+        Donation.is_cancelled == False
+    )
+    
+    # Apply date filters
+    if date_from:
+        start_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+        query = query.filter(Donation.donation_date >= start_date)
+    
+    if date_to:
+        end_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+        query = query.filter(Donation.donation_date <= end_date)
+    
+    # Apply category filter
+    if category:
+        query = query.join(DonationCategory).filter(DonationCategory.name == category)
+    
+    # Apply payment mode filter
+    if payment_mode:
+        query = query.filter(Donation.payment_mode.ilike(f'%{payment_mode}%'))
+    
+    donations = query.order_by(Donation.donation_date.desc(), Donation.id.desc()).all()
+    
+    result = []
+    for d in donations:
+        result.append({
+            "id": d.id,
+            "receipt_number": d.receipt_number,
+            "date": d.donation_date.isoformat() if d.donation_date else None,
+            "devotee_name": d.devotee.name if d.devotee else "Anonymous",
+            "mobile_number": d.devotee.phone if d.devotee else None,
+            "category": d.category.name if d.category else "Unknown",
+            "payment_mode": d.payment_mode,
+            "amount": float(d.amount),
+            "transaction_id": d.transaction_id,
+            "notes": d.notes
+        })
+    
+    return {
+        "date_from": date_from,
+        "date_to": date_to,
+        "filters": {
+            "category": category,
+            "payment_mode": payment_mode
+        },
+        "total": sum(d.amount for d in donations),
+        "count": len(donations),
+        "donations": result
     }
 
 

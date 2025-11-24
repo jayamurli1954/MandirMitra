@@ -75,6 +75,7 @@ class SevaUpdate(BaseModel):
     benefits: Optional[str] = None
     instructions: Optional[str] = None
     duration_minutes: Optional[int] = Field(None, gt=0)
+    account_id: Optional[int] = Field(None, description="Link to accounting account")
 
 class SevaResponse(SevaBase):
     id: int
@@ -126,11 +127,19 @@ class SevaBookingResponse(SevaBookingBase):
     completed_at: Optional[datetime]
     cancelled_at: Optional[datetime]
     cancellation_reason: Optional[str]
+    # Reschedule fields
+    original_booking_date: Optional[date] = None
+    reschedule_requested_date: Optional[date] = None
+    reschedule_reason: Optional[str] = None
+    reschedule_approved: Optional[bool] = None
+    reschedule_approved_by: Optional[int] = None
+    reschedule_approved_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
     # Nested relationships
     seva: Optional[SevaResponse] = None
+    devotee: Optional[dict] = None  # Will be populated from relationship
 
     class Config:
         from_attributes = True

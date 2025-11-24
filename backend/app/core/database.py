@@ -45,7 +45,16 @@ def init_db():
     Initialize database (create tables and create default admin user)
     Called on application startup
     """
+    # Import all models to ensure relationships are properly configured
+    # This must be done before creating tables or querying
     from app.models.user import User
+    from app.models.temple import Temple
+    from app.models.donation import Donation, DonationCategory
+    from app.models.devotee import Devotee
+    from app.models.seva import Seva, SevaBooking
+    from app.models.accounting import Account, JournalEntry, JournalLine
+    from app.models.panchang_display_settings import PanchangDisplaySettings
+    
     from app.core.security import get_password_hash
 
     # Create all tables

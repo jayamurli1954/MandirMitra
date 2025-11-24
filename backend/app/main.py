@@ -14,6 +14,7 @@ from app.core.error_handlers import (
     general_exception_handler,
     AppException
 )
+from app.core.security_headers import SecurityHeadersMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.exceptions import RequestValidationError
 
@@ -48,6 +49,12 @@ from app.api.vendors import router as vendors_router
 from app.api.upi_payments import router as upi_payments_router
 from app.api.inkind_donations import router as inkind_donations_router
 from app.api.sponsorships import router as sponsorships_router
+from app.api.dashboard import router as dashboard_router
+from app.api.reports import router as reports_router
+from app.api.sms_reminders import router as sms_reminders_router
+from app.api.users import router as users_router
+from app.api.audit_logs import router as audit_logs_router
+from app.api.certificates import router as certificates_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -57,6 +64,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Security headers middleware (add first)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS middleware
 app.add_middleware(
@@ -86,6 +96,12 @@ app.include_router(vendors_router)
 app.include_router(upi_payments_router)
 app.include_router(inkind_donations_router)
 app.include_router(sponsorships_router)
+app.include_router(dashboard_router)
+app.include_router(reports_router)
+app.include_router(sms_reminders_router)
+app.include_router(users_router)
+app.include_router(audit_logs_router)
+app.include_router(certificates_router)
 
 # Initialize database on startup
 @app.on_event("startup")

@@ -123,3 +123,4 @@ export const printTable = (data, columns, title = 'Report') => {
   }, 250);
 };
 
+

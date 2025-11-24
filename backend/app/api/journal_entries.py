@@ -371,11 +371,15 @@ def get_trial_balance(
     Generate Trial Balance
     Shows all accounts with their debit and credit balances
     """
+    # For standalone mode, handle temple_id = None
+    temple_id = current_user.temple_id
+    
     # Get all active accounts for temple
-    accounts = db.query(Account).filter(
-        Account.temple_id == current_user.temple_id,
-        Account.is_active == True
-    ).order_by(Account.account_code).all()
+    account_filter = [Account.is_active == True]
+    if temple_id is not None:
+        account_filter.append(Account.temple_id == temple_id)
+    
+    accounts = db.query(Account).filter(*account_filter).order_by(Account.account_code).all()
 
     trial_balance_items = []
     total_debits = 0.0
@@ -383,14 +387,18 @@ def get_trial_balance(
 
     for account in accounts:
         # Calculate balance for each account
-        balance_query = db.query(
-            func.sum(JournalLine.debit_amount).label('total_debit'),
-            func.sum(JournalLine.credit_amount).label('total_credit')
-        ).join(JournalLine.journal_entry).filter(
+        balance_filter = [
             JournalLine.account_id == account.id,
             JournalEntry.status == JournalEntryStatus.POSTED,
             func.date(JournalEntry.entry_date) <= as_of_date
-        ).first()
+        ]
+        if temple_id is not None:
+            balance_filter.append(JournalEntry.temple_id == temple_id)
+        
+        balance_query = db.query(
+            func.sum(JournalLine.debit_amount).label('total_debit'),
+            func.sum(JournalLine.credit_amount).label('total_credit')
+        ).join(JournalLine.journal_entry).filter(*balance_filter).first()
 
         debit = float(balance_query.total_debit or 0) + account.opening_balance_debit
         credit = float(balance_query.total_credit or 0) + account.opening_balance_credit
@@ -444,35 +452,47 @@ def get_account_ledger(
     Generate Account Ledger (Statement of Account)
     Shows all transactions for a specific account
     """
-    account = db.query(Account).filter(
-        Account.id == account_id,
-        Account.temple_id == current_user.temple_id
-    ).first()
+    # For standalone mode, handle temple_id = None
+    temple_id = current_user.temple_id
+    
+    account_filter = [Account.id == account_id]
+    if temple_id is not None:
+        account_filter.append(Account.temple_id == temple_id)
+    
+    account = db.query(Account).filter(*account_filter).first()
 
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
     # Calculate opening balance (as of from_date)
-    opening_query = db.query(
-        func.sum(JournalLine.debit_amount).label('debit'),
-        func.sum(JournalLine.credit_amount).label('credit')
-    ).join(JournalLine.journal_entry).filter(
+    opening_filter = [
         JournalLine.account_id == account_id,
         JournalEntry.status == JournalEntryStatus.POSTED,
         func.date(JournalEntry.entry_date) < from_date
-    ).first()
+    ]
+    if temple_id is not None:
+        opening_filter.append(JournalEntry.temple_id == temple_id)
+    
+    opening_query = db.query(
+        func.sum(JournalLine.debit_amount).label('debit'),
+        func.sum(JournalLine.credit_amount).label('credit')
+    ).join(JournalLine.journal_entry).filter(*opening_filter).first()
 
     opening_debit = float(opening_query.debit or 0) + account.opening_balance_debit
     opening_credit = float(opening_query.credit or 0) + account.opening_balance_credit
     opening_balance = opening_debit - opening_credit
 
     # Get all transactions in date range
-    lines = db.query(JournalLine).join(JournalLine.journal_entry).filter(
+    lines_filter = [
         JournalLine.account_id == account_id,
         JournalEntry.status == JournalEntryStatus.POSTED,
         func.date(JournalEntry.entry_date) >= from_date,
         func.date(JournalEntry.entry_date) <= to_date
-    ).order_by(JournalEntry.entry_date).all()
+    ]
+    if temple_id is not None:
+        lines_filter.append(JournalEntry.temple_id == temple_id)
+    
+    lines = db.query(JournalLine).join(JournalLine.journal_entry).filter(*lines_filter).order_by(JournalEntry.entry_date).all()
 
     # Build ledger entries
     ledger_entries = []
@@ -516,31 +536,42 @@ def get_profit_loss_statement(
     Generate Profit & Loss Statement (Income & Expenditure Account)
     Shows categorized income and expenses with net surplus/deficit
     """
+    # For standalone mode, handle temple_id = None
+    temple_id = current_user.temple_id
+    
     # Get all income accounts (4000-4999) with balances
-    income_accounts = db.query(
-        Account.account_code,
-        Account.account_name,
-        func.sum(JournalLine.credit_amount - JournalLine.debit_amount).label('amount')
-    ).join(JournalLine).join(JournalEntry).filter(
-        Account.temple_id == current_user.temple_id,
+    income_filter = [
         Account.account_code.between('4000', '4999'),
         JournalEntry.status == JournalEntryStatus.POSTED,
         func.date(JournalEntry.entry_date) >= from_date,
         func.date(JournalEntry.entry_date) <= to_date
-    ).group_by(Account.account_code, Account.account_name).all()
-
-    # Get all expense accounts (5000-5999) with balances
-    expense_accounts = db.query(
+    ]
+    if temple_id is not None:
+        income_filter.append(Account.temple_id == temple_id)
+        income_filter.append(JournalEntry.temple_id == temple_id)
+    
+    income_accounts = db.query(
         Account.account_code,
         Account.account_name,
-        func.sum(JournalLine.debit_amount - JournalLine.credit_amount).label('amount')
-    ).join(JournalLine).join(JournalEntry).filter(
-        Account.temple_id == current_user.temple_id,
+        func.sum(JournalLine.credit_amount - JournalLine.debit_amount).label('amount')
+    ).join(JournalLine).join(JournalEntry).filter(*income_filter).group_by(Account.account_code, Account.account_name).all()
+
+    # Get all expense accounts (5000-5999) with balances
+    expense_filter = [
         Account.account_code.between('5000', '5999'),
         JournalEntry.status == JournalEntryStatus.POSTED,
         func.date(JournalEntry.entry_date) >= from_date,
         func.date(JournalEntry.entry_date) <= to_date
-    ).group_by(Account.account_code, Account.account_name).all()
+    ]
+    if temple_id is not None:
+        expense_filter.append(Account.temple_id == temple_id)
+        expense_filter.append(JournalEntry.temple_id == temple_id)
+    
+    expense_accounts = db.query(
+        Account.account_code,
+        Account.account_name,
+        func.sum(JournalLine.debit_amount - JournalLine.credit_amount).label('amount')
+    ).join(JournalLine).join(JournalEntry).filter(*expense_filter).group_by(Account.account_code, Account.account_name).all()
 
     # Group income by categories
     income_groups = []
@@ -645,47 +676,62 @@ def get_category_income_report(
     Generate Category-wise Income Report
     Breaks down income by donation categories, seva types, etc.
     """
+    # For standalone mode, handle temple_id = None
+    temple_id = current_user.temple_id
+    
     # Get donation income (4100-4199)
+    donation_filter = [
+        Account.account_code.between('4100', '4199'),
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) >= from_date,
+        func.date(JournalEntry.entry_date) <= to_date
+    ]
+    if temple_id is not None:
+        donation_filter.append(Account.temple_id == temple_id)
+        donation_filter.append(JournalEntry.temple_id == temple_id)
+    
     donation_data = db.query(
         Account.account_code,
         Account.account_name,
         func.sum(JournalLine.credit_amount - JournalLine.debit_amount).label('amount'),
         func.count(JournalLine.id).label('transaction_count')
-    ).join(JournalLine).join(JournalEntry).filter(
-        Account.temple_id == current_user.temple_id,
-        Account.account_code.between('4100', '4199'),
+    ).join(JournalLine).join(JournalEntry).filter(*donation_filter).group_by(Account.account_code, Account.account_name).all()
+
+    # Get seva income (4200-4299)
+    seva_filter = [
+        Account.account_code.between('4200', '4299'),
         JournalEntry.status == JournalEntryStatus.POSTED,
         func.date(JournalEntry.entry_date) >= from_date,
         func.date(JournalEntry.entry_date) <= to_date
-    ).group_by(Account.account_code, Account.account_name).all()
-
-    # Get seva income (4200-4299)
+    ]
+    if temple_id is not None:
+        seva_filter.append(Account.temple_id == temple_id)
+        seva_filter.append(JournalEntry.temple_id == temple_id)
+    
     seva_data = db.query(
         Account.account_code,
         Account.account_name,
         func.sum(JournalLine.credit_amount - JournalLine.debit_amount).label('amount'),
         func.count(JournalLine.id).label('transaction_count')
-    ).join(JournalLine).join(JournalEntry).filter(
-        Account.temple_id == current_user.temple_id,
-        Account.account_code.between('4200', '4299'),
+    ).join(JournalLine).join(JournalEntry).filter(*seva_filter).group_by(Account.account_code, Account.account_name).all()
+
+    # Get other income (4300-4599)
+    other_filter = [
+        Account.account_code.between('4300', '4599'),
         JournalEntry.status == JournalEntryStatus.POSTED,
         func.date(JournalEntry.entry_date) >= from_date,
         func.date(JournalEntry.entry_date) <= to_date
-    ).group_by(Account.account_code, Account.account_name).all()
-
-    # Get other income (4300-4599)
+    ]
+    if temple_id is not None:
+        other_filter.append(Account.temple_id == temple_id)
+        other_filter.append(JournalEntry.temple_id == temple_id)
+    
     other_data = db.query(
         Account.account_code,
         Account.account_name,
         func.sum(JournalLine.credit_amount - JournalLine.debit_amount).label('amount'),
         func.count(JournalLine.id).label('transaction_count')
-    ).join(JournalLine).join(JournalEntry).filter(
-        Account.temple_id == current_user.temple_id,
-        Account.account_code.between('4300', '4599'),
-        JournalEntry.status == JournalEntryStatus.POSTED,
-        func.date(JournalEntry.entry_date) >= from_date,
-        func.date(JournalEntry.entry_date) <= to_date
-    ).group_by(Account.account_code, Account.account_name).all()
+    ).join(JournalLine).join(JournalEntry).filter(*other_filter).group_by(Account.account_code, Account.account_name).all()
 
     # Calculate total income for percentage
     total_income = sum(float(d.amount) for d in donation_data if d.amount > 0) + \
@@ -753,18 +799,26 @@ def get_top_donors_report(
     Generate Top Donors Report
     Shows top donors by total donation amount
     """
+    # For standalone mode, handle temple_id = None
+    temple_id = current_user.temple_id
+    
     # Get donations with devotee info
+    donor_filter = [
+        func.date(Donation.donation_date) >= from_date,
+        func.date(Donation.donation_date) <= to_date,
+        Donation.is_cancelled == False
+    ]
+    if temple_id is not None:
+        donor_filter.append(Devotee.temple_id == temple_id)
+        donor_filter.append(Donation.temple_id == temple_id)
+    
     donations = db.query(
         Devotee.id.label('devotee_id'),
         Devotee.name.label('devotee_name'),
         func.sum(Donation.amount).label('total_donated'),
         func.count(Donation.id).label('donation_count'),
         func.max(Donation.donation_date).label('last_donation_date')
-    ).join(Donation, Devotee.id == Donation.devotee_id).filter(
-        Devotee.temple_id == current_user.temple_id,
-        func.date(Donation.donation_date) >= from_date,
-        func.date(Donation.donation_date) <= to_date
-    ).group_by(Devotee.id, Devotee.name).order_by(
+    ).join(Donation, Devotee.id == Donation.devotee_id).filter(*donor_filter).group_by(Devotee.id, Devotee.name).order_by(
         func.sum(Donation.amount).desc()
     ).limit(limit).all()
 

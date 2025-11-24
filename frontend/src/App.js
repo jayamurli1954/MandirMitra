@@ -14,6 +14,11 @@ import PanchangSettings from './pages/PanchangSettings';
 import Sevas from './pages/Sevas';
 import SevaManagement from './pages/SevaManagement';
 import Settings from './pages/Settings';
+import CategoryWiseDonationReport from './pages/CategoryWiseDonationReport';
+import DetailedDonationReport from './pages/DetailedDonationReport';
+import DetailedSevaReport from './pages/DetailedSevaReport';
+import SevaSchedule from './pages/SevaSchedule';
+import SevaRescheduleApproval from './pages/SevaRescheduleApproval';
 import ChartOfAccounts from './pages/accounting/ChartOfAccounts';
 import QuickExpense from './pages/accounting/QuickExpense';
 import JournalEntries from './pages/accounting/JournalEntries';
@@ -70,6 +75,46 @@ function App() {
             element={
               <ProtectedRoute>
                 <Reports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports/donations/category-wise"
+            element={
+              <ProtectedRoute>
+                <CategoryWiseDonationReport />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports/donations/detailed"
+            element={
+              <ProtectedRoute>
+                <DetailedDonationReport />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports/sevas/detailed"
+            element={
+              <ProtectedRoute>
+                <DetailedSevaReport />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports/sevas/schedule"
+            element={
+              <ProtectedRoute>
+                <SevaSchedule />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sevas/reschedule-approval"
+            element={
+              <ProtectedRoute>
+                <SevaRescheduleApproval />
               </ProtectedRoute>
             }
           />

@@ -31,10 +31,16 @@ function Dashboard() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [stats, setStats] = useState({
-    todayDonations: 0,
-    totalDevotees: 0,
-    sevaBookings: 0,
-    monthDonations: 0,
+    donations: {
+      today: { amount: 0, count: 0 },
+      month: { amount: 0, count: 0 },
+      year: { amount: 0, count: 0 }
+    },
+    sevas: {
+      today: { amount: 0, count: 0 },
+      month: { amount: 0, count: 0 },
+      year: { amount: 0, count: 0 }
+    }
   });
   const [panchangData, setPanchangData] = useState(null);
   const [donationForm, setDonationForm] = useState({
@@ -61,47 +67,21 @@ function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const today = new Date().toISOString().split('T')[0];
-      const [todayReportRes, allDonationsRes, devoteesRes, panchangSettingsRes, panchangDataRes] = await Promise.allSettled([
-        api.get(`/api/v1/donations/report/daily?date=${today}`), // Use daily report endpoint
-        api.get('/api/v1/donations?limit=1000'), // Get all donations to count devotees
-        api.get('/api/v1/devotees'),
+      const [statsRes, panchangSettingsRes, panchangDataRes] = await Promise.allSettled([
+        api.get('/api/v1/dashboard/stats'),
         api.get('/api/v1/panchang/display-settings/'),
         api.get('/api/v1/panchang/today'),
       ]);
 
-      // Calculate today's donations from daily report
-      let todayDonations = 0;
-      if (todayReportRes.status === 'fulfilled' && todayReportRes.value.data) {
-        todayDonations = todayReportRes.value.data.total || 0;
-      } else if (todayReportRes.status === 'rejected') {
-        // Fallback: try direct donations endpoint
-        try {
-          const fallbackRes = await api.get(`/api/v1/donations?date=${today}`);
-          if (fallbackRes.data && Array.isArray(fallbackRes.data)) {
-            todayDonations = fallbackRes.data.reduce((sum, d) => sum + (d.amount || 0), 0);
-          }
-        } catch (fallbackErr) {
-          console.error('Fallback donations fetch failed:', fallbackErr);
-        }
-      }
-
-      // Count unique devotees from ALL donations (not just today)
-      let totalDevotees = 0;
-      if (allDonationsRes.status === 'fulfilled' && allDonationsRes.value.data) {
-        const uniqueDevotees = new Set();
-        allDonationsRes.value.data.forEach(d => {
-          if (d.devotee && d.devotee.phone) {
-            uniqueDevotees.add(d.devotee.phone);
-          } else if (d.devotee_phone) {
-            uniqueDevotees.add(d.devotee_phone);
-          }
+      // Get dashboard stats
+      if (statsRes.status === 'fulfilled' && statsRes.value.data) {
+        setStats(statsRes.value.data);
+      } else {
+        // Fallback to empty stats
+        setStats({
+          donations: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } },
+          sevas: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } }
         });
-        totalDevotees = uniqueDevotees.size;
-      }
-      // Fallback: try to get from devotees API if available
-      if (totalDevotees === 0 && devoteesRes.status === 'fulfilled' && devoteesRes.value.data) {
-        totalDevotees = Array.isArray(devoteesRes.value.data) ? devoteesRes.value.data.length : 0;
       }
 
       // Fetch panchang settings and data
@@ -114,45 +94,29 @@ function Dashboard() {
       
       if (panchangDataRes.status === 'fulfilled' && panchangDataRes.value.data) {
         panchangData = panchangDataRes.value.data;
+      } else if (panchangDataRes.status === 'rejected') {
+        const error = panchangDataRes.reason;
+        if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Network Error')) {
+          console.warn('Panchang API: Backend server not reachable. Ensure backend is running on http://localhost:8000');
+        } else {
+          console.log('Panchang data API failed:', error);
+        }
       }
       
       // Set panchang data (merge settings if available)
       if (panchangData) {
         setPanchangData({
           ...panchangData,
-          ...(panchangSettings || {})  // Settings override for display preferences
+          ...(panchangSettings || {})
         });
       } else if (panchangSettings) {
         setPanchangData(panchangSettings);
       }
-
-      // Calculate month donations
-      const currentMonth = new Date().getMonth() + 1;
-      const currentYear = new Date().getFullYear();
-      let monthDonations = 0;
-      try {
-        const monthReportRes = await api.get(`/api/v1/donations/report/monthly?month=${currentMonth}&year=${currentYear}`);
-        if (monthReportRes.data) {
-          monthDonations = monthReportRes.data.total || 0;
-        }
-      } catch (monthErr) {
-        console.error('Error fetching monthly report:', monthErr);
-      }
-
-      setStats({
-        todayDonations,
-        totalDevotees,
-        sevaBookings: 0,
-        monthDonations,
-      });
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
-      // Don't use hardcoded values - show actual data or 0
       setStats({
-        todayDonations: 0,
-        totalDevotees: 0,
-        sevaBookings: 0,
-        monthDonations: 0,
+        donations: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } },
+        sevas: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } }
       });
     } finally {
       setLoading(false);
@@ -287,30 +251,53 @@ function Dashboard() {
 
   const paymentModes = ['Cash', 'Card', 'UPI', 'Cheque', 'Online'];
 
-  const statCards = [
+  // First row: Donations
+  const donationCards = [
     { 
-      title: 'Today\'s Donations', 
-      value: formatCurrency(stats.todayDonations), 
+      title: 'Today\'s Donation', 
+      value: formatCurrency(stats.donations.today.amount),
+      subtitle: `${stats.donations.today.count} donations`,
       icon: <AccountBalanceIcon />, 
       color: '#4CAF50' 
     },
     { 
-      title: 'Total Devotees', 
-      value: stats.totalDevotees.toLocaleString(), 
-      icon: <PeopleIcon />, 
+      title: 'Cumulative for Month', 
+      value: formatCurrency(stats.donations.month.amount),
+      subtitle: `${stats.donations.month.count} donations`,
+      icon: <AccountBalanceIcon />, 
       color: '#2196F3' 
     },
     { 
-      title: 'Seva Bookings', 
-      value: stats.sevaBookings.toString(), 
+      title: 'Cumulative for Year', 
+      value: formatCurrency(stats.donations.year.amount),
+      subtitle: `${stats.donations.year.count} donations`,
+      icon: <AccountBalanceIcon />, 
+      color: '#9C27B0' 
+    },
+  ];
+
+  // Second row: Sevas
+  const sevaCards = [
+    { 
+      title: 'Today\'s Seva', 
+      value: formatCurrency(stats.sevas.today.amount),
+      subtitle: `${stats.sevas.today.count} bookings`,
       icon: <EventIcon />, 
       color: '#FF9800' 
     },
     { 
-      title: 'This Month', 
-      value: formatCurrency(stats.monthDonations), 
-      icon: <DashboardIcon />, 
-      color: '#9C27B0' 
+      title: 'Cumulative for Month', 
+      value: formatCurrency(stats.sevas.month.amount),
+      subtitle: `${stats.sevas.month.count} bookings`,
+      icon: <EventIcon />, 
+      color: '#FF6B35' 
+    },
+    { 
+      title: 'Cumulative for Year', 
+      value: formatCurrency(stats.sevas.year.amount),
+      subtitle: `${stats.sevas.year.count} bookings`,
+      icon: <EventIcon />, 
+      color: '#E91E63' 
     },
   ];
 
@@ -342,29 +329,80 @@ function Dashboard() {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
-        {statCards.map((stat, index) => (
-          <Grid item xs={12} sm={6} md={3} key={index}>
-            <Card sx={{ height: '100%', boxShadow: 2 }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Box sx={{ color: stat.color, mr: 2, fontSize: 40 }}>
-                    {stat.icon}
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                      {stat.value}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {stat.title}
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
+      {/* Compact Stats Row: Donations & Sevas */}
+      <Box sx={{ mb: 3 }}>
+        <Grid container spacing={2}>
+          {/* Donations - Compact */}
+          <Grid item xs={12}>
+            <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, color: '#4CAF50' }}>
+              💰 Donations
+            </Typography>
+            <Grid container spacing={2}>
+              {donationCards.map((stat, index) => (
+                <Grid item xs={12} sm={4} key={index}>
+                  <Card sx={{ boxShadow: 1, borderLeft: `4px solid ${stat.color}` }}>
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                            {stat.value}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+                            {stat.title}
+                          </Typography>
+                          {stat.subtitle && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                              {stat.subtitle}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Box sx={{ color: stat.color, fontSize: 32 }}>
+                          {stat.icon}
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
           </Grid>
-        ))}
-      </Grid>
+
+          {/* Sevas - Compact */}
+          <Grid item xs={12} sx={{ mt: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, color: '#FF9800' }}>
+              🕉️ Sevas
+            </Typography>
+            <Grid container spacing={2}>
+              {sevaCards.map((stat, index) => (
+                <Grid item xs={12} sm={4} key={index}>
+                  <Card sx={{ boxShadow: 1, borderLeft: `4px solid ${stat.color}` }}>
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                            {stat.value}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+                            {stat.title}
+                          </Typography>
+                          {stat.subtitle && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                              {stat.subtitle}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Box sx={{ color: stat.color, fontSize: 32 }}>
+                          {stat.icon}
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Grid>
+        </Grid>
+      </Box>
 
       <Grid container spacing={3} sx={{ mt: 2 }}>
         {/* Donation Entry Form */}
@@ -525,22 +563,32 @@ function Dashboard() {
           </Paper>
         </Grid>
 
-        {/* Panchang Display */}
+        {/* Panchang Display - Side by side with donation form */}
         <Grid item xs={12} md={6}>
-          <PanchangDisplay 
-            data={panchangData} 
-            settings={panchangData}
-            compact={true}
-          />
-          <Button
-            variant="outlined"
-            fullWidth
-            size="small"
-            sx={{ mt: 2 }}
-            onClick={() => navigate('/panchang')}
-          >
-            View Full Panchang →
-          </Button>
+          {panchangData ? (
+            <>
+              <PanchangDisplay 
+                data={panchangData} 
+                settings={panchangData}
+                compact={true}
+              />
+              <Button
+                variant="outlined"
+                fullWidth
+                size="small"
+                sx={{ mt: 2 }}
+                onClick={() => navigate('/panchang')}
+              >
+                View Full Panchang →
+              </Button>
+            </>
+          ) : (
+            <Paper sx={{ p: 3, boxShadow: 2, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                Panchang data will be displayed here once connected to panchang service API.
+              </Typography>
+            </Paper>
+          )}
         </Grid>
       </Grid>
     </Layout>

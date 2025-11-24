@@ -16,8 +16,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.core.database import SessionLocal, engine
-from app.models.seva import SevaBooking
+
+# Import all models to ensure relationships are properly configured
+# This must be done before querying any models with relationships
+from app.models.temple import Temple
+from app.models.panchang_display_settings import PanchangDisplaySettings
+from app.models.donation import Donation, DonationCategory
+from app.models.devotee import Devotee
+from app.models.user import User
+from app.models.seva import Seva, SevaBooking
 from app.models.accounting import Account, JournalEntry, JournalLine, JournalEntryStatus, TransactionType
+
 from app.api.sevas import post_seva_to_accounting
 
 
@@ -26,14 +35,11 @@ def backfill_seva_bookings(db: Session, temple_id: int = None):
     Backfill journal entries for seva bookings that don't have them
     """
     # Find seva bookings without journal entries
+    # Note: Seva model doesn't have temple_id, so we'll get it from user or devotee
     query = db.query(SevaBooking)
     
-    if temple_id:
-        # Filter by temple_id if we can get it from bookings
-        # Note: SevaBooking doesn't have temple_id directly, we'd need to join through Seva
-        from app.models.seva import Seva
-        query = query.join(Seva).filter(Seva.temple_id == temple_id)
-    
+    # Don't filter by temple_id here since Seva doesn't have it
+    # We'll determine temple_id per booking from user or devotee
     bookings = query.all()
     
     print(f"Found {len(bookings)} total seva bookings")
@@ -78,7 +84,6 @@ def backfill_seva_bookings(db: Session, temple_id: int = None):
             # Fallback: try to get from current_user context if available
             # For backfill, we'll use the first temple if we can't determine
             if not temple_id_for_booking:
-                from app.models.temple import Temple
                 first_temple = db.query(Temple).first()
                 if first_temple:
                     temple_id_for_booking = first_temple.id
@@ -122,7 +127,6 @@ def main():
     
     try:
         # Auto-detect temple for standalone installation
-        from app.models.temple import Temple
         temples = db.query(Temple).all()
         
         temple_id = None

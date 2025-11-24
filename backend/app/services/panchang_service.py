@@ -128,7 +128,7 @@ class PanchangService:
         return dt_ist
 
     def get_nakshatra(self, jd: float) -> Dict:
-        """Calculate current Nakshatra"""
+        """Calculate current Nakshatra with end time"""
         moon_long = self.get_sidereal_position(jd, swe.MOON)
 
         # Each nakshatra is 13°20' (13.333...)
@@ -141,19 +141,29 @@ class PanchangService:
         if degrees_to_go < 0:
             degrees_to_go += 360
 
-        # Moon moves ~13° per day
-        hours_to_end = (degrees_to_go / 13.176358) * 24  # Average moon speed
+        # Moon moves ~13.176358 degrees per day
+        hours_to_end = (degrees_to_go / 13.176358) * 24
+        
+        # Calculate end time
+        end_time_jd = jd + (hours_to_end / 24.0)
+        end_time = self.jd_to_datetime(end_time_jd)
+        
+        # Get next nakshatra name
+        next_nak_num = (nak_num + 1) % 27
+        next_nakshatra = self.NAKSHATRAS[next_nak_num]
 
         return {
             "number": nak_num + 1,
             "name": self.NAKSHATRAS[nak_num],
             "pada": nak_pada,
             "moon_longitude": round(moon_long, 2),
-            "end_time": None  # TODO: Calculate precise end time
+            "end_time": end_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time_formatted": end_time.strftime("%I:%M %p"),
+            "next_nakshatra": next_nakshatra
         }
 
     def get_tithi(self, jd: float) -> Dict:
-        """Calculate current Tithi"""
+        """Calculate current Tithi with end time"""
         moon_long = self.get_sidereal_position(jd, swe.MOON)
         sun_long = self.get_sidereal_position(jd, swe.SUN)
 
@@ -164,6 +174,11 @@ class PanchangService:
 
         # Each tithi is 12 degrees
         tithi_num = int(diff / 12)
+        
+        # Calculate degrees remaining in current tithi
+        degrees_to_next_tithi = 12 - (diff % 12)
+        if degrees_to_next_tithi == 12:
+            degrees_to_next_tithi = 12  # Current tithi just started
 
         # Determine paksha (fortnight)
         if tithi_num < 15:
@@ -176,6 +191,27 @@ class PanchangService:
                 tithi_name = "Amavasya"  # New moon
             else:
                 tithi_name = self.TITHIS[tithi_num_in_paksha]
+        
+        # Calculate end time - relative motion of moon to sun is ~12.2 degrees per day
+        # (moon moves ~13.2 deg/day, sun ~1 deg/day, so relative ~12.2 deg/day)
+        hours_to_end = (degrees_to_next_tithi / 12.2) * 24
+        end_time_jd = jd + (hours_to_end / 24.0)
+        end_time = self.jd_to_datetime(end_time_jd)
+        
+        # Get next tithi name
+        next_tithi_num = (tithi_num + 1) % 30
+        if next_tithi_num < 15:
+            next_paksha = "Shukla"
+            next_tithi_name = self.TITHIS[next_tithi_num]
+        else:
+            next_paksha = "Krishna"
+            next_tithi_num_in_paksha = next_tithi_num - 15
+            if next_tithi_num_in_paksha == 14:
+                next_tithi_name = "Amavasya"
+            else:
+                next_tithi_name = self.TITHIS[next_tithi_num_in_paksha]
+        
+        next_tithi_full = f"{next_paksha} {next_tithi_name}"
 
         return {
             "number": (tithi_num % 15) + 1,
@@ -183,7 +219,10 @@ class PanchangService:
             "paksha": paksha,
             "full_name": f"{paksha} {tithi_name}",
             "is_special": tithi_name in ["Ekadashi", "Purnima", "Amavasya"],
-            "elongation": round(diff, 2)
+            "elongation": round(diff, 2),
+            "end_time": end_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time_formatted": end_time.strftime("%I:%M %p"),
+            "next_tithi": next_tithi_full
         }
 
     def get_yoga(self, jd: float) -> Dict:
@@ -203,9 +242,10 @@ class PanchangService:
 
     def get_karana(self, jd: float) -> Dict:
         """
-        Calculate current Karana with both halves
-
-        FIXED: Now returns proper karana list with timing
+        Calculate current Karana with end time and next karana
+        
+        FIXED: Now properly identifies current karana, calculates end time,
+        and provides Bhadra warning
         """
         moon_long = self.get_sidereal_position(jd, swe.MOON)
         sun_long = self.get_sidereal_position(jd, swe.SUN)
@@ -216,23 +256,60 @@ class PanchangService:
 
         # Each tithi has 2 karanas (6 degrees each)
         karana_num = int(diff / 6)
-
+        
+        # Calculate which half of the karana we're in (0-5 degrees = first half, 5-6 = second half)
+        karana_progress = (diff % 6) / 6.0
+        
+        # Determine current karana name
+        if karana_num == 0:
+            current_name = "Kimstughna"
+        elif karana_num >= 57:
+            # Last 4 fixed karanas
+            fixed_index = karana_num - 57
+            current_name = self.KARANAS[min(7 + fixed_index, 10)]
+        else:
+            # Repeating 7 karanas
+            current_name = self.KARANAS[(karana_num - 1) % 7]
+        
+        # Determine if we're in first or second half
+        is_first_half = karana_progress < 0.5
+        
+        # Calculate end time of current karana
+        # Moon moves ~13.176358 degrees per day, so 6 degrees = ~10.9 hours
+        degrees_to_next_karana = 6 - (diff % 6)
+        if degrees_to_next_karana == 6:
+            degrees_to_next_karana = 6  # Current karana just started
+        hours_to_end = (degrees_to_next_karana / 13.176358) * 24
+        
+        # Convert to datetime
+        end_time_jd = jd + (hours_to_end / 24.0)
+        end_time = self.jd_to_datetime(end_time_jd)
+        
+        # Get next karana
+        next_karana_num = karana_num + 1
+        if next_karana_num == 0:
+            next_name = "Kimstughna"
+        elif next_karana_num >= 57:
+            fixed_index = next_karana_num - 57
+            next_name = self.KARANAS[min(7 + fixed_index, 10)]
+        else:
+            next_name = self.KARANAS[(next_karana_num - 1) % 7]
+        
+        # Check if current karana is Bhadra (Vishti)
+        is_bhadra = current_name == "Vishti"
+        
+        # Get both halves for reference
         karanas = []
-
         for i in range(2):
             k_num = karana_num + i
-
-            # Determine karana name
             if k_num == 0:
                 name = "Kimstughna"
             elif k_num >= 57:
-                # Last 4 fixed karanas
                 fixed_index = k_num - 57
                 name = self.KARANAS[min(7 + fixed_index, 10)]
             else:
-                # Repeating 7 karanas
                 name = self.KARANAS[(k_num - 1) % 7]
-
+            
             karanas.append({
                 "name": name,
                 "half": "First" if i == 0 else "Second",
@@ -240,10 +317,15 @@ class PanchangService:
             })
 
         return {
-            "current": karanas[0]["name"],
+            "current": current_name,
+            "current_half": "First" if is_first_half else "Second",
+            "end_time": end_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time_formatted": end_time.strftime("%I:%M %p"),
+            "next_karana": next_name,
+            "is_bhadra": is_bhadra,
+            "bhadra_warning": "⚠️ BHADRA (Vishti) - Avoid starting new activities" if is_bhadra else None,
             "first_half": karanas[0],
-            "second_half": karanas[1],
-            "is_bhadra": karanas[0]["is_bhadra"] or karanas[1]["is_bhadra"]
+            "second_half": karanas[1]
         }
 
     def get_vara(self, dt: datetime) -> Dict:
@@ -267,24 +349,36 @@ class PanchangService:
         """
         try:
             # Get Julian day for the date at midnight UTC
-            jd_midnight = swe.julday(dt.year, dt.month, dt.day, 0.0)
+            # swe.julday returns float, but we need to ensure all parameters are correct types
+            jd_midnight = swe.julday(int(dt.year), int(dt.month), int(dt.day), 0.0)
 
-            # Calculate sunrise - swe.rise_trans returns (flag, jd_value)
+            # Calculate sunrise - swe.rise_trans signature:
+            # swe.rise_trans(jd_ut, ipl, rsmi, lon, lat, alt, atpress, attemp)
+            # jd_ut: float, ipl: int, rsmi: int, lon: float, lat: float, alt: float, atpress: float, attemp: float
+            rsmi_rise = int(swe.CALC_RISE) | int(swe.BIT_DISC_CENTER)
+            rsmi_set = int(swe.CALC_SET) | int(swe.BIT_DISC_CENTER)
+            
             sunrise_result = swe.rise_trans(
-                jd_midnight,
-                swe.SUN,
-                lon,
-                lat,
-                rsmi=swe.CALC_RISE | swe.BIT_DISC_CENTER
+                float(jd_midnight),
+                int(swe.SUN),
+                int(rsmi_rise),
+                float(lon),
+                float(lat),
+                0.0,  # altitude (meters)
+                1013.25,  # atmospheric pressure (mbar)
+                10.0  # atmospheric temperature (Celsius)
             )
 
             # Calculate sunset
             sunset_result = swe.rise_trans(
-                jd_midnight,
-                swe.SUN,
-                lon,
-                lat,
-                rsmi=swe.CALC_SET | swe.BIT_DISC_CENTER
+                float(jd_midnight),
+                int(swe.SUN),
+                int(rsmi_set),
+                float(lon),
+                float(lat),
+                0.0,  # altitude
+                1013.25,  # pressure
+                10.0  # temperature
             )
 
             # Convert Julian Day to local time (IST)
@@ -338,24 +432,33 @@ class PanchangService:
         (This can happen in extreme latitudes or certain dates)
         """
         try:
-            jd_midnight = swe.julday(dt.year, dt.month, dt.day, 0.0)
+            jd_midnight = swe.julday(int(dt.year), int(dt.month), int(dt.day), 0.0)
 
-            # Calculate moonrise
+            # Calculate moonrise - ensure correct types
+            rsmi_rise = int(swe.CALC_RISE) | int(swe.BIT_DISC_CENTER)
+            rsmi_set = int(swe.CALC_SET) | int(swe.BIT_DISC_CENTER)
+            
             moonrise_result = swe.rise_trans(
-                jd_midnight,
-                swe.MOON,
-                lon,
-                lat,
-                rsmi=swe.CALC_RISE | swe.BIT_DISC_CENTER
+                float(jd_midnight),
+                int(swe.MOON),
+                int(rsmi_rise),
+                float(lon),
+                float(lat),
+                0.0,  # altitude
+                1013.25,  # pressure
+                10.0  # temperature
             )
 
             # Calculate moonset
             moonset_result = swe.rise_trans(
-                jd_midnight,
-                swe.MOON,
-                lon,
-                lat,
-                rsmi=swe.CALC_SET | swe.BIT_DISC_CENTER
+                float(jd_midnight),
+                int(swe.MOON),
+                int(rsmi_set),
+                float(lon),
+                float(lat),
+                0.0,  # altitude
+                1013.25,  # pressure
+                10.0  # temperature
             )
 
             # Convert JD to time string
@@ -618,11 +721,13 @@ class PanchangService:
 
     def get_gulika(self, sunrise: str, sunset: str, day_of_week: int) -> Dict:
         """
-        Calculate Gulika Kala timing - CORRECTED
+        Calculate Gulika Kala timing - CORRECTED to match Drik Panchang
 
-        Position by weekday (0=Sunday):
-        Sunday: 7th, Monday: 2nd, Tuesday: 1st, Wednesday: 6th,
+        Position by weekday (0=Sunday) - Following Drik Panchang system:
+        Sunday: 7th, Monday: 6th, Tuesday: 1st, Wednesday: 6th,
         Thursday: 5th, Friday: 4th, Saturday: 3rd
+        
+        Note: Monday Gulika is at 6th period (not 3rd) per Drik Panchang standard
         """
         def time_to_minutes(time_str):
             parts = time_str.split(':')
@@ -639,13 +744,13 @@ class PanchangService:
         segment = day_duration / 8
 
         gulika_segments = {
-            0: 6,  # Sunday: 7th segment
-            1: 2,  # Monday: 3rd segment ← FIXED (was 1, causing overlap with Rahu Kaal)
-            2: 0,  # Tuesday: 1st segment
-            3: 5,  # Wednesday: 6th segment
-            4: 4,  # Thursday: 5th segment
-            5: 3,  # Friday: 4th segment
-            6: 2   # Saturday: 3rd segment
+            0: 6,  # Sunday: 7th segment (index 6)
+            1: 5,  # Monday: 6th segment (index 5) ← FIXED: Changed from 2 to 5 to match Drik Panchang
+            2: 0,  # Tuesday: 1st segment (index 0)
+            3: 5,  # Wednesday: 6th segment (index 5)
+            4: 4,  # Thursday: 5th segment (index 4)
+            5: 3,  # Friday: 4th segment (index 3)
+            6: 2   # Saturday: 3rd segment (index 2)
         }
 
         segment_num = gulika_segments.get(day_of_week, 1)
@@ -1184,6 +1289,42 @@ class PanchangService:
             "duration_minutes": duration
         }
 
+    def get_brahma_muhurat(self, sunrise: str) -> Dict:
+        """
+        Calculate Brahma Muhurat (most auspicious time for spiritual practices)
+        
+        Brahma Muhurat is approximately 1.5 hours (96 minutes) before sunrise
+        Duration is typically 48 minutes (muhurat = 1/30th of day)
+        """
+        def time_to_minutes(time_str):
+            parts = time_str.split(':')
+            return int(parts[0]) * 60 + int(parts[1])
+
+        def minutes_to_time(minutes):
+            hours = int(minutes // 60)
+            mins = int(minutes % 60)
+            return f"{hours:02d}:{mins:02d}:00"
+
+        sunrise_min = time_to_minutes(sunrise)
+        
+        # Brahma Muhurat starts 96 minutes (1.5 hours) before sunrise
+        # Duration is 48 minutes (2 muhurats)
+        start_min = sunrise_min - 96
+        end_min = start_min + 48
+        
+        # Handle day rollover
+        if start_min < 0:
+            start_min += 1440  # Add 24 hours
+        if end_min < 0:
+            end_min += 1440
+
+        return {
+            "start": minutes_to_time(start_min),
+            "end": minutes_to_time(end_min),
+            "duration_minutes": 48,
+            "description": "Most auspicious time for meditation, prayer, and spiritual practices"
+        }
+
     def detect_special_days(self, tithi_data: Dict, vara: Dict, nakshatra: Dict) -> list:
         """Detect special days like Ekadashi, Pradosha, Sankashta Chaturthi"""
         special_days = []
@@ -1341,10 +1482,10 @@ class PanchangService:
             {"name": "Rahu", "quality": "neutral"}
         ]
 
-        # Day-specific inauspicious periods
+        # Day-specific inauspicious periods - Updated to match Drik Panchang
         inauspicious_periods = {
             0: {"rahu": 7, "yama": 4, "gulika": 6},  # Sunday
-            1: {"rahu": 1, "yama": 3, "gulika": 1},  # Monday
+            1: {"rahu": 1, "yama": 3, "gulika": 5},  # Monday - FIXED: Gulika at 6th period (index 5)
             2: {"rahu": 6, "yama": 2, "gulika": 0},  # Tuesday
             3: {"rahu": 4, "yama": 1, "gulika": 5},  # Wednesday
             4: {"rahu": 5, "yama": 0, "gulika": 4},  # Thursday
@@ -1429,6 +1570,7 @@ class PanchangService:
 
         # Calculate auspicious times
         abhijit_muhurat = self.get_abhijit_muhurat(sun_moon_data["sunrise"], sun_moon_data["sunset"])
+        brahma_muhurat = self.get_brahma_muhurat(sun_moon_data["sunrise"])
 
         # Detect special days
         special_days = self.detect_special_days(tithi_data, vara_data, nakshatra_data)
@@ -1482,7 +1624,8 @@ class PanchangService:
                 "gulika": gulika
             },
             "auspicious_times": {
-                "abhijit_muhurat": abhijit_muhurat
+                "abhijit_muhurat": abhijit_muhurat,
+                "brahma_muhurat": brahma_muhurat
             },
             "day_periods": day_periods,
             "festivals": special_days,

@@ -4,7 +4,7 @@ Handles temple sevas/poojas/archanas
 """
 
 from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, ForeignKey, Text, Enum as SQLEnum
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign
 from app.core.database import Base
 from datetime import datetime
 import enum
@@ -110,6 +110,14 @@ class SevaBooking(Base):
     cancelled_at = Column(DateTime, nullable=True)
     cancellation_reason = Column(Text, nullable=True)
 
+    # Reschedule fields (for postpone/prepone with approval)
+    original_booking_date = Column(Date, nullable=True)  # Original date before reschedule
+    reschedule_requested_date = Column(Date, nullable=True)  # Requested new date
+    reschedule_reason = Column(Text, nullable=True)  # Reason for reschedule
+    reschedule_approved = Column(Boolean, nullable=True)  # NULL = not requested, True = approved, False = rejected
+    reschedule_approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Admin who approved
+    reschedule_approved_at = Column(DateTime, nullable=True)
+
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -117,4 +125,16 @@ class SevaBooking(Base):
     # Relationships
     seva = relationship("Seva", back_populates="bookings")
     devotee = relationship("Devotee")
-    user = relationship("User")
+    # User who created the booking - explicit primaryjoin to avoid ambiguity
+    user = relationship(
+        "User", 
+        foreign_keys=[user_id],
+        primaryjoin="SevaBooking.user_id == foreign(User.id)"
+    )
+    # Admin who approved reschedule - explicit primaryjoin to avoid ambiguity
+    reschedule_approved_by_user = relationship(
+        "User", 
+        foreign_keys=[reschedule_approved_by],
+        primaryjoin="SevaBooking.reschedule_approved_by == foreign(User.id)",
+        overlaps="user"  # Silence warning about overlapping foreign keys
+    )

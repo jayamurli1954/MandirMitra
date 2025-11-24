@@ -9,6 +9,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.data_masking import mask_phone_for_user, mask_address_for_user, mask_email_for_user
 from app.models.devotee import Devotee
 from app.models.user import User
 from pydantic import BaseModel, EmailStr
@@ -49,6 +50,25 @@ class DevoteeResponse(DevoteeBase):
     
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_orm_with_masking(cls, devotee: Devotee, user: User):
+        """
+        Create response with data masking based on user permissions
+        """
+        return cls(
+            id=devotee.id,
+            name=devotee.name,
+            phone=mask_phone_for_user(devotee.phone, user),
+            email=mask_email_for_user(devotee.email, user),
+            address=mask_address_for_user(devotee.address, user),
+            city=devotee.city,
+            state=devotee.state,
+            pincode=devotee.pincode,
+            full_name=devotee.full_name,
+            created_at=devotee.created_at,
+            updated_at=devotee.updated_at
+        )
 
 
 @router.get("/", response_model=List[DevoteeResponse])
@@ -58,9 +78,10 @@ def get_devotees(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get list of devotees"""
+    """Get list of devotees (with data masking based on permissions)"""
     devotees = db.query(Devotee).offset(skip).limit(limit).all()
-    return devotees
+    # Apply data masking
+    return [DevoteeResponse.from_orm_with_masking(d, current_user) for d in devotees]
 
 
 @router.get("/search/by-mobile/{mobile}", response_model=Optional[DevoteeResponse])
@@ -87,11 +108,11 @@ def get_devotee(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get a specific devotee"""
+    """Get a specific devotee (with data masking based on permissions)"""
     devotee = db.query(Devotee).filter(Devotee.id == devotee_id).first()
     if not devotee:
         raise HTTPException(status_code=404, detail="Devotee not found")
-    return devotee
+    return DevoteeResponse.from_orm_with_masking(devotee, current_user)
 
 
 @router.post("/", response_model=DevoteeResponse, status_code=status.HTTP_201_CREATED)

@@ -21,10 +21,12 @@ import {
 import GetAppIcon from '@mui/icons-material/GetApp';
 import DownloadIcon from '@mui/icons-material/Download';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../services/api';
 
 function Reports() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState(new Date(new Date().setDate(1))); // First day of month
   const [dateTo, setDateTo] = useState(new Date());
@@ -183,6 +185,67 @@ function Reports() {
       <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
         Reports
       </Typography>
+
+      {/* Quick Links to New Reports */}
+      <Paper sx={{ p: 3, mt: 2, mb: 3, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
+        <Typography variant="h6" sx={{ color: '#fff', mb: 2, fontWeight: 'bold' }}>
+          📊 Available Reports
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Button
+              fullWidth
+              variant="contained"
+              sx={{ backgroundColor: '#fff', color: '#FF9933', '&:hover': { backgroundColor: '#f5f5f5' } }}
+              onClick={() => navigate('/reports/donations/category-wise')}
+            >
+              Category-Wise Donation
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Button
+              fullWidth
+              variant="contained"
+              sx={{ backgroundColor: '#fff', color: '#FF9933', '&:hover': { backgroundColor: '#f5f5f5' } }}
+              onClick={() => navigate('/reports/donations/detailed')}
+            >
+              Detailed Donation Report
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Button
+              fullWidth
+              variant="contained"
+              sx={{ backgroundColor: '#fff', color: '#FF9933', '&:hover': { backgroundColor: '#f5f5f5' } }}
+              onClick={() => navigate('/reports/sevas/detailed')}
+            >
+              Detailed Seva Report
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Button
+              fullWidth
+              variant="contained"
+              sx={{ backgroundColor: '#fff', color: '#FF9933', '&:hover': { backgroundColor: '#f5f5f5' } }}
+              onClick={() => navigate('/reports/sevas/schedule')}
+            >
+              3-Day Seva Schedule
+            </Button>
+          </Grid>
+          {JSON.parse(localStorage.getItem('user') || '{}').role === 'admin' && (
+            <Grid item xs={12} sm={6} md={3}>
+              <Button
+                fullWidth
+                variant="contained"
+                sx={{ backgroundColor: '#fff', color: '#FF9933', '&:hover': { backgroundColor: '#f5f5f5' } }}
+                onClick={() => navigate('/sevas/reschedule-approval')}
+              >
+                Reschedule Approvals
+              </Button>
+            </Grid>
+          )}
+        </Grid>
+      </Paper>
 
       <Paper sx={{ p: 3, mt: 2 }}>
         <Grid container spacing={2} alignItems="center">

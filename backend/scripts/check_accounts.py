@@ -14,8 +14,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
-from app.models.accounting import Account
+
+# Import all models to ensure relationships are properly configured
 from app.models.temple import Temple
+from app.models.panchang_display_settings import PanchangDisplaySettings
+from app.models.user import User
+from app.models.accounting import Account, JournalEntry, JournalLine
 
 
 def check_required_accounts(db: Session, temple_id: int = None):
