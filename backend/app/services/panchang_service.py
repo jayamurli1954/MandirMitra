@@ -330,6 +330,65 @@ class PanchangService:
                 "sunset": "17:46:00"     # Bangalore approximate
             }
 
+    def get_moon_rise_set(self, dt: datetime, lat: float, lon: float) -> Dict:
+        """
+        Calculate moonrise and moonset times using Swiss Ephemeris
+
+        Returns moonrise and moonset times, or None if moon doesn't rise/set on that day
+        (This can happen in extreme latitudes or certain dates)
+        """
+        try:
+            jd_midnight = swe.julday(dt.year, dt.month, dt.day, 0.0)
+
+            # Calculate moonrise
+            moonrise_result = swe.rise_trans(
+                jd_midnight,
+                swe.MOON,
+                lon,
+                lat,
+                rsmi=swe.CALC_RISE | swe.BIT_DISC_CENTER
+            )
+
+            # Calculate moonset
+            moonset_result = swe.rise_trans(
+                jd_midnight,
+                swe.MOON,
+                lon,
+                lat,
+                rsmi=swe.CALC_SET | swe.BIT_DISC_CENTER
+            )
+
+            # Convert JD to time string
+            def jd_to_time_string(jd_value):
+                year, month, day, hour_utc = swe.revjul(jd_value)
+                hour_ist = hour_utc + 5.5
+                if hour_ist >= 24:
+                    hour_ist -= 24
+                hours = int(hour_ist)
+                minutes = int((hour_ist - hours) * 60)
+                seconds = int(((hour_ist - hours) * 60 - minutes) * 60)
+                return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+            moonrise_time = None
+            moonset_time = None
+
+            if moonrise_result[0] >= 0:
+                moonrise_time = jd_to_time_string(moonrise_result[1])
+
+            if moonset_result[0] >= 0:
+                moonset_time = jd_to_time_string(moonset_result[1])
+
+            return {
+                "moonrise": moonrise_time,
+                "moonset": moonset_time
+            }
+        except Exception as e:
+            print(f"Error calculating moon rise/set: {e}")
+            return {
+                "moonrise": None,
+                "moonset": None
+            }
+
     def get_moon_sign(self, jd: float) -> Dict:
         """Calculate Moon's Rashi (zodiac sign)"""
         moon_long = self.get_sidereal_position(jd, swe.MOON)
@@ -380,6 +439,93 @@ class PanchangService:
             "shaka_year": shaka_year,
             "kali_year": year + 3102,
             "cycle_year": samvatsara_index + 1
+        }
+
+    def get_hindu_calendar_info(self, dt: datetime, jd: float, tithi_data: Dict) -> Dict:
+        """
+        Calculate dynamic Hindu calendar information
+
+        FIXED: Now calculates Vikram Samvat, Shaka Samvat, and lunar months dynamically
+        instead of using hardcoded values
+
+        Args:
+            dt: Current datetime
+            jd: Julian day
+            tithi_data: Tithi information with paksha
+
+        Returns:
+            Dict with complete Hindu calendar details
+        """
+        gregorian_year = dt.year
+        gregorian_month = dt.month
+
+        # Vikram Samvat calculation
+        # Starts from Chaitra Shukla Pratipada (around March/April)
+        # Approximately Gregorian year + 57
+        if gregorian_month <= 3:
+            vikram_samvat = gregorian_year + 56
+        else:
+            vikram_samvat = gregorian_year + 57
+
+        # Shaka Samvat = Gregorian - 78
+        shaka_samvat = gregorian_year - 78
+
+        # Get solar month (based on sun's zodiac position)
+        sun_long = self.get_sidereal_position(jd, swe.SUN)
+        solar_month_num = int(sun_long / 30)
+
+        # Solar month names (Mesha, Vrishabha, etc.)
+        solar_months = [
+            "Mesha", "Vrishabha", "Mithuna", "Kataka",
+            "Simha", "Kanya", "Tula", "Vrischika",
+            "Dhanus", "Makara", "Kumbha", "Meena"
+        ]
+        solar_month = solar_months[solar_month_num]
+
+        # Lunar month (simplified - based on solar month)
+        # In practice, lunar month changes on Amavasya or Purnima
+        lunar_months_purnimanta = [
+            "Chaitra", "Vaishakha", "Jyeshtha", "Ashadha",
+            "Shravana", "Bhadrapada", "Ashwin", "Kartika",
+            "Margashirsha", "Pausha", "Magha", "Phalguna"
+        ]
+
+        lunar_months_amanta = [
+            "Chaitra", "Vaishakha", "Jyeshtha", "Ashadha",
+            "Shravana", "Bhadrapada", "Ashwin", "Kartika",
+            "Margashirsha", "Pausha", "Magha", "Phalguna"
+        ]
+
+        lunar_month_index = solar_month_num
+        lunar_month_purnimanta = lunar_months_purnimanta[lunar_month_index]
+        lunar_month_amanta = lunar_months_amanta[lunar_month_index]
+
+        # Ritu (Season) - 6 seasons of 2 months each
+        ritu_map = [
+            "Vasanta",   # Chaitra-Vaishakha (Spring)
+            "Vasanta",
+            "Grishma",   # Jyeshtha-Ashadha (Summer)
+            "Grishma",
+            "Varsha",    # Shravana-Bhadrapada (Monsoon)
+            "Varsha",
+            "Sharad",    # Ashwin-Kartika (Autumn)
+            "Sharad",
+            "Hemanta",   # Margashirsha-Pausha (Pre-winter)
+            "Hemanta",
+            "Shishira",  # Magha-Phalguna (Winter)
+            "Shishira"
+        ]
+
+        ritu = ritu_map[lunar_month_index]
+
+        return {
+            "vikram_samvat": vikram_samvat,
+            "shaka_samvat": shaka_samvat,
+            "solar_month": solar_month,
+            "lunar_month_purnimanta": lunar_month_purnimanta,
+            "lunar_month_amanta": lunar_month_amanta,
+            "paksha": tithi_data.get("paksha", "Shukla"),
+            "ritu": ritu
         }
 
     def get_rahu_kala(self, sunrise: str, sunset: str, day_of_week: int) -> Dict:
@@ -494,7 +640,7 @@ class PanchangService:
 
         gulika_segments = {
             0: 6,  # Sunday: 7th segment
-            1: 1,  # Monday: 2nd segment
+            1: 2,  # Monday: 3rd segment ← FIXED (was 1, causing overlap with Rahu Kaal)
             2: 0,  # Tuesday: 1st segment
             3: 5,  # Wednesday: 6th segment
             4: 4,  # Thursday: 5th segment
@@ -1268,8 +1414,12 @@ class PanchangService:
         karana_data = self.get_karana(jd)
         vara_data = self.get_vara(dt)
         sun_moon_data = self.get_sun_rise_set(dt, lat, lon)
+        moon_rise_set_data = self.get_moon_rise_set(dt, lat, lon)  # NEW: Add moonrise/moonset
         moon_sign_data = self.get_moon_sign(jd)
         samvatsara_data = self.get_samvatsara(dt.year)
+
+        # NEW: Get dynamic Hindu calendar info
+        hindu_calendar_data = self.get_hindu_calendar_info(dt, jd, tithi_data)
 
         # Calculate inauspicious times
         day_of_week = (dt.weekday() + 1) % 7  # Convert to Sunday=0 format
@@ -1302,10 +1452,14 @@ class PanchangService:
                     "formatted": dt.strftime("%A, %B %d, %Y")
                 },
                 "hindu": {
-                    "samvat_vikram": 2082,  # Vikram Samvat
-                    "samvatsara": samvatsara_data,
-                    "month": "Margashirsha",  # TODO: Calculate from Moon position
-                    "paksha": tithi_data["paksha"]
+                    "vikram_samvat": hindu_calendar_data["vikram_samvat"],  # FIXED: Now calculated dynamically
+                    "shaka_samvat": hindu_calendar_data["shaka_samvat"],     # NEW: Added Shaka Samvat
+                    "solar_month": hindu_calendar_data["solar_month"],
+                    "lunar_month_purnimanta": hindu_calendar_data["lunar_month_purnimanta"],  # FIXED: Calculated
+                    "lunar_month_amanta": hindu_calendar_data["lunar_month_amanta"],
+                    "paksha": hindu_calendar_data["paksha"],
+                    "ritu": hindu_calendar_data["ritu"],
+                    "samvatsara": samvatsara_data
                 }
             },
             "panchang": {
@@ -1315,7 +1469,10 @@ class PanchangService:
                 "karana": karana_data,
                 "vara": vara_data
             },
-            "sun_moon": sun_moon_data,
+            "sun_moon": {
+                **sun_moon_data,  # sunrise, sunset
+                **moon_rise_set_data  # moonrise, moonset (NEW)
+            },
             "moon_sign": moon_sign_data,
             "ayana": self.get_ayana(jd),
             "ruthu": self.get_ruthu(jd),
