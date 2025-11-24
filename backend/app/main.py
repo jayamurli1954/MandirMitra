@@ -7,6 +7,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db
+from app.core.error_handlers import (
+    app_exception_handler,
+    validation_exception_handler,
+    database_exception_handler,
+    general_exception_handler,
+    AppException
+)
+from sqlalchemy.exc import SQLAlchemyError
+from fastapi.exceptions import RequestValidationError
 
 # Import all models to ensure they're registered with SQLAlchemy
 # This must happen before init_db() is called
@@ -57,6 +66,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register exception handlers
+app.add_exception_handler(AppException, app_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(SQLAlchemyError, database_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 # Include routers
 app.include_router(auth_router)

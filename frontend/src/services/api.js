@@ -32,6 +32,25 @@ api.interceptors.response.use(
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+    
+    // Extract error message from response
+    let errorMessage = 'An error occurred';
+    if (error.response?.data) {
+      const errorData = error.response.data;
+      if (errorData.error?.message) {
+        errorMessage = errorData.error.message;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.detail) {
+        errorMessage = errorData.detail;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // Add error message to error object for easy access
+    error.userMessage = errorMessage;
+    
     return Promise.reject(error);
   }
 );

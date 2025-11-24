@@ -12,7 +12,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.seva import Seva, SevaBooking, SevaCategory, SevaAvailability, SevaBookingStatus
-from app.models.accounting import Account, JournalEntry, JournalLine
+from app.models.accounting import Account, JournalEntry, JournalLine, JournalEntryStatus, TransactionType
 from app.schemas.seva import (
     SevaCreate, SevaUpdate, SevaResponse, SevaListResponse,
     SevaBookingCreate, SevaBookingUpdate, SevaBookingResponse
@@ -61,8 +61,19 @@ def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
                 Account.account_code == credit_account_code
             ).first()
 
-        if not debit_account or not credit_account:
-            print(f"Warning: Accounts not found for seva booking {booking.receipt_number}")
+        if not debit_account:
+            error_msg = f"Debit account ({debit_account_code}) not found for temple {temple_id}. Please create the account in Chart of Accounts."
+            print(f"ERROR: {error_msg}")
+            print(f"  - Seva booking: {booking.receipt_number}")
+            print(f"  - Payment method: {payment_method}")
+            return None
+        
+        if not credit_account:
+            error_msg = f"Credit account not found for seva '{booking.seva.name_english if booking.seva else 'Unknown'}'. Please link an account to the seva or create default seva income accounts."
+            print(f"ERROR: {error_msg}")
+            print(f"  - Seva booking: {booking.receipt_number}")
+            print(f"  - Seva: {booking.seva.name_english if booking.seva else 'None'}")
+            print(f"  - Seva account_id: {booking.seva.account_id if booking.seva and hasattr(booking.seva, 'account_id') else 'NO'}")
             return None
 
         # Create narration
@@ -70,36 +81,53 @@ def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
         seva_name = booking.seva.name_english if booking.seva else 'Seva'
         narration = f"Seva booking - {seva_name} by {devotee_name}"
 
+        # Generate entry number first
+        year = booking.booking_date.year
+        prefix = f"JE/{year}/"
+        
+        # Get last entry number for this year
+        last_entry = db.query(JournalEntry).filter(
+            JournalEntry.temple_id == temple_id,
+            JournalEntry.entry_number.like(f"{prefix}%")
+        ).order_by(JournalEntry.id.desc()).first()
+
+        if last_entry:
+            # Extract number and increment
+            try:
+                last_num = int(last_entry.entry_number.split('/')[-1])
+                new_num = last_num + 1
+            except:
+                new_num = 1
+        else:
+            new_num = 1
+
+        entry_number = f"{prefix}{new_num:04d}"
+
+        # Convert booking_date (date) to datetime for entry_date
+        if isinstance(booking.booking_date, date):
+            entry_date = datetime.combine(booking.booking_date, datetime.min.time())
+        else:
+            entry_date = booking.booking_date
+
         # Create journal entry
+        # Note: created_by is required, so use booking.user_id or default to 1
+        created_by = booking.user_id if booking.user_id else 1
+
         journal_entry = JournalEntry(
             temple_id=temple_id,
-            entry_date=booking.booking_date,
-            entry_number=None,  # Will be generated below
+            entry_date=entry_date,
+            entry_number=entry_number,
             narration=narration,
-            reference_type='SEVA',
+            reference_type=TransactionType.SEVA,
             reference_id=booking.id,
-            reference_number=booking.receipt_number,
-            status='POSTED',
-            created_by=booking.user_id
+            total_amount=booking.amount_paid,
+            status=JournalEntryStatus.POSTED,
+            created_by=created_by,
+            posted_by=created_by,
+            posted_at=datetime.utcnow()
         )
         db.add(journal_entry)
         db.flush()  # Get journal_entry.id
-
-        # Generate entry number
-        year = booking.booking_date.year
-        last_entry = db.query(JournalEntry).filter(
-            JournalEntry.temple_id == temple_id,
-            JournalEntry.id < journal_entry.id
-        ).order_by(JournalEntry.id.desc()).first()
-
-        seq = 1
-        if last_entry and last_entry.entry_number:
-            try:
-                seq = int(last_entry.entry_number.split('-')[-1]) + 1
-            except:
-                seq = journal_entry.id
-
-        journal_entry.entry_number = f"JE-{year}-{str(seq).zfill(5)}"
 
         # Create journal lines
         # Debit: Payment Account (Cash/Bank increases)

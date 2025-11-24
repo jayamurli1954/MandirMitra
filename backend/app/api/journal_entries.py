@@ -759,11 +759,11 @@ def get_top_donors_report(
         Devotee.name.label('devotee_name'),
         func.sum(Donation.amount).label('total_donated'),
         func.count(Donation.id).label('donation_count'),
-        func.max(Donation.date).label('last_donation_date')
+        func.max(Donation.donation_date).label('last_donation_date')
     ).join(Donation, Devotee.id == Donation.devotee_id).filter(
         Devotee.temple_id == current_user.temple_id,
-        func.date(Donation.date) >= from_date,
-        func.date(Donation.date) <= to_date
+        func.date(Donation.donation_date) >= from_date,
+        func.date(Donation.donation_date) <= to_date
     ).group_by(Devotee.id, Devotee.name).order_by(
         func.sum(Donation.amount).desc()
     ).limit(limit).all()
@@ -777,10 +777,10 @@ def get_top_donors_report(
             func.distinct(Account.account_name)
         ).join(JournalLine).join(JournalEntry).join(Donation, JournalEntry.reference_id == Donation.id).filter(
             Donation.devotee_id == donor.devotee_id,
-            JournalEntry.reference_type == 'DONATION',
+            JournalEntry.reference_type == TransactionType.DONATION,
             Account.account_code.between('4100', '4199'),
-            func.date(Donation.date) >= from_date,
-            func.date(Donation.date) <= to_date
+            func.date(Donation.donation_date) >= from_date,
+            func.date(Donation.donation_date) <= to_date
         ).all()
 
         categories = [cat[0] for cat in categories_query] if categories_query else []

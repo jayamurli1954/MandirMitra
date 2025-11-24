@@ -30,7 +30,7 @@ from app.models.donation import Donation, DonationCategory
 from app.models.devotee import Devotee
 from app.models.temple import Temple
 from app.models.user import User
-from app.models.accounting import Account, JournalEntry, JournalLine
+from app.models.accounting import Account, JournalEntry, JournalLine, JournalEntryStatus, TransactionType
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/donations", tags=["donations"])
@@ -84,12 +84,19 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
                 Account.account_code == credit_account_code
             ).first()
 
-        if not debit_account or not credit_account:
-            print(f"ERROR: Accounts not found for donation {donation.receipt_number}")
-            print(f"  - Debit account ({debit_account_code}): {'FOUND' if debit_account else 'NOT FOUND'}")
-            print(f"  - Credit account: {'FOUND' if credit_account else 'NOT FOUND'}")
+        if not debit_account:
+            error_msg = f"Debit account ({debit_account_code}) not found for temple {temple_id}. Please create the account in Chart of Accounts."
+            print(f"ERROR: {error_msg}")
+            print(f"  - Donation: {donation.receipt_number}")
+            print(f"  - Payment mode: {donation.payment_mode}")
+            return None
+        
+        if not credit_account:
+            error_msg = f"Credit account not found for donation category '{donation.category.name if donation.category else 'Unknown'}'. Please link an account to the donation category or create default income accounts."
+            print(f"ERROR: {error_msg}")
+            print(f"  - Donation: {donation.receipt_number}")
             print(f"  - Category: {donation.category.name if donation.category else 'None'}")
-            print(f"  - Category has account_id: {donation.category.account_id if donation.category and hasattr(donation.category, 'account_id') else 'NO'}")
+            print(f"  - Category account_id: {donation.category.account_id if donation.category and hasattr(donation.category, 'account_id') else 'NO'}")
             return None
 
         # Create narration
@@ -97,36 +104,53 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
         if donation.category:
             narration += f" - {donation.category.name}"
 
+        # Generate entry number first
+        year = donation.donation_date.year
+        prefix = f"JE/{year}/"
+        
+        # Get last entry number for this year
+        last_entry = db.query(JournalEntry).filter(
+            JournalEntry.temple_id == temple_id,
+            JournalEntry.entry_number.like(f"{prefix}%")
+        ).order_by(JournalEntry.id.desc()).first()
+
+        if last_entry:
+            # Extract number and increment
+            try:
+                last_num = int(last_entry.entry_number.split('/')[-1])
+                new_num = last_num + 1
+            except:
+                new_num = 1
+        else:
+            new_num = 1
+
+        entry_number = f"{prefix}{new_num:04d}"
+
+        # Convert donation_date (date) to datetime for entry_date
+        if isinstance(donation.donation_date, date):
+            entry_date = datetime.combine(donation.donation_date, datetime.min.time())
+        else:
+            entry_date = donation.donation_date
+        
         # Create journal entry
+        # Note: created_by is required, so use 1 as default if None (system user)
+        created_by = donation.created_by if donation.created_by else 1
+        
         journal_entry = JournalEntry(
             temple_id=temple_id,
-            entry_date=donation.donation_date,
-            entry_number=None,  # Will be generated below
+            entry_date=entry_date,
+            entry_number=entry_number,
             narration=narration,
-            reference_type='DONATION',
+            reference_type=TransactionType.DONATION,
             reference_id=donation.id,
-            reference_number=donation.receipt_number,
-            status='POSTED',
-            created_by=donation.created_by
+            total_amount=donation.amount,
+            status=JournalEntryStatus.POSTED,
+            created_by=created_by,
+            posted_by=created_by,
+            posted_at=datetime.utcnow()
         )
         db.add(journal_entry)
         db.flush()  # Get journal_entry.id
-
-        # Generate entry number
-        year = donation.donation_date.year
-        last_entry = db.query(JournalEntry).filter(
-            JournalEntry.temple_id == temple_id,
-            JournalEntry.id < journal_entry.id
-        ).order_by(JournalEntry.id.desc()).first()
-
-        seq = 1
-        if last_entry and last_entry.entry_number:
-            try:
-                seq = int(last_entry.entry_number.split('-')[-1]) + 1
-            except:
-                seq = journal_entry.id
-
-        journal_entry.entry_number = f"JE-{year}-{str(seq).zfill(5)}"
 
         # Create journal lines
         # Debit: Payment Account (Cash/Bank increases)
