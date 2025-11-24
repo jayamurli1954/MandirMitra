@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.panchang_display_settings import PanchangDisplaySettings
+from app.models.temple import Temple  # Needed for SQLAlchemy relationship resolution
 
 # Common Indian City Coordinates
 CITY_COORDINATES = {
