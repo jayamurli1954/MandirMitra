@@ -389,16 +389,27 @@ def create_booking(
     receipt_number = f"SEV{datetime.now().strftime('%Y%m%d%H%M%S')}{booking_data.seva_id}"
 
     # Create booking
-    booking = SevaBooking(
-        **booking_data.dict(),
-        user_id=current_user.id,
-        status=SevaBookingStatus.PENDING if seva.requires_approval else SevaBookingStatus.CONFIRMED,
-        receipt_number=receipt_number
-    )
+    try:
+        booking = SevaBooking(
+            **booking_data.dict(),
+            user_id=current_user.id,
+            status=SevaBookingStatus.PENDING if seva.requires_approval else SevaBookingStatus.CONFIRMED,
+            receipt_number=receipt_number
+        )
 
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
+        db.add(booking)
+        db.commit()
+        db.refresh(booking)
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error creating seva booking: {str(e)}")
+        print(f"   Booking data: {booking_data.dict()}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create booking: {str(e)}"
+        )
 
     # Post to accounting system (get temple_id from current_user)
     if current_user and current_user.temple_id:
@@ -554,7 +565,107 @@ def approve_reschedule(
         booking.reschedule_approved_at = datetime.utcnow()
         
         db.commit()
-        return {
+    return {
             "message": "Reschedule request rejected.",
             "booking_date": booking.booking_date  # Unchanged
+    }
+
+
+# ===== PRIEST ASSIGNMENT =====
+
+@router.get("/priests")
+def get_priests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of priests (users with role 'priest')"""
+    priests = db.query(User).filter(
+        User.role == "priest",
+        User.is_active == True
+    )
+    
+    # Filter by temple if in multi-tenant mode
+    if current_user.temple_id:
+        priests = priests.filter(User.temple_id == current_user.temple_id)
+    
+    priests = priests.all()
+    
+    return [
+        {
+            "id": p.id,
+            "name": p.full_name,
+            "email": p.email,
+            "phone": p.phone
         }
+        for p in priests
+    ]
+
+
+@router.put("/bookings/{booking_id}/assign-priest")
+def assign_priest(
+    booking_id: int,
+    priest_id: int = Query(..., description="Priest user ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Assign a priest to a seva booking
+    Only admins or staff can assign priests
+    """
+    # Check permissions
+    if current_user.role not in ["admin", "temple_manager", "staff"]:
+        raise HTTPException(status_code=403, detail="Only admins and staff can assign priests")
+    
+    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Verify priest exists and is active
+    priest = db.query(User).filter(
+        User.id == priest_id,
+        User.role == "priest",
+        User.is_active == True
+    ).first()
+    
+    if not priest:
+        raise HTTPException(status_code=404, detail="Priest not found or inactive")
+    
+    # Assign priest
+    booking.priest_id = priest_id
+    booking.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(booking)
+    
+    return {
+        "message": f"Priest {priest.full_name} assigned successfully",
+        "booking": SevaBookingResponse.from_orm(booking)
+    }
+
+
+@router.put("/bookings/{booking_id}/remove-priest")
+def remove_priest(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Remove priest assignment from a seva booking
+    Only admins or staff can remove priest assignments
+    """
+    # Check permissions
+    if current_user.role not in ["admin", "temple_manager", "staff"]:
+        raise HTTPException(status_code=403, detail="Only admins and staff can remove priest assignments")
+    
+    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    booking.priest_id = None
+    booking.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(booking)
+    
+    return {
+        "message": "Priest assignment removed successfully",
+        "booking": SevaBookingResponse.from_orm(booking)
+    }

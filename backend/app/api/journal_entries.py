@@ -14,7 +14,7 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.models.accounting import (
     Account, JournalEntry, JournalLine,
-    JournalEntryStatus, AccountType
+    JournalEntryStatus, AccountType, AccountSubType
 )
 from app.schemas.accounting import (
     JournalEntryCreate, JournalEntryUpdate, JournalEntryResponse,
@@ -23,7 +23,11 @@ from app.schemas.accounting import (
     AccountLedgerResponse, LedgerEntry,
     ProfitLossResponse, PLCategoryGroup, PLAccountItem,
     CategoryIncomeResponse, CategoryIncomeItem,
-    TopDonorsResponse, TopDonorItem
+    TopDonorsResponse, TopDonorItem,
+    BalanceSheetResponse, BalanceSheetGroup, BalanceSheetAccountItem,
+    DayBookResponse, DayBookEntry,
+    CashBookResponse, CashBookEntry,
+    BankBookResponse, BankBookEntry
 )
 from app.models.donation import Donation
 from app.models.devotee import Devotee
@@ -566,7 +570,7 @@ def get_profit_loss_statement(
     if temple_id is not None:
         expense_filter.append(Account.temple_id == temple_id)
         expense_filter.append(JournalEntry.temple_id == temple_id)
-    
+
     expense_accounts = db.query(
         Account.account_code,
         Account.account_name,
@@ -707,7 +711,7 @@ def get_category_income_report(
     if temple_id is not None:
         seva_filter.append(Account.temple_id == temple_id)
         seva_filter.append(JournalEntry.temple_id == temple_id)
-    
+
     seva_data = db.query(
         Account.account_code,
         Account.account_name,
@@ -725,7 +729,7 @@ def get_category_income_report(
     if temple_id is not None:
         other_filter.append(Account.temple_id == temple_id)
         other_filter.append(JournalEntry.temple_id == temple_id)
-    
+
     other_data = db.query(
         Account.account_code,
         Account.account_name,
@@ -857,3 +861,728 @@ def get_top_donors_report(
         total_donors=len(donors),
         total_amount=total_amount
     )
+
+
+@router.get("/reports/balance-sheet", response_model=BalanceSheetResponse)
+def get_balance_sheet(
+    as_of_date: date = Query(default_factory=date.today),
+    include_previous_year: bool = Query(False, description="Include previous year comparison"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate Balance Sheet - Financial Position Statement
+    Shows Assets, Liabilities, and Funds as of a specific date
+    Format: Schedule III compliant (adapted for trusts)
+    """
+    # For standalone mode, handle temple_id = None
+    temple_id = current_user.temple_id
+    
+    # Calculate previous year date if needed
+    previous_year_date = None
+    if include_previous_year:
+        from datetime import timedelta
+        # Approximate: 1 year before
+        previous_year_date = date(as_of_date.year - 1, as_of_date.month, as_of_date.day)
+    
+    # Helper function to calculate account balance
+    def get_account_balance(account_id: int, as_of: date) -> float:
+        """Calculate account balance as of date"""
+        balance_filter = [
+            JournalLine.account_id == account_id,
+            JournalEntry.status == JournalEntryStatus.POSTED,
+            func.date(JournalEntry.entry_date) <= as_of
+        ]
+        if temple_id is not None:
+            balance_filter.append(JournalEntry.temple_id == temple_id)
+        
+        balance_query = db.query(
+            func.sum(JournalLine.debit_amount).label('total_debit'),
+            func.sum(JournalLine.credit_amount).label('total_credit')
+        ).join(JournalLine.journal_entry).filter(*balance_filter).first()
+        
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return 0.0
+        
+        debit = float(balance_query.total_debit or 0) + account.opening_balance_debit
+        credit = float(balance_query.total_credit or 0) + account.opening_balance_credit
+        
+        # For assets: debit balance is positive, credit balance is negative
+        # For liabilities: credit balance is positive, debit balance is negative
+        if account.account_type == AccountType.ASSET:
+            return debit - credit
+        elif account.account_type in [AccountType.LIABILITY, AccountType.EQUITY]:
+            return credit - debit
+        else:
+            return debit - credit
+    
+    # Get all accounts
+    account_filter = [Account.is_active == True]
+    if temple_id is not None:
+        account_filter.append(Account.temple_id == temple_id)
+    
+    all_accounts = db.query(Account).filter(*account_filter).order_by(Account.account_code).all()
+    
+    # ===== ASSETS SIDE =====
+    
+    # Fixed Assets (1000-1999, account_type = ASSET, account_subtype = FIXED_ASSET)
+    fixed_asset_accounts = [
+        acc for acc in all_accounts
+        if acc.account_type == AccountType.ASSET
+        and acc.account_subtype == AccountSubType.FIXED_ASSET
+        and acc.account_code.startswith(('1', '2'))
+    ]
+    
+    fixed_asset_groups = []
+    fixed_assets_total = 0.0
+    prev_fixed_assets_total = 0.0
+    
+    # Group fixed assets by category
+    fixed_asset_categories = {}
+    for acc in fixed_asset_accounts:
+        # Determine category from account code or name
+        category = "Other Fixed Assets"
+        if 'land' in acc.account_name.lower() or 'building' in acc.account_name.lower():
+            category = "Land & Buildings"
+        elif 'vehicle' in acc.account_name.lower():
+            category = "Vehicles"
+        elif 'furniture' in acc.account_name.lower() or 'fixture' in acc.account_name.lower():
+            category = "Furniture & Fixtures"
+        elif 'equipment' in acc.account_name.lower() or 'computer' in acc.account_name.lower():
+            category = "Equipment"
+        
+        if category not in fixed_asset_categories:
+            fixed_asset_categories[category] = []
+        
+        current_bal = get_account_balance(acc.id, as_of_date)
+        prev_bal = get_account_balance(acc.id, previous_year_date) if previous_year_date else None
+        
+        if abs(current_bal) > 0.01:  # Only include non-zero balances
+            fixed_asset_categories[category].append(BalanceSheetAccountItem(
+                account_code=acc.account_code,
+                account_name=acc.account_name,
+                current_year=current_bal,
+                previous_year=prev_bal
+            ))
+            fixed_assets_total += current_bal
+            if prev_bal:
+                prev_fixed_assets_total += prev_bal
+    
+    for category, accounts in fixed_asset_categories.items():
+        if accounts:
+            group_total = sum(acc.current_year for acc in accounts)
+            prev_total = sum(acc.previous_year or 0 for acc in accounts) if include_previous_year else None
+            fixed_asset_groups.append(BalanceSheetGroup(
+                group_name=category,
+                accounts=accounts,
+                group_total=group_total,
+                previous_year_total=prev_total
+            ))
+    
+    # Current Assets (1000-1999, account_type = ASSET, account_subtype = CURRENT_ASSET or CASH_BANK)
+    current_asset_accounts = [
+        acc for acc in all_accounts
+        if acc.account_type == AccountType.ASSET
+        and acc.account_subtype in [AccountSubType.CURRENT_ASSET, AccountSubType.CASH_BANK, AccountSubType.RECEIVABLE]
+        and acc.account_code.startswith(('1', '2'))
+    ]
+    
+    current_asset_groups = []
+    current_assets_total = 0.0
+    prev_current_assets_total = 0.0
+    
+    # Group current assets
+    current_asset_categories = {
+        "Cash & Bank": [],
+        "Investments": [],
+        "Loans & Advances": [],
+        "Other Current Assets": []
+    }
+    
+    for acc in current_asset_accounts:
+        category = "Other Current Assets"
+        if 'cash' in acc.account_name.lower() or 'bank' in acc.account_name.lower():
+            category = "Cash & Bank"
+        elif 'investment' in acc.account_name.lower() or 'deposit' in acc.account_name.lower():
+            category = "Investments"
+        elif 'advance' in acc.account_name.lower() or 'loan' in acc.account_name.lower():
+            category = "Loans & Advances"
+        
+        current_bal = get_account_balance(acc.id, as_of_date)
+        prev_bal = get_account_balance(acc.id, previous_year_date) if previous_year_date else None
+        
+        if abs(current_bal) > 0.01:
+            current_asset_categories[category].append(BalanceSheetAccountItem(
+                account_code=acc.account_code,
+                account_name=acc.account_name,
+                current_year=current_bal,
+                previous_year=prev_bal
+            ))
+            current_assets_total += current_bal
+            if prev_bal:
+                prev_current_assets_total += prev_bal
+    
+    for category, accounts in current_asset_categories.items():
+        if accounts:
+            group_total = sum(acc.current_year for acc in accounts)
+            prev_total = sum(acc.previous_year or 0 for acc in accounts) if include_previous_year else None
+            current_asset_groups.append(BalanceSheetGroup(
+                group_name=category,
+                accounts=accounts,
+                group_total=group_total,
+                previous_year_total=prev_total
+            ))
+    
+    total_assets = fixed_assets_total + current_assets_total
+    prev_total_assets = (prev_fixed_assets_total + prev_current_assets_total) if include_previous_year else None
+    
+    # ===== LIABILITIES & FUNDS SIDE =====
+    
+    # Corpus Fund / Capital Fund (3000-3999, account_type = EQUITY, account_subtype = CORPUS_FUND)
+    corpus_accounts = [
+        acc for acc in all_accounts
+        if acc.account_type == AccountType.EQUITY
+        and acc.account_subtype == AccountSubType.CORPUS_FUND
+        and acc.account_code.startswith('3')
+    ]
+    
+    corpus_fund = 0.0
+    prev_corpus_fund = 0.0
+    for acc in corpus_accounts:
+        corpus_fund += get_account_balance(acc.id, as_of_date)
+        if previous_year_date:
+            prev_corpus_fund += get_account_balance(acc.id, previous_year_date)
+    
+    # Designated Funds (3000-3999, account_type = EQUITY, account_subtype = GENERAL_FUND or others)
+    designated_fund_accounts = [
+        acc for acc in all_accounts
+        if acc.account_type == AccountType.EQUITY
+        and acc.account_subtype == AccountSubType.GENERAL_FUND
+        and acc.account_code.startswith('3')
+    ]
+    
+    designated_fund_groups = []
+    for acc in designated_fund_accounts:
+        current_bal = get_account_balance(acc.id, as_of_date)
+        prev_bal = get_account_balance(acc.id, previous_year_date) if previous_year_date else None
+        
+        if abs(current_bal) > 0.01:
+            designated_fund_groups.append(BalanceSheetGroup(
+                group_name=acc.account_name,
+                accounts=[BalanceSheetAccountItem(
+                    account_code=acc.account_code,
+                    account_name=acc.account_name,
+                    current_year=current_bal,
+                    previous_year=prev_bal
+                )],
+                group_total=current_bal,
+                previous_year_total=prev_bal
+            ))
+    
+    # Current Liabilities (2000-2999, account_type = LIABILITY)
+    current_liability_accounts = [
+        acc for acc in all_accounts
+        if acc.account_type == AccountType.LIABILITY
+        and acc.account_subtype == AccountSubType.CURRENT_LIABILITY
+        and acc.account_code.startswith('2')
+    ]
+    
+    current_liability_groups = []
+    current_liabilities_total = 0.0
+    prev_current_liabilities_total = 0.0
+    
+    liability_categories = {
+        "Sundry Creditors": [],
+        "Expenses Payable": [],
+        "Advance from Devotees": [],
+        "TDS Payable": [],
+        "Other Liabilities": []
+    }
+    
+    for acc in current_liability_accounts:
+        category = "Other Liabilities"
+        if 'creditor' in acc.account_name.lower():
+            category = "Sundry Creditors"
+        elif 'payable' in acc.account_name.lower() and 'tds' not in acc.account_name.lower():
+            category = "Expenses Payable"
+        elif 'advance' in acc.account_name.lower() or 'devotee' in acc.account_name.lower():
+            category = "Advance from Devotees"
+        elif 'tds' in acc.account_name.lower():
+            category = "TDS Payable"
+        
+        current_bal = get_account_balance(acc.id, as_of_date)
+        prev_bal = get_account_balance(acc.id, previous_year_date) if previous_year_date else None
+        
+        if abs(current_bal) > 0.01:
+            liability_categories[category].append(BalanceSheetAccountItem(
+                account_code=acc.account_code,
+                account_name=acc.account_name,
+                current_year=current_bal,
+                previous_year=prev_bal
+            ))
+            current_liabilities_total += current_bal
+            if prev_bal:
+                prev_current_liabilities_total += prev_bal
+    
+    for category, accounts in liability_categories.items():
+        if accounts:
+            group_total = sum(acc.current_year for acc in accounts)
+            prev_total = sum(acc.previous_year or 0 for acc in accounts) if include_previous_year else None
+            current_liability_groups.append(BalanceSheetGroup(
+                group_name=category,
+                accounts=accounts,
+                group_total=group_total,
+                previous_year_total=prev_total
+            ))
+    
+    # Calculate total liabilities and funds
+    total_designated_funds = sum(group.group_total for group in designated_fund_groups)
+    total_liabilities_and_funds = corpus_fund + total_designated_funds + current_liabilities_total
+    prev_total_liabilities = None
+    if include_previous_year:
+        prev_designated = sum(group.previous_year_total or 0 for group in designated_fund_groups)
+        prev_total_liabilities = prev_corpus_fund + prev_designated + prev_current_liabilities_total
+    
+    # Check if balanced
+    difference = abs(total_assets - total_liabilities_and_funds)
+    is_balanced = difference < 0.01
+    
+    return BalanceSheetResponse(
+        as_of_date=as_of_date,
+        previous_year_date=previous_year_date,
+        fixed_assets=fixed_asset_groups,
+        current_assets=current_asset_groups,
+        total_assets=total_assets,
+        previous_year_total_assets=prev_total_assets,
+        corpus_fund=corpus_fund,
+        previous_year_corpus_fund=prev_corpus_fund if include_previous_year else None,
+        designated_funds=designated_fund_groups,
+        current_liabilities=current_liability_groups,
+        total_liabilities_and_funds=total_liabilities_and_funds,
+        previous_year_total_liabilities=prev_total_liabilities,
+        is_balanced=is_balanced,
+        difference=difference
+    )
+
+
+@router.get("/reports/day-book", response_model=DayBookResponse)
+def get_day_book(
+    date: date = Query(default_factory=date.today, description="Date for day book"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate Day Book - All transactions for a specific day
+    Shows all receipts and payments for the day with opening/closing balance
+    """
+    temple_id = current_user.temple_id
+    
+    # Get all journal entries for the day
+    entry_filter = [
+        func.date(JournalEntry.entry_date) == date,
+        JournalEntry.status == JournalEntryStatus.POSTED
+    ]
+    if temple_id is not None:
+        entry_filter.append(JournalEntry.temple_id == temple_id)
+    
+    entries = db.query(JournalEntry).filter(*entry_filter).order_by(JournalEntry.entry_date).all()
+    
+    # Calculate opening balance (balance before this date)
+    opening_filter = [
+        func.date(JournalEntry.entry_date) < date,
+        JournalEntry.status == JournalEntryStatus.POSTED
+    ]
+    if temple_id is not None:
+        opening_filter.append(JournalEntry.temple_id == temple_id)
+    
+    # Get cash and bank accounts for opening balance
+    cash_accounts = db.query(Account).filter(
+        Account.account_type == AccountType.ASSET,
+        Account.account_subtype.in_([AccountSubType.CASH_BANK, AccountSubType.CURRENT_ASSET]),
+        Account.is_active == True
+    )
+    if temple_id is not None:
+        cash_accounts = cash_accounts.filter(Account.temple_id == temple_id)
+    cash_accounts = cash_accounts.all()
+    
+    opening_balance = 0.0
+    for acc in cash_accounts:
+        balance_filter = [
+            JournalLine.account_id == acc.id,
+            JournalEntry.status == JournalEntryStatus.POSTED,
+            func.date(JournalEntry.entry_date) < date
+        ]
+        if temple_id is not None:
+            balance_filter.append(JournalEntry.temple_id == temple_id)
+        
+        balance_query = db.query(
+            func.sum(JournalLine.debit_amount).label('total_debit'),
+            func.sum(JournalLine.credit_amount).label('total_credit')
+        ).join(JournalLine.journal_entry).filter(*balance_filter).first()
+        
+        debit = float(balance_query.total_debit or 0) + acc.opening_balance_debit
+        credit = float(balance_query.total_credit or 0) + acc.opening_balance_credit
+        opening_balance += (debit - credit)
+    
+    # Separate receipts and payments
+    receipts = []
+    payments = []
+    total_receipts = 0.0
+    total_payments = 0.0
+    
+    for entry in entries:
+        # Get all lines for this entry
+        lines = db.query(JournalLine).filter(JournalLine.journal_entry_id == entry.id).all()
+        
+        for line in lines:
+            account = db.query(Account).filter(Account.id == line.account_id).first()
+            if not account:
+                continue
+            
+            # Determine if this is a receipt (money coming in) or payment (money going out)
+            is_cash_bank = account.account_subtype in [AccountSubType.CASH_BANK, AccountSubType.CURRENT_ASSET]
+            is_income = account.account_type == AccountType.INCOME
+            is_expense = account.account_type == AccountType.EXPENSE
+            
+            if is_cash_bank and line.debit_amount > 0:
+                # Money received (cash/bank debited)
+                receipts.append(DayBookEntry(
+                    entry_number=entry.entry_number,
+                    entry_date=entry.entry_date,
+                    narration=entry.narration or line.description or "",
+                    voucher_type=entry.reference_type or "Manual",
+                    debit_amount=line.debit_amount,
+                    credit_amount=0.0,
+                    account_name=account.account_name,
+                    party_name=None
+                ))
+                total_receipts += line.debit_amount
+            elif is_cash_bank and line.credit_amount > 0:
+                # Money paid (cash/bank credited)
+                payments.append(DayBookEntry(
+                    entry_number=entry.entry_number,
+                    entry_date=entry.entry_date,
+                    narration=entry.narration or line.description or "",
+                    voucher_type=entry.reference_type or "Manual",
+                    debit_amount=0.0,
+                    credit_amount=line.credit_amount,
+                    account_name=account.account_name,
+                    party_name=None
+                ))
+                total_payments += line.credit_amount
+            elif is_income and line.credit_amount > 0:
+                # Income recognized (receipt)
+                receipts.append(DayBookEntry(
+                    entry_number=entry.entry_number,
+                    entry_date=entry.entry_date,
+                    narration=entry.narration or line.description or "",
+                    voucher_type=entry.reference_type or "Manual",
+                    debit_amount=0.0,
+                    credit_amount=line.credit_amount,
+                    account_name=account.account_name,
+                    party_name=None
+                ))
+                total_receipts += line.credit_amount
+            elif is_expense and line.debit_amount > 0:
+                # Expense incurred (payment)
+                payments.append(DayBookEntry(
+                    entry_number=entry.entry_number,
+                    entry_date=entry.entry_date,
+                    narration=entry.narration or line.description or "",
+                    voucher_type=entry.reference_type or "Manual",
+                    debit_amount=line.debit_amount,
+                    credit_amount=0.0,
+                    account_name=account.account_name,
+                    party_name=None
+                ))
+                total_payments += line.debit_amount
+    
+    net_cash_flow = total_receipts - total_payments
+    closing_balance = opening_balance + net_cash_flow
+    
+    return DayBookResponse(
+        date=date,
+        opening_balance=opening_balance,
+        receipts=receipts,
+        total_receipts=total_receipts,
+        payments=payments,
+        total_payments=total_payments,
+        net_cash_flow=net_cash_flow,
+        closing_balance=closing_balance
+    )
+
+
+@router.get("/reports/cash-book", response_model=CashBookResponse)
+def get_cash_book(
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    counter_id: Optional[int] = Query(None, description="Counter ID if multiple counters"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate Cash Book - All cash transactions for a date range
+    Shows all cash receipts and payments with running balance
+    """
+    temple_id = current_user.temple_id
+    
+    # Get cash accounts
+    cash_account_filter = [
+        Account.account_type == AccountType.ASSET,
+        Account.account_subtype == AccountSubType.CASH_BANK,
+        Account.is_active == True
+    ]
+    if temple_id is not None:
+        cash_account_filter.append(Account.temple_id == temple_id)
+    if counter_id:
+        # If counter-specific, filter by account code pattern
+        cash_account_filter.append(Account.account_code.like(f'110{counter_id}%'))
+    
+    cash_accounts = db.query(Account).filter(*cash_account_filter).all()
+    
+    if not cash_accounts:
+        # Return empty cash book
+        return CashBookResponse(
+            from_date=from_date,
+            to_date=to_date,
+            opening_balance=0.0,
+            entries=[],
+            closing_balance=0.0,
+            total_receipts=0.0,
+            total_payments=0.0
+        )
+    
+    cash_account_ids = [acc.id for acc in cash_accounts]
+    
+    # Calculate opening balance
+    opening_filter = [
+        JournalLine.account_id.in_(cash_account_ids),
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) < from_date
+    ]
+    if temple_id is not None:
+        opening_filter.append(JournalEntry.temple_id == temple_id)
+    
+    opening_query = db.query(
+        func.sum(JournalLine.debit_amount).label('total_debit'),
+        func.sum(JournalLine.credit_amount).label('total_credit')
+    ).join(JournalLine.journal_entry).filter(*opening_filter).first()
+    
+    opening_debit = float(opening_query.total_debit or 0)
+    opening_credit = float(opening_query.total_credit or 0)
+    
+    # Add opening balances from accounts
+    for acc in cash_accounts:
+        opening_debit += acc.opening_balance_debit
+        opening_credit += acc.opening_balance_credit
+    
+    opening_balance = opening_debit - opening_credit
+    
+    # Get all transactions in date range
+    lines_filter = [
+        JournalLine.account_id.in_(cash_account_ids),
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) >= from_date,
+        func.date(JournalEntry.entry_date) <= to_date
+    ]
+    if temple_id is not None:
+        lines_filter.append(JournalEntry.temple_id == temple_id)
+    
+    lines = db.query(JournalLine).join(JournalLine.journal_entry).filter(*lines_filter).order_by(
+        JournalEntry.entry_date, JournalEntry.id
+    ).all()
+    
+    # Build cash book entries
+    entries = []
+    running_balance = opening_balance
+    total_receipts = 0.0
+    total_payments = 0.0
+    
+    for line in lines:
+        account = db.query(Account).filter(Account.id == line.account_id).first()
+        entry = line.journal_entry
+        
+        receipt_amount = 0.0
+        payment_amount = 0.0
+        
+        if line.debit_amount > 0:
+            # Cash received
+            receipt_amount = line.debit_amount
+            total_receipts += receipt_amount
+            running_balance += receipt_amount
+        elif line.credit_amount > 0:
+            # Cash paid
+            payment_amount = line.credit_amount
+            total_payments += payment_amount
+            running_balance -= payment_amount
+        
+        entries.append(CashBookEntry(
+            date=entry.entry_date.date() if hasattr(entry.entry_date, 'date') else entry.entry_date,
+            entry_number=entry.entry_number,
+            narration=entry.narration or line.description or "",
+            receipt_amount=receipt_amount,
+            payment_amount=payment_amount,
+            running_balance=running_balance,
+            voucher_type=entry.reference_type or "Manual",
+            party_name=None
+        ))
+    
+    return CashBookResponse(
+        from_date=from_date,
+        to_date=to_date,
+        opening_balance=opening_balance,
+        entries=entries,
+        closing_balance=running_balance,
+        total_receipts=total_receipts,
+        total_payments=total_payments
+    )
+
+
+@router.get("/reports/bank-book", response_model=BankBookResponse)
+def get_bank_book(
+    account_id: int = Query(..., description="Bank account ID"),
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate Bank Book - All bank transactions for a specific bank account
+    Shows deposits, withdrawals, and cheque tracking
+    """
+    temple_id = current_user.temple_id
+    
+    # Get bank account
+    account_filter = [Account.id == account_id]
+    if temple_id is not None:
+        account_filter.append(Account.temple_id == temple_id)
+    
+    account = db.query(Account).filter(*account_filter).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
+    
+    if account.account_subtype != AccountSubType.CASH_BANK:
+        raise HTTPException(status_code=400, detail="Account is not a bank account")
+    
+    # Calculate opening balance
+    opening_filter = [
+        JournalLine.account_id == account_id,
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) < from_date
+    ]
+    if temple_id is not None:
+        opening_filter.append(JournalEntry.temple_id == temple_id)
+    
+    opening_query = db.query(
+        func.sum(JournalLine.debit_amount).label('total_debit'),
+        func.sum(JournalLine.credit_amount).label('total_credit')
+    ).join(JournalLine.journal_entry).filter(*opening_filter).first()
+    
+    opening_debit = float(opening_query.total_debit or 0) + account.opening_balance_debit
+    opening_credit = float(opening_query.total_credit or 0) + account.opening_balance_credit
+    opening_balance = opening_debit - opening_credit
+    
+    # Get all transactions in date range
+    lines_filter = [
+        JournalLine.account_id == account_id,
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) >= from_date,
+        func.date(JournalEntry.entry_date) <= to_date
+    ]
+    if temple_id is not None:
+        lines_filter.append(JournalEntry.temple_id == temple_id)
+    
+    lines = db.query(JournalLine).join(JournalLine.journal_entry).filter(*lines_filter).order_by(
+        JournalEntry.entry_date, JournalEntry.id
+    ).all()
+    
+    # Build bank book entries
+    entries = []
+    outstanding_cheques = []
+    running_balance = opening_balance
+    total_deposits = 0.0
+    total_withdrawals = 0.0
+    
+    for line in lines:
+        entry = line.journal_entry
+        
+        deposit_amount = 0.0
+        withdrawal_amount = 0.0
+        cheque_number = None
+        cleared = True
+        
+        if line.debit_amount > 0:
+            # Deposit
+            deposit_amount = line.debit_amount
+            total_deposits += deposit_amount
+            running_balance += deposit_amount
+        elif line.credit_amount > 0:
+            # Withdrawal
+            withdrawal_amount = line.credit_amount
+            total_withdrawals += withdrawal_amount
+            running_balance -= withdrawal_amount
+            
+            # Try to extract cheque number from narration or reference
+            narration = entry.narration or line.description or ""
+            if 'cheque' in narration.lower() or 'chq' in narration.lower():
+                # Extract cheque number (simple pattern matching)
+                chq_match = re.search(r'ch[eq]*\s*[#:]?\s*(\d+)', narration, re.IGNORECASE)
+                if chq_match:
+                    cheque_number = chq_match.group(1)
+                    # For now, assume cheques are cleared. In real system, track clearance status
+                    cleared = True
+        
+        entries.append(BankBookEntry(
+            date=entry.entry_date.date() if hasattr(entry.entry_date, 'date') else entry.entry_date,
+            entry_number=entry.entry_number,
+            narration=entry.narration or line.description or "",
+            cheque_number=cheque_number,
+            deposit_amount=deposit_amount,
+            withdrawal_amount=withdrawal_amount,
+            running_balance=running_balance,
+            voucher_type=entry.reference_type or "Manual",
+            cleared=cleared
+        ))
+        
+        # Track outstanding cheques (not cleared)
+        if cheque_number and not cleared:
+            outstanding_cheques.append(BankBookEntry(
+                date=entry.entry_date.date() if hasattr(entry.entry_date, 'date') else entry.entry_date,
+                entry_number=entry.entry_number,
+                narration=entry.narration or line.description or "",
+                cheque_number=cheque_number,
+                deposit_amount=0.0,
+                withdrawal_amount=withdrawal_amount,
+                running_balance=0.0,
+                voucher_type=entry.reference_type or "Manual",
+                cleared=False
+            ))
+    
+    # Get bank details from account name or separate bank table (if exists)
+    bank_name = None
+    account_number = None
+    # Try to extract from account name (e.g., "Bank - SBI Current Account")
+    if ' - ' in account.account_name:
+        parts = account.account_name.split(' - ')
+        if len(parts) >= 2:
+            bank_name = parts[0].replace('Bank', '').strip()
+            account_number = parts[1] if len(parts) > 1 else None
+    
+    return BankBookResponse(
+        account_id=account_id,
+        account_code=account.account_code,
+        account_name=account.account_name,
+        bank_name=bank_name,
+        account_number=account_number,
+        from_date=from_date,
+        to_date=to_date,
+        opening_balance=opening_balance,
+        entries=entries,
+        closing_balance=running_balance,
+        total_deposits=total_deposits,
+        total_withdrawals=total_withdrawals,
+        outstanding_cheques=outstanding_cheques
+    )
+

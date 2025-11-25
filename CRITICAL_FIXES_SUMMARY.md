@@ -183,3 +183,5 @@ After restarting backend:
 - All accounting reports handle standalone mode correctly
 - Run data correction scripts to fix historical accounting entries
 
+
+

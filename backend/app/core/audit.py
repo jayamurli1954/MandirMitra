@@ -5,7 +5,7 @@ Helper functions to create audit logs for all user actions
 
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 
 from app.models.audit_log import AuditLog
 from app.models.user import User
@@ -101,7 +101,11 @@ def get_entity_dict(obj: Any, exclude_fields: Optional[list] = None) -> Dict[str
             # Convert datetime to ISO string for JSON serialization
             if isinstance(value, datetime):
                 value = value.isoformat()
+            # Convert date to ISO string for JSON serialization
+            elif isinstance(value, date):
+                value = value.isoformat()
             result[column.name] = value
     
     return result
+
 

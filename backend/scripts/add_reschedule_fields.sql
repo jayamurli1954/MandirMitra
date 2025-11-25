@@ -23,3 +23,5 @@ COMMENT ON COLUMN seva_bookings.reschedule_approved IS 'NULL = not requested, TR
 COMMENT ON COLUMN seva_bookings.reschedule_approved_by IS 'Admin user ID who approved/rejected';
 COMMENT ON COLUMN seva_bookings.reschedule_approved_at IS 'Timestamp when approval/rejection was done';
 
+
+

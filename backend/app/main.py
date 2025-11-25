@@ -27,14 +27,17 @@ from app.models.devotee import Devotee
 from app.models.panchang_display_settings import PanchangDisplaySettings
 from app.models.seva import Seva, SevaBooking
 from app.models.accounting import Account, JournalEntry, JournalLine
+from app.models.bank_reconciliation import BankStatement, BankStatementEntry, BankReconciliation, ReconciliationOutstandingItem
+from app.models.financial_period import FinancialYear, FinancialPeriod, PeriodClosing
 from app.models.vendor import Vendor
 from app.models.inkind_sponsorship import (
     InKindDonation, InKindConsumption,
     Sponsorship, SponsorshipPayment
 )
 from app.models.upi_banking import (
-    UpiPayment, BankAccount, BankTransaction, BankReconciliation
+    UpiPayment, BankAccount, BankTransaction
 )
+# Note: BankReconciliation is now in app.models.bank_reconciliation (not upi_banking)
 
 # Import routers
 from app.api.panchang_display_settings import router as panchang_display_settings_router
@@ -55,6 +58,8 @@ from app.api.sms_reminders import router as sms_reminders_router
 from app.api.users import router as users_router
 from app.api.audit_logs import router as audit_logs_router
 from app.api.certificates import router as certificates_router
+from app.api.bank_reconciliation import router as bank_reconciliation_router
+from app.api.financial_closing import router as financial_closing_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -102,6 +107,8 @@ app.include_router(sms_reminders_router)
 app.include_router(users_router)
 app.include_router(audit_logs_router)
 app.include_router(certificates_router)
+app.include_router(bank_reconciliation_router)
+app.include_router(financial_closing_router)
 
 # Initialize database on startup
 @app.on_event("startup")

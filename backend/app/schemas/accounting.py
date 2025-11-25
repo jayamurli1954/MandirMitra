@@ -296,3 +296,211 @@ class TopDonorsResponse(BaseModel):
     donors: List[TopDonorItem]
     total_donors: int
     total_amount: float
+
+
+# ===== BALANCE SHEET SCHEMA =====
+
+class BalanceSheetAccountItem(BaseModel):
+    """Individual account in Balance Sheet"""
+    account_code: str
+    account_name: str
+    current_year: float
+    previous_year: Optional[float] = None
+
+
+class BalanceSheetGroup(BaseModel):
+    """Group of accounts in Balance Sheet (e.g., Fixed Assets, Current Assets)"""
+    group_name: str
+    accounts: List[BalanceSheetAccountItem]
+    group_total: float
+    previous_year_total: Optional[float] = None
+
+
+class BalanceSheetResponse(BaseModel):
+    """Balance Sheet - Financial Position Statement"""
+    as_of_date: date
+    previous_year_date: Optional[date] = None
+    
+    # Assets Side
+    fixed_assets: List[BalanceSheetGroup]
+    current_assets: List[BalanceSheetGroup]
+    total_assets: float
+    previous_year_total_assets: Optional[float] = None
+    
+    # Liabilities & Funds Side
+    corpus_fund: float
+    previous_year_corpus_fund: Optional[float] = None
+    designated_funds: List[BalanceSheetGroup]
+    current_liabilities: List[BalanceSheetGroup]
+    total_liabilities_and_funds: float
+    previous_year_total_liabilities: Optional[float] = None
+    
+    # Validation
+    is_balanced: bool
+    difference: float  # Should be 0 if balanced
+
+
+# ===== DAY BOOK SCHEMA =====
+
+class DayBookEntry(BaseModel):
+    """Individual entry in Day Book"""
+    entry_number: str
+    entry_date: datetime
+    narration: str
+    voucher_type: str
+    debit_amount: float
+    credit_amount: float
+    account_name: str
+    party_name: Optional[str] = None
+
+
+class DayBookResponse(BaseModel):
+    """Day Book - All transactions for a day"""
+    date: date
+    opening_balance: float
+    receipts: List[DayBookEntry]
+    total_receipts: float
+    payments: List[DayBookEntry]
+    total_payments: float
+    net_cash_flow: float
+    closing_balance: float
+
+
+# ===== CASH BOOK SCHEMA =====
+
+class CashBookEntry(BaseModel):
+    """Individual entry in Cash Book"""
+    date: date
+    entry_number: str
+    narration: str
+    receipt_amount: float
+    payment_amount: float
+    running_balance: float
+    voucher_type: str
+    party_name: Optional[str] = None
+
+
+class CashBookResponse(BaseModel):
+    """Cash Book - All cash transactions"""
+    from_date: date
+    to_date: date
+    opening_balance: float
+    entries: List[CashBookEntry]
+    closing_balance: float
+    total_receipts: float
+    total_payments: float
+
+
+# ===== BANK BOOK SCHEMA =====
+
+class BankBookEntry(BaseModel):
+    """Individual entry in Bank Book"""
+    date: date
+    entry_number: str
+    narration: str
+    cheque_number: Optional[str] = None
+    deposit_amount: float
+    withdrawal_amount: float
+    running_balance: float
+    voucher_type: str
+    cleared: bool = True
+
+
+class BankBookResponse(BaseModel):
+    """Bank Book - All bank transactions for an account"""
+    account_id: int
+    account_code: str
+    account_name: str
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    from_date: date
+    to_date: date
+    opening_balance: float
+    entries: List[BankBookEntry]
+    closing_balance: float
+    total_deposits: float
+    total_withdrawals: float
+    outstanding_cheques: List[BankBookEntry] = []
+
+
+# ===== DAY BOOK SCHEMA =====
+
+class DayBookEntry(BaseModel):
+    """Individual transaction in Day Book"""
+    entry_number: str
+    entry_date: datetime
+    narration: str
+    voucher_type: str  # Receipt, Payment, Journal, Contra
+    debit_amount: float
+    credit_amount: float
+    account_name: str
+    party_name: Optional[str] = None
+
+
+class DayBookResponse(BaseModel):
+    """Day Book - All transactions for a specific day"""
+    date: date
+    opening_balance: float
+    receipts: List[DayBookEntry]
+    total_receipts: float
+    payments: List[DayBookEntry]
+    total_payments: float
+    net_cash_flow: float
+    closing_balance: float
+
+
+# ===== CASH BOOK SCHEMA =====
+
+class CashBookEntry(BaseModel):
+    """Individual transaction in Cash Book"""
+    date: date
+    entry_number: str
+    narration: str
+    receipt_amount: float
+    payment_amount: float
+    running_balance: float
+    voucher_type: str
+    party_name: Optional[str] = None
+
+
+class CashBookResponse(BaseModel):
+    """Cash Book - All cash transactions"""
+    from_date: date
+    to_date: date
+    opening_balance: float
+    entries: List[CashBookEntry]
+    closing_balance: float
+    total_receipts: float
+    total_payments: float
+
+
+# ===== BANK BOOK SCHEMA =====
+
+class BankBookEntry(BaseModel):
+    """Individual transaction in Bank Book"""
+    date: date
+    entry_number: str
+    narration: str
+    cheque_number: Optional[str] = None
+    deposit_amount: float
+    withdrawal_amount: float
+    running_balance: float
+    voucher_type: str
+    cleared: bool = True  # Cheque cleared or not
+
+
+class BankBookResponse(BaseModel):
+    """Bank Book - All bank transactions for an account"""
+    account_id: int
+    account_code: str
+    account_name: str
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    from_date: date
+    to_date: date
+    opening_balance: float
+    entries: List[BankBookEntry]
+    closing_balance: float
+    total_deposits: float
+    total_withdrawals: float
+    outstanding_cheques: List[BankBookEntry]  # Cheques not yet cleared

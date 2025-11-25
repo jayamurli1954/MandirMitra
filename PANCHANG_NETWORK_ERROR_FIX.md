@@ -203,3 +203,5 @@ Headers: {
 - Browser console errors
 - Network tab request details
 
+
+

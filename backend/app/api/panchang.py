@@ -53,3 +53,51 @@ def get_today_panchang(
     # Return calculated panchang data
     return panchang_data
 
+
+@router.post("/kundli/generate")
+def generate_kundli(
+    birth_datetime: str,
+    latitude: float,
+    longitude: float,
+    name: str = "Devotee",
+    temple_name: Optional[str] = None,
+    temple_logo_url: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate complete Kundli (Birth Chart) with:
+    - Rasi Chart (D1) - South Indian style
+    - Navamsa Chart (D9)
+    - Vimshottari Dasha Table (120 years)
+    - Returns HTML ready for PDF conversion
+    
+    birth_datetime: ISO format "YYYY-MM-DDTHH:MM:SS" (IST)
+    """
+    try:
+        # Parse birth datetime
+        dt_birth = datetime.fromisoformat(birth_datetime.replace('Z', '+05:30'))
+        
+        # Get temple name if not provided
+        if not temple_name:
+            from app.models.temple import Temple
+            temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
+            temple_name = temple.name if temple else "MandirSync Temple"
+        
+        # Generate Kundli data
+        kundli_data = panchang_service.generate_kundli_pdf_data(
+            dt_birth=dt_birth,
+            lat=latitude,
+            lon=longitude,
+            name=name,
+            temple_name=temple_name,
+            temple_logo_url=temple_logo_url or ""
+        )
+        
+        return {
+            "success": True,
+            "kundli": kundli_data,
+            "message": "Kundli generated successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error generating Kundli: {str(e)}")

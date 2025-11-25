@@ -43,3 +43,5 @@ COMMENT ON COLUMN audit_logs.ip_address IS 'IP address of user';
 COMMENT ON COLUMN audit_logs.user_agent IS 'Browser/client information';
 COMMENT ON COLUMN audit_logs.description IS 'Human-readable description of action';
 
+
+

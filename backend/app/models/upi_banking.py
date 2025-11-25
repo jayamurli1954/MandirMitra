@@ -133,7 +133,7 @@ class BankAccount(Base):
     temple = relationship("Temple")
     chart_account = relationship("Account")
     bank_transactions = relationship("BankTransaction", back_populates="bank_account")
-    reconciliations = relationship("BankReconciliation", back_populates="bank_account")
+    # Note: reconciliations relationship moved to app.models.bank_reconciliation
 
     def __repr__(self):
         return f"<BankAccount(name='{self.account_name}', bank='{self.bank_name}')>"
@@ -186,7 +186,7 @@ class BankTransaction(Base):
 
     # Import Details
     imported_from_statement = Column(Boolean, default=True)
-    import_batch_id = Column(Integer, ForeignKey('bank_reconciliations.id'), nullable=True)
+    import_batch_id = Column(Integer, nullable=True)  # Can link to bank_reconciliations table if needed
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -202,48 +202,5 @@ class BankTransaction(Base):
     def __repr__(self):
         return f"<BankTransaction(date='{self.transaction_date}', amount={self.amount}, type='{self.transaction_type}')>"
 
-
-class BankReconciliation(Base):
-    """
-    Bank Reconciliation
-    Track reconciliation sessions when bank statements are uploaded and matched
-    """
-    __tablename__ = "bank_reconciliations"
-
-    id = Column(Integer, primary_key=True, index=True)
-
-    # Bank Account
-    bank_account_id = Column(Integer, ForeignKey('bank_accounts.id'), nullable=False, index=True)
-
-    # Temple
-    temple_id = Column(Integer, ForeignKey('temples.id'), nullable=False, index=True)
-
-    # Statement Details
-    statement_file_name = Column(String(500))
-    statement_date_from = Column(Date, nullable=False)
-    statement_date_to = Column(Date, nullable=False)
-
-    # Summary
-    total_credits = Column(Float, default=0.0)
-    total_debits = Column(Float, default=0.0)
-    transactions_imported = Column(Integer, default=0)
-    transactions_matched = Column(Integer, default=0)
-    transactions_unmatched = Column(Integer, default=0)
-
-    # Status
-    is_completed = Column(Boolean, default=False)
-    completed_at = Column(DateTime)
-
-    # Audit
-    uploaded_by = Column(Integer, ForeignKey('users.id'), nullable=False)
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    bank_account = relationship("BankAccount", back_populates="reconciliations")
-    temple = relationship("Temple")
-    uploaded_by_user = relationship("User")
-
-    def __repr__(self):
-        return f"<BankReconciliation(from='{self.statement_date_from}', to='{self.statement_date_to}', txns={self.transactions_imported})>"
+# NOTE: BankReconciliation model has been moved to app.models.bank_reconciliation
+# This was done to avoid duplicate table definitions and provide a more comprehensive reconciliation system

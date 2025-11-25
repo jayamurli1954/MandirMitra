@@ -49,3 +49,5 @@ class AuditLog(Base):
     def __repr__(self):
         return f"<AuditLog(id={self.id}, user='{self.user_name}', action='{self.action}', entity='{self.entity_type}')>"
 
+
+

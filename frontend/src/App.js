@@ -43,8 +43,8 @@ function App() {
       <CssBaseline />
       <NotificationProvider>
         <LoadingProvider>
-          <Router>
-            <Routes>
+      <Router>
+        <Routes>
           <Route path="/login" element={<Login />} />
           <Route
             path="/dashboard"
@@ -198,9 +198,9 @@ function App() {
               </ProtectedRoute>
             }
           />
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </Router>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Router>
         </LoadingProvider>
       </NotificationProvider>
     </ThemeProvider>

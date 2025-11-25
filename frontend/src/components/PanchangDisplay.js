@@ -13,6 +13,9 @@ import {
   Button,
   Accordion,
   AccordionSummary,
+  List,
+  ListItem,
+  ListItemText,
   AccordionDetails,
   Tooltip,
   IconButton,
@@ -416,6 +419,49 @@ function PanchangDisplay({ data, settings, compact = false }) {
         </Paper>
       )}
 
+      {/* SOUTH INDIA FESTIVALS & SPECIAL NOTES (Multilingual) */}
+      {data.south_india_special && data.south_india_special.length > 0 && (
+        <Paper sx={{ p: 2, mb: 2, bgcolor: '#E8F5E9', border: '2px solid #4CAF50' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#2E7D32', mb: 1.5 }}>
+            🪔 South India Festivals & Observances (ಕನ್ನಡ | संस्कृत)
+          </Typography>
+          <Stack spacing={1.5}>
+            {data.south_india_special.map((item, index) => (
+              <Paper
+                key={index}
+                elevation={0}
+                sx={{
+                  p: 2,
+                  bgcolor: '#fff',
+                  borderLeft: `4px solid ${item.type === 'festival' ? '#4CAF50' : '#FF9800'}`
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 700, color: item.type === 'festival' ? '#2E7D32' : '#F57C00' }}>
+                    {item.type === 'festival' ? '🎉' : '📝'} {item.english || item.text}
+                  </Typography>
+                </Box>
+                {item.text && item.text.includes('|') && (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'inherit' }}>
+                    {item.text}
+                  </Typography>
+                )}
+                {item.kannada && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontFamily: 'inherit' }}>
+                    <strong>Kannada:</strong> {item.kannada}
+                  </Typography>
+                )}
+                {item.sanskrit && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontFamily: 'inherit' }}>
+                    <strong>Sanskrit:</strong> {item.sanskrit}
+                  </Typography>
+                )}
+              </Paper>
+            ))}
+          </Stack>
+        </Paper>
+      )}
+
       {/* FESTIVAL ALERTS */}
       {data.festivals && data.festivals.length > 0 && (
         <Paper sx={{ p: 2, mb: 2, bgcolor: '#FFF3E0', border: '2px solid #FF9800' }}>
@@ -766,6 +812,20 @@ function PanchangDisplay({ data, settings, compact = false }) {
                     {formatTime(data.sun_moon?.sunset)}
                   </Typography>
                 </Box>
+                <Divider />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">🌙 Moonrise</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {formatTime(data.sun_moon?.moonrise)}
+                  </Typography>
+                </Box>
+                <Divider />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">🌙 Moonset</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {formatTime(data.sun_moon?.moonset)}
+                  </Typography>
+                </Box>
               </Stack>
             </Paper>
 
@@ -795,25 +855,59 @@ function PanchangDisplay({ data, settings, compact = false }) {
         </Grid>
 
         {/* AUSPICIOUS TIMES */}
-        {displaySettings.show_abhijit_muhurat && data.auspicious_times?.abhijit_muhurat && (
+        {data.auspicious_times && (
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, bgcolor: '#E8F5E9', border: '2px solid #4CAF50' }}>
               <Typography variant="h6" sx={{ fontWeight: 700, color: '#2E7D32', mb: 1.5 }}>
                 ✅ Auspicious Timings
               </Typography>
-              <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1, mb: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    🌟 Abhijit Muhurat
-                  </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 700, color: '#2E7D32' }}>
-                    {formatTime(data.auspicious_times.abhijit_muhurat.start)} - {formatTime(data.auspicious_times.abhijit_muhurat.end)}
-                  </Typography>
-                </Box>
-                <Typography variant="caption" color="text.secondary">
-                  Most auspicious time of the day • Duration: {Math.round(data.auspicious_times.abhijit_muhurat.duration_minutes)} mins
-                </Typography>
-              </Box>
+              <Stack spacing={1}>
+                {displaySettings.show_abhijit_muhurat && data.auspicious_times.abhijit_muhurat && (
+                  <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        🌟 Abhijit Muhurat
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: '#2E7D32' }}>
+                        {formatTime(data.auspicious_times.abhijit_muhurat.start)} - {formatTime(data.auspicious_times.abhijit_muhurat.end)}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Most auspicious time of the day • Duration: {Math.round(data.auspicious_times.abhijit_muhurat.duration_minutes)} mins
+                    </Typography>
+                  </Box>
+                )}
+                {data.auspicious_times.brahma_muhurat && (
+                  <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        🕉️ Brahma Muhurta
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: '#2E7D32' }}>
+                        {formatTime(data.auspicious_times.brahma_muhurat.start)} - {formatTime(data.auspicious_times.brahma_muhurat.end)}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Pre-dawn meditation • Duration: {data.auspicious_times.brahma_muhurat.duration_minutes} mins
+                    </Typography>
+                  </Box>
+                )}
+                {data.auspicious_times.amrita_kalam && (
+                  <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        🍯 Amrita Kalam
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: '#2E7D32' }}>
+                        {formatTime(data.auspicious_times.amrita_kalam.start)} - {formatTime(data.auspicious_times.amrita_kalam.end)}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Nectar period • Duration: {Math.round(data.auspicious_times.amrita_kalam.duration_minutes)} mins
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
             </Paper>
           </Grid>
         )}
@@ -865,6 +959,36 @@ function PanchangDisplay({ data, settings, compact = false }) {
                     </Box>
                   </Box>
                 )}
+                {data.additional_inauspicious_times?.dur_muhurta && data.additional_inauspicious_times.dur_muhurta.map((dur, idx) => (
+                  <Box key={idx} sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        ⚠️ Dur Muhurta
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: '#C62828' }}>
+                        {formatTime(dur.start)} - {formatTime(dur.end)}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Inauspicious period • Duration: {dur.duration_minutes} mins
+                    </Typography>
+                  </Box>
+                ))}
+                {data.additional_inauspicious_times?.varjyam && data.additional_inauspicious_times.varjyam.map((varj, idx) => (
+                  <Box key={idx} sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        🚫 Varjyam
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: '#C62828' }}>
+                        {formatTime(varj.start)} - {formatTime(varj.end)}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Avoid starting new ventures • Duration: {varj.duration_minutes} mins
+                    </Typography>
+                  </Box>
+                ))}
               </Stack>
             </Paper>
           </Grid>
@@ -941,6 +1065,54 @@ function PanchangDisplay({ data, settings, compact = false }) {
                   );
                 })}
               </Grid>
+            </Paper>
+          </Grid>
+        )}
+
+        {/* SPECIAL NOTES */}
+        {data.special_notes && data.special_notes.summary && (
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2, bgcolor: '#FFF9C4', border: '2px solid #FBC02D' }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#F57F17', mb: 1.5 }}>
+                📝 Special Notes for Today
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 2, lineHeight: 1.8 }}>
+                {data.special_notes.summary}
+              </Typography>
+              {data.special_notes.recommendations && data.special_notes.recommendations.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#2E7D32' }}>
+                    ✅ Recommendations:
+                  </Typography>
+                  <List dense>
+                    {data.special_notes.recommendations.map((rec, idx) => (
+                      <ListItem key={idx} sx={{ py: 0.5 }}>
+                        <ListItemText 
+                          primary={rec}
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+              {data.special_notes.avoid && data.special_notes.avoid.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#C62828' }}>
+                    ⚠️ Avoid:
+                  </Typography>
+                  <List dense>
+                    {data.special_notes.avoid.map((item, idx) => (
+                      <ListItem key={idx} sx={{ py: 0.5 }}>
+                        <ListItemText 
+                          primary={item}
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
             </Paper>
           </Grid>
         )}

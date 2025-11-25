@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     
     # SMS (optional)
     SMS_ENABLED: bool = False
+    SMS_API_KEY: Optional[str] = None
+    SMS_SENDER_ID: Optional[str] = None
+    SMS_PROVIDER: str = "MSG91"  # MSG91, Twilio, etc.
+    
+    # Email (optional)
+    EMAIL_ENABLED: bool = False
+    EMAIL_API_KEY: Optional[str] = None
+    EMAIL_FROM: Optional[str] = None
+    EMAIL_PROVIDER: str = "SendGrid"  # SendGrid, AWS SES, etc.
     SMS_PROVIDER: str = "twilio"
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None

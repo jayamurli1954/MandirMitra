@@ -104,7 +104,7 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
                 Account.temple_id == temple_id,
                 Account.account_code == credit_account_code
             ).first()
-            
+
             if credit_account:
                 print(f"  WARNING: Category '{donation.category.name if donation.category else 'Unknown'}' not linked to account. Using default: {credit_account_code}")
             else:
@@ -157,7 +157,7 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
             entry_date = datetime.combine(donation.donation_date, datetime.min.time())
         else:
             entry_date = donation.donation_date
-        
+
         # Create journal entry
         # Note: created_by is required, so use 1 as default if None (system user)
         created_by = donation.created_by if donation.created_by else 1
@@ -354,6 +354,214 @@ def create_donation(
         "message": message,
         "accounting_posted": journal_entry is not None
     }
+
+
+@router.get("/{donation_id}/receipt/pdf")
+def get_donation_receipt_pdf(
+    donation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate PDF receipt for a single donation
+    Professional receipt format with temple details and 80G information
+    """
+    # Get donation
+    donation = db.query(Donation).filter(Donation.id == donation_id).first()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
+    
+    # Get temple info
+    temple = None
+    temple_logo_path = None
+    if donation.temple_id:
+        temple = db.query(Temple).filter(Temple.id == donation.temple_id).first()
+        if temple and temple.logo_url:
+            try:
+                if temple.logo_url.startswith('http'):
+                    response = requests.get(temple.logo_url, timeout=5)
+                    if response.status_code == 200:
+                        temple_logo_path = io.BytesIO(response.content)
+                elif os.path.exists(temple.logo_url):
+                    temple_logo_path = temple.logo_url
+            except:
+                temple_logo_path = None
+    
+    # Get devotee info
+    devotee = donation.devotee
+    category = donation.category
+    
+    # Create PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    
+    # Title style
+    title_style = ParagraphStyle(
+        'ReceiptTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        textColor=colors.HexColor('#FF9933'),
+        spaceAfter=12,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    # Header style
+    header_style = ParagraphStyle(
+        'ReceiptHeader',
+        parent=styles['Normal'],
+        fontSize=14,
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        spaceAfter=6
+    )
+    
+    # Temple header
+    if temple:
+        if temple_logo_path:
+            try:
+                logo = Image(temple_logo_path, width=1.2*inch, height=1.2*inch)
+                logo.hAlign = 'CENTER'
+                elements.append(logo)
+                elements.append(Spacer(1, 0.1*inch))
+            except:
+                pass
+        
+        if temple.name:
+            elements.append(Paragraph(temple.name, title_style))
+        
+        if temple.address:
+            elements.append(Paragraph(temple.address, header_style))
+        
+        if temple.phone:
+            elements.append(Paragraph(f"Phone: {temple.phone}", styles['Normal']))
+        
+        if temple.email:
+            elements.append(Paragraph(f"Email: {temple.email}", styles['Normal']))
+        
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph("_" * 80, styles['Normal']))
+        elements.append(Spacer(1, 0.2*inch))
+    
+    # Receipt title
+    elements.append(Paragraph("DONATION RECEIPT", title_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Receipt details table
+    receipt_data = [
+        ["Receipt Number:", donation.receipt_number],
+        ["Date:", donation.donation_date.strftime('%d-%m-%Y') if donation.donation_date else ""],
+        ["Devotee Name:", devotee.name if devotee else "Anonymous"],
+        ["Phone:", devotee.phone if devotee else "N/A"],
+        ["Address:", devotee.address if devotee and devotee.address else "N/A"],
+        ["Category:", category.name if category else "N/A"],
+        ["Payment Mode:", donation.payment_mode.upper()],
+        ["Amount:", f"₹ {donation.amount:,.2f}"]
+    ]
+    
+    # Add 80G information if applicable
+    if category and category.is_80g_eligible and temple and temple.certificate_80g_number:
+        receipt_data.append(["80G Certificate:", f"Yes - {temple.certificate_80g_number}"])
+        receipt_data.append(["80G Valid From:", temple.certificate_80g_valid_from or "N/A"])
+        receipt_data.append(["80G Valid To:", temple.certificate_80g_valid_to or "N/A"])
+    
+    receipt_table = Table(receipt_data, colWidths=[2.5*inch, 4*inch])
+    receipt_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    
+    elements.append(receipt_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Amount in words (simple conversion)
+    amount_words = f"Rupees {_number_to_words(int(donation.amount))} Only"
+    elements.append(Paragraph(f"<b>Amount in Words:</b> {amount_words}", styles['Normal']))
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Footer
+    footer_style = ParagraphStyle(
+        'ReceiptFooter',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.grey,
+        alignment=TA_CENTER
+    )
+    
+    elements.append(Spacer(1, 0.5*inch))
+    elements.append(Paragraph("_" * 80, styles['Normal']))
+    elements.append(Spacer(1, 0.1*inch))
+    
+    if temple and temple.authorized_signatory_name:
+        elements.append(Paragraph(f"Authorized Signatory: {temple.authorized_signatory_name}", styles['Normal']))
+        if temple.authorized_signatory_designation:
+            elements.append(Paragraph(temple.authorized_signatory_designation, styles['Normal']))
+    
+    elements.append(Spacer(1, 0.2*inch))
+    elements.append(Paragraph(f"Generated on {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}", footer_style))
+    elements.append(Paragraph("MandirSync Temple Management System", footer_style))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"receipt_{donation.receipt_number}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename={filename}"}
+    )
+
+
+def _number_to_words(n):
+    """Convert number to words (simple implementation)"""
+    ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"]
+    tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+    teens = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
+    
+    if n == 0:
+        return "Zero"
+    
+    def convert_hundreds(num):
+        result = ""
+        if num >= 100:
+            result += ones[num // 100] + " Hundred "
+            num %= 100
+        if num >= 20:
+            result += tens[num // 10] + " "
+            num %= 10
+        elif num >= 10:
+            result += teens[num - 10] + " "
+            return result
+        if num > 0:
+            result += ones[num] + " "
+        return result
+    
+    result = ""
+    if n >= 10000000:  # Crores
+        result += convert_hundreds(n // 10000000) + "Crore "
+        n %= 10000000
+    if n >= 100000:  # Lakhs
+        result += convert_hundreds(n // 100000) + "Lakh "
+        n %= 100000
+    if n >= 1000:  # Thousands
+        result += convert_hundreds(n // 1000) + "Thousand "
+        n %= 1000
+    if n > 0:
+        result += convert_hundreds(n)
+    
+    return result.strip()
 
 
 @router.get("/", response_model=List[DonationResponse])

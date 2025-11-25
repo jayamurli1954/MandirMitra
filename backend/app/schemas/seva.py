@@ -121,6 +121,7 @@ class SevaBookingUpdate(BaseModel):
 class SevaBookingResponse(SevaBookingBase):
     id: int
     user_id: Optional[int]
+    priest_id: Optional[int] = None  # Assigned priest
     status: SevaBookingStatus
     receipt_number: Optional[str]
     admin_notes: Optional[str]
@@ -140,6 +141,7 @@ class SevaBookingResponse(SevaBookingBase):
     # Nested relationships
     seva: Optional[SevaResponse] = None
     devotee: Optional[dict] = None  # Will be populated from relationship
+    priest: Optional[dict] = None  # Will be populated from relationship
 
     class Config:
         from_attributes = True

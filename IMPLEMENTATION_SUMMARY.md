@@ -293,3 +293,5 @@ ALTER TABLE seva_bookings ADD COLUMN reschedule_approved_at TIMESTAMP;
 **Last Updated:** November 2025
 **Status:** All features implemented and ready for testing
 
+
+

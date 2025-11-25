@@ -49,9 +49,19 @@ class Temple(Base):
     certificate_80g_valid_to = Column(String)
     certificate_12a_number = Column(String(100))
     certificate_12a_valid_from = Column(String)
+    
+    # FCRA (Foreign Contribution Regulation Act) - Optional
+    fcra_applicable = Column(Boolean, default=False)
     fcra_registration_number = Column(String(100))
     fcra_valid_from = Column(String)
     fcra_valid_to = Column(String)
+    fcra_bank_account_id = Column(Integer, nullable=True)  # Link to bank account for FCRA
+    
+    # GST (Goods and Services Tax) - Optional
+    gst_applicable = Column(Boolean, default=False)
+    gstin = Column(String(15))  # 15-character GSTIN (e.g., 29AABCU1234A1Z5)
+    gst_registration_date = Column(String)  # ISO format date string
+    gst_tax_rates = Column(Text)  # JSON string for HSN codes and rates
 
     # Banking Information
     bank_name = Column(String(200))

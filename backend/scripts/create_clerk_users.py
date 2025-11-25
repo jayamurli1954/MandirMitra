@@ -113,3 +113,5 @@ if __name__ == "__main__":
     
     create_clerk_users(num_clerks=args.num_clerks, default_password=args.password)
 
+
+

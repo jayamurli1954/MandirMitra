@@ -104,6 +104,9 @@ class SevaBooking(Base):
     rashi = Column(String(50), nullable=True)
     special_request = Column(Text, nullable=True)
 
+    # Priest assignment
+    priest_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Assigned priest
+    
     # Admin notes
     admin_notes = Column(Text, nullable=True)
     completed_at = Column(DateTime, nullable=True)
@@ -137,4 +140,11 @@ class SevaBooking(Base):
         foreign_keys=[reschedule_approved_by],
         primaryjoin="SevaBooking.reschedule_approved_by == foreign(User.id)",
         overlaps="user"  # Silence warning about overlapping foreign keys
+    )
+    # Assigned priest - explicit primaryjoin to avoid ambiguity
+    priest = relationship(
+        "User",
+        foreign_keys=[priest_id],
+        primaryjoin="SevaBooking.priest_id == foreign(User.id)",
+        overlaps="user,reschedule_approved_by_user"
     )

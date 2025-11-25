@@ -97,3 +97,5 @@ After fixing, create a test donation:
 
 **Priority:** Do Step 1 and Step 2 immediately to fix the trial balance!
 
+
+

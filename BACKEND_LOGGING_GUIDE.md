@@ -565,3 +565,5 @@ SELECT * FROM audit_logs WHERE user_email = 'clerk1@temple.local' ORDER BY creat
 **Last Updated:** November 2025  
 **For questions:** Check `backend/app/core/audit.py` and `backend/app/models/audit_log.py`
 
+
+

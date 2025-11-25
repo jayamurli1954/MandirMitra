@@ -246,3 +246,5 @@ psql -d your_database -f backend/scripts/add_reschedule_fields.sql
 
 **Last Updated:** November 2025
 
+
+

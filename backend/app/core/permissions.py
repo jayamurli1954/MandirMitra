@@ -187,3 +187,5 @@ def check_permission(user: User, permission: Permission):
             detail=f"Permission denied: {permission.value}"
         )
 
+
+

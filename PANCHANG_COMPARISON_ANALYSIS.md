@@ -1,414 +1,609 @@
-# 🔍 PANCHANG COMPARISON ANALYSIS
-## MandirSync vs Drik Panchang
-
-**Analysis Date:** November 24, 2025
-**Reference:** Drik Panchang (https://www.drikpanchang.com/)
+# 🔍 PANCHANG ACCURACY VERIFICATION
+## Comparison: MandirSync vs Prokerala vs Drikpanchang
+### Date: November 25, 2025 (Tuesday) | Location: Bengaluru, Karnataka
 
 ---
 
-## ✅ FEATURES WE HAVE (Matching Drik Panchang)
+## 📊 DETAILED COMPARISON TABLE
 
-### **Core Panchang Elements (5 Limbs)**
-| Feature | Our Implementation | Drik Panchang | Status |
-|---------|-------------------|---------------|--------|
-| **Tithi** | ✅ Full name, paksha, end time | ✅ Yes | ✅ **MATCH** |
-| **Nakshatra** | ✅ Name, pada, end time | ✅ Yes | ✅ **MATCH** |
-| **Yoga** | ✅ Name, inauspicious flag | ✅ Yes | ✅ **MATCH** |
-| **Karana** | ✅ Both halves shown | ✅ Yes | ✅ **MATCH** |
-| **Vara** | ✅ Name, Sanskrit | ✅ Yes | ✅ **MATCH** |
-
-### **Sun & Moon Timings**
-| Feature | Our Implementation | Drik Panchang | Status |
-|---------|-------------------|---------------|--------|
-| **Sunrise** | ✅ HH:MM AM/PM | ✅ Yes | ✅ **MATCH** |
-| **Sunset** | ✅ HH:MM AM/PM | ✅ Yes | ✅ **MATCH** |
-| **Moonrise** | ❌ Not shown | ✅ Yes | 🔴 **MISSING** |
-| **Moonset** | ❌ Not shown | ✅ Yes | 🔴 **MISSING** |
-
-### **Inauspicious Timings**
-| Feature | Our Implementation | Drik Panchang | Status |
-|---------|-------------------|---------------|--------|
-| **Rahu Kaal** | ✅ Start-End, Duration | ✅ Yes | ✅ **MATCH** |
-| **Yamaganda** | ✅ Start-End | ✅ Yes (Yamaganda Kalam) | ✅ **MATCH** |
-| **Gulika** | ✅ Start-End | ✅ Yes (Gulikai Kalam) | ✅ **MATCH** |
-| **Dur Muhurtam** | ❌ Not calculated | ✅ Yes | 🔴 **MISSING** |
-| **Varjyam** | ❌ Not calculated | ✅ Yes | 🔴 **MISSING** |
-
-### **Auspicious Timings**
-| Feature | Our Implementation | Drik Panchang | Status |
-|---------|-------------------|---------------|--------|
-| **Abhijit Muhurat** | ✅ Start-End, Duration | ✅ Yes | ✅ **MATCH** |
-| **Amrit Kalam** | ❌ Not calculated | ✅ Yes | 🔴 **MISSING** |
-| **Ravi Pushya Yoga** | ❌ Not detected | ✅ Yes | 🔴 **MISSING** |
-| **Guru Pushya Yoga** | ❌ Not detected | ✅ Yes | 🔴 **MISSING** |
-| **Sarvartha Siddhi Yoga** | ❌ Not detected | ✅ Yes | 🔴 **MISSING** |
-| **Amrita Siddhi Yoga** | ❌ Not detected | ✅ Yes | 🔴 **MISSING** |
-| **Dwipushkar Yoga** | ❌ Not detected | ✅ Yes | 🔴 **MISSING** |
-| **Tripushkar Yoga** | ❌ Not detected | ✅ Yes | 🔴 **MISSING** |
-
-### **Muhurat Timings**
-| Feature | Our Implementation | Drik Panchang | Status |
-|---------|-------------------|---------------|--------|
-| **Choghadiya (Day)** | ❌ Not shown | ✅ Yes (8 periods) | 🔴 **MISSING** |
-| **Choghadiya (Night)** | ❌ Not shown | ✅ Yes (8 periods) | 🔴 **MISSING** |
-| **Hora** | ❌ Not shown | ✅ Yes (Shubh Horai) | 🔴 **MISSING** |
-
----
-
-## 🆕 UNIQUE FEATURES WE HAVE (Not in Standard Drik Panchang)
-
-| Feature | Our Implementation | Notes |
-|---------|-------------------|-------|
-| **✓ Verification Badges** | ✅ Swiss Ephemeris, Lahiri Ayanamsa | **UNIQUE** - Trust building |
-| **⏱️ Live Countdown Timers** | ✅ Real-time tithi/nakshatra countdown | **UNIQUE** - Updates every second |
-| **⭐ Quality Indicators** | ✅ 5-star ratings with detailed explanations | **UNIQUE** - Educational |
-| **📊 8-Period Visualization** | ✅ Color-coded day breakdown | **UNIQUE** - Visual representation |
-| **🎉 Detailed Festival Guides** | ✅ Observance instructions + benefits | **ENHANCED** - More detailed than typical |
-| **🖨️ Print-Optimized View** | ✅ Professional print CSS | **UNIQUE** - Publication ready |
-| **📱 Share Functionality** | ✅ Native share API | **UNIQUE** - Social sharing |
-| **100% Accuracy Meter** | ✅ Visual trust indicator | **UNIQUE** - Confidence building |
+| Element | **MandirSync (Your Implementation)** | **Prokerala** | **Drikpanchang** | Status |
+|---------|--------------------------------------|---------------|------------------|--------|
+| **Date** | Tuesday 25 November, 2025 | November 25, 2025 | November 25, 2025 | ✅ MATCH |
+| **Day (Vara)** | Tuesday (Mangalvara) | Mangalwara (Tuesday) | Mangalawara (Tuesday) | ✅ MATCH |
+| | | | |
+| **SUNRISE/SUNSET** | | | |
+| Sunrise | 6:25 AM | 6:26 AM | 6:23 AM | ⚠️ MINOR VARIANCE |
+| Sunset | 5:45 PM | 5:46 PM | 5:50 PM | ⚠️ MINOR VARIANCE |
+| | | | |
+| **TITHI** | | | |
+| Current Tithi | Shukla Panchami | Sukla Paksha Panchami | Panchami | ✅ MATCH |
+| Tithi Ends | Not shown in screenshot | 10:57 PM | 10:56 PM | ❓ NOT VISIBLE |
+| Paksha | Shukla (shown in name) | Sukla Paksha | Shukla Paksha | ✅ MATCH |
+| Next Tithi | Not visible | Shashthi (after 10:57 PM) | Shashthi | ❓ NOT VISIBLE |
+| | | | |
+| **NAKSHATRA** | | | |
+| Current Nakshatra | Uttara Ashadha | Uttara Ashadha | Uttara Ashadha | ✅ MATCH |
+| Pada | 2 | Not shown | Not explicitly shown | ✅ MATCH |
+| Nakshatra Ends | Not shown in screenshot | 11:57 PM | 11:57 PM | ❓ NOT VISIBLE |
+| Next Nakshatra | Not visible | Shravana | Shravana | ❓ NOT VISIBLE |
+| Quality Rating | ⭐⭐⭐⭐⭐ Extremely Auspicious | Not shown | Not shown | ➕ UNIQUE FEATURE |
+| | | | |
+| **YOGA** | | | |
+| Current Yoga | Vridhi | Ganda (until 12:49 PM) | Ganda (until 12:50 PM) | ❌ **MISMATCH** |
+| | | Vriddhi (after 12:49 PM) | Not shown after | |
+| Yoga End Time | Not shown | 12:49 PM (Ganda ends) | 12:50 PM (Ganda ends) | ❓ NOT VISIBLE |
+| | | | |
+| **KARANA** | | | |
+| Display | Shows "Tuesday (Mangalvara)" | Bava (until 10:13 AM) | Bava (until 10:12 AM) | ❌ **ERROR** |
+| | (This seems like a bug!) | Balava (10:13 AM - 10:57 PM) | Balava (until 10:56 PM) | |
+| | | Kaulava (after 10:57 PM) | Kaulava | |
+| | | | |
+| **INAUSPICIOUS TIMES** | | | |
+| Rahu Kaal | 2:55 PM - 4:20 PM | Not shown in screenshot | 2:58 PM - 4:24 PM | ⚠️ CLOSE MATCH |
+| Duration | 1h 25m | - | 1h 26m | ✅ MATCH |
+| Yamaganda | 9:15 AM - 10:40 AM | Not shown in screenshot | 9:15 AM - 10:41 AM | ✅ MATCH |
+| Gulika Kala | 6:25 AM - 7:50 AM | Not shown in screenshot | 12:07 PM - 1:33 PM | ❌ **MAJOR MISMATCH** |
+| | | | |
+| **AUSPICIOUS TIMES** | | | |
+| Abhijit Muhurat | 11:42 AM - 12:28 PM | Not shown in screenshot | 11:44 AM - 12:30 PM | ⚠️ CLOSE MATCH |
+| Duration | 46 minutes | - | 46 minutes | ✅ MATCH |
+| | | | |
+| **HINDU CALENDAR** | | | |
+| Vikram Samvat | Not shown in screenshot | 2082, Kaisyukta | 2082 Kalayukta | ❓ NOT VISIBLE |
+| Shaka Samvat | Not shown in screenshot | 1947, Visvavasu | 1947 Vishvavasu | ❓ NOT VISIBLE |
+| Hindu Month | Not shown | - | Margashirsha | ❓ NOT VISIBLE |
+| | | | |
+| **ADDITIONAL DATA** | | | |
+| Moonrise | Not shown | 10:03 PM | 10:26 AM | ❓ NOT VISIBLE |
+| Moonset | Not shown | 10:03 PM | 10:04 PM | ❓ NOT VISIBLE |
+| Brahma Muhurta | Not shown | Not shown | 4:43 AM - 5:33 AM | ❓ NOT VISIBLE |
+| Amrit Kalam | Not shown | Not shown | 5:00 PM - 6:45 PM | ❓ NOT VISIBLE |
 
 ---
 
-## 🔴 CRITICAL MISSING FEATURES (Present in Drik Panchang)
+## 🚨 CRITICAL ISSUES FOUND
 
-### **Priority 1 - Essential Missing Elements**
+### **1. YOGA MISMATCH - HIGH PRIORITY** 🔴
 
-#### **1. Moonrise & Moonset Times** 🌙
-- **Impact:** HIGH - Important for many rituals and fasting
-- **Drik Panchang Shows:** Exact moonrise and moonset times
-- **Our Status:** ❌ Not calculated
-- **Fix Required:** Add to `panchang_service.py` using Swiss Ephemeris
+**Your System Shows:** Vridhi  
+**Actual (Prokerala & Drikpanchang):** 
+- Ganda until 12:49-12:50 PM
+- Vriddhi AFTER 12:49 PM
 
-#### **2. Dur Muhurtam (Inauspicious Period)** ⚠️
-- **Impact:** HIGH - Critical for avoiding bad timing
-- **Drik Panchang Shows:** 2 periods per day (each ~48 minutes)
-- **Our Status:** ❌ Not calculated
-- **Fix Required:** Calculate 1/8th day in 16 segments, avoid certain segments
+**Impact:** MAJOR ERROR
+- At the time of screenshot (likely before 12:50 PM), Yoga should be "Ganda", not "Vridhi"
+- This is a critical error affecting muhurat recommendations
 
-#### **3. Varjyam (Void Times)** ⚫
-- **Impact:** MEDIUM - Used by astrologers
-- **Drik Panchang Shows:** Time periods to avoid
-- **Our Status:** ❌ Not calculated
-- **Fix Required:** Complex calculation based on tithi and nakshatra
+**Root Cause Likely:**
+- Calculation error in Yoga algorithm
+- May be calculating Yoga for wrong time
+- May be showing next Yoga instead of current Yoga
 
-#### **4. Special Auspicious Yogas** ✨
-Missing several important yogas that Drik Panchang shows:
-- **Amrit Kalam** - Extremely auspicious period
-- **Ravi Pushya Yoga** - Sunday + Pushya Nakshatra
-- **Guru Pushya Yoga** - Thursday + Pushya Nakshatra
-- **Sarvartha Siddhi Yoga** - Specific day-nakshatra combinations
-- **Amrita Siddhi Yoga** - Specific day-nakshatra combinations
-- **Dwipushkar Yoga** - Double benefit yoga
-- **Tripushkar Yoga** - Triple benefit yoga
-
-**Impact:** HIGH - These are highly sought after by devotees
-**Fix Required:** Implement yoga detection logic
-
-#### **5. Choghadiya (Day & Night Muhurat)** 🕐
-- **Impact:** MEDIUM-HIGH - Popular for business/travel timing
-- **Drik Panchang Shows:** 8 day periods + 8 night periods with quality
-- **Our Status:** We show 8 day periods but not as Choghadiya format
-- **Fix Required:** Convert our 8-period system to proper Choghadiya with names (Udveg, Char, Labh, Amrit, Kaal, Shubh, Rog, Udveg)
-
-#### **6. Hora (Planetary Hours)** 🪐
-- **Impact:** MEDIUM - Used for specific activities
-- **Drik Panchang Shows:** Hourly planetary rulership
-- **Our Status:** ❌ Not shown
-- **Fix Required:** Calculate planetary hours from sunrise
-
----
-
-### **Priority 2 - Advanced Features**
-
-#### **7. Panchaka** ⚠️
-- **What:** Inauspicious 5-ghati period (2 hours)
-- **When:** During specific nakshatras (Dhanishta, Shatabhisha, Purva Bhadrapada, Uttara Bhadrapada, Revati)
-- **Drik Shows:** Highlighted prominently
-- **Our Status:** ❌ Not detected
-
-#### **8. Ganda Moola** ⚠️
-- **What:** Dangerous period for childbirth
-- **When:** Certain nakshatra padas
-- **Drik Shows:** Highlighted with warnings
-- **Our Status:** ❌ Not detected
-
-#### **9. Bhadra** ⚠️
-- **What:** Vishti Karana (we show this)
-- **Status:** ✅ We detect this as "is_bhadra" in Karana
-- **Enhancement Needed:** More prominent display
-
-#### **10. Vinchudo** (Gujarat Specific) 🎯
-- **What:** Regional inauspicious timing
-- **Our Status:** ❌ Not shown
-- **Priority:** LOW (region-specific)
-
-#### **11. Anandadi Yoga** 🔗
-- **What:** 28 special yogas for specific activities
-- **Our Status:** ❌ Not calculated
-- **Priority:** MEDIUM
-
-#### **12. Udaya Lagna** 🌅
-- **What:** Ascendant at sunrise
-- **Drik Shows:** With countdown timer
-- **Our Status:** ❌ Not shown
-- **Priority:** LOW (advanced astrology)
-
----
-
-## 📊 CALENDAR FEATURES COMPARISON
-
-| Feature | Our Implementation | Drik Panchang | Status |
-|---------|-------------------|---------------|--------|
-| **Hindu Month Name** | ✅ Yes (currently hardcoded) | ✅ Calculated | 🟡 **NEEDS FIX** |
-| **Vikram Samvat** | ✅ Yes (hardcoded 2082) | ✅ Calculated | 🟡 **NEEDS FIX** |
-| **Shaka Samvat** | ❌ No | ✅ Yes | 🔴 **MISSING** |
-| **Ayanamsa Value** | ✅ Yes (Lahiri) | ✅ Yes | ✅ **MATCH** |
-| **Ayana** | ✅ Yes (Uttarayana/Dakshinayana) | ✅ Yes | ✅ **MATCH** |
-| **Ritu (Season)** | ✅ Yes (6 seasons) | ✅ Yes | ✅ **MATCH** |
-| **Masa (Month)** | ✅ Yes (currently hardcoded) | ✅ Calculated | 🟡 **NEEDS FIX** |
-
----
-
-## 🎯 METHODOLOGY COMPARISON
-
-### **Calculation Engine**
-| Aspect | Our Implementation | Drik Panchang | Status |
-|--------|-------------------|---------------|--------|
-| **Ephemeris** | Swiss Ephemeris | Drik Ganita (proprietary) | ⚠️ **DIFFERENT** |
-| **Ayanamsa** | Lahiri | Lahiri (with options) | ✅ **MATCH** |
-| **Location-Based** | ✅ Yes | ✅ Yes | ✅ **MATCH** |
-| **Sunrise Method** | Swiss Ephemeris Disc Center | Drik calculation | ⚠️ **DIFFERENT** |
-
-**Note:** Drik Panchang uses their own proprietary "Drik Ganita" calculation method, which may produce slightly different results than Swiss Ephemeris. Both are valid approaches.
-
----
-
-## 🔬 POTENTIAL DISCREPANCIES
-
-### **1. Tithi End Times**
-- **Our Method:** Swiss Ephemeris sidereal moon calculation
-- **Drik Method:** Drik Ganita
-- **Expected Difference:** ±1-2 minutes typically
-- **Impact:** LOW - Within acceptable range
-
-### **2. Nakshatra Transitions**
-- **Our Method:** Swiss Ephemeris moon longitude
-- **Drik Method:** Drik Ganita
-- **Expected Difference:** ±1-2 minutes
-- **Impact:** LOW
-
-### **3. Sunrise/Sunset**
-- **Our Method:** Swiss Ephemeris with disc center + refraction
-- **Drik Method:** Drik Ganita
-- **Expected Difference:** ±1-3 minutes
-- **Impact:** MEDIUM - Affects all time-based calculations
-
-### **4. Rahu Kaal Calculation**
-- **Our Method:** 1/8th day segments (CORRECTED in last fix)
-- **Drik Method:** Same formula
-- **Expected Difference:** Depends on sunrise/sunset difference
-- **Impact:** LOW - Formula is correct now
-
-### **5. Hindu Month/Year**
-- **Our Status:** Currently HARDCODED values
-- **Drik Method:** Calculated from moon position
-- **Expected Difference:** MAJOR if not current month
-- **Impact:** HIGH - Needs to be calculated dynamically
-
----
-
-## 🛠️ RECOMMENDED FIXES (Priority Order)
-
-### **IMMEDIATE (This Week)**
-
-#### **1. Add Moonrise & Moonset** 🌙
+**Fix Required:** 
 ```python
-def get_moon_rise_set(self, dt: datetime, lat: float, lon: float) -> Dict:
-    """Calculate moonrise and moonset using Swiss Ephemeris"""
-    # Similar to get_sun_rise_set but for Moon
-    # Use swe.MOON instead of swe.SUN
-    pass
+# Check your yoga calculation
+# Should be based on: (Sun_longitude + Moon_longitude) / 13.333
+# Make sure you're using CURRENT time, not end-of-day time
 ```
 
-#### **2. Calculate Hindu Month Dynamically** 📅
+---
+
+### **2. KARANA DISPLAY ERROR - HIGH PRIORITY** 🔴
+
+**Your System Shows:** "Tuesday (Mangalvara)" under Karana section  
+**Should Show:** 
+- Bava (until 10:12-10:13 AM)
+- Balava (10:13 AM to 10:56-10:57 PM)
+
+**Impact:** MAJOR UI/LOGIC ERROR
+- Karana field is showing the weekday (Vara) instead of actual Karana
+- This is either a display bug or data mapping error
+
+**Root Cause:**
+- Wrong variable mapped to Karana display field
+- Vara (weekday) is being displayed where Karana should be
+
+**Fix Required:**
 ```python
-def get_hindu_month(self, jd: float) -> Dict:
-    """Calculate current Hindu month from Moon position"""
-    # Based on moon's zodiac sign
-    # Determine Amanta vs Purnimanta
-    pass
+# In your display code, you're likely doing:
+karana = panchang_data['vara']  # WRONG!
+
+# Should be:
+karana = panchang_data['karana']  # CORRECT
 ```
 
-#### **3. Add Dur Muhurtam** ⚠️
-```python
-def get_dur_muhurtam(self, sunrise: str, sunset: str, day_of_week: int) -> list:
-    """Calculate two inauspicious Dur Muhurtam periods"""
-    # Each day has 2 Dur Muhurtam periods
-    # Each ~48 minutes (1/15th of day)
-    pass
+---
+
+### **3. GULIKA KALA MISMATCH - HIGH PRIORITY** 🔴
+
+**Your System Shows:** 6:25 AM - 7:50 AM  
+**Drikpanchang Shows:** 12:07 PM - 1:33 PM  
+**Difference:** 5 hours 42 minutes off!
+
+**Impact:** CRITICAL ERROR
+- This is a major miscalculation
+- Devotees relying on this for avoiding inauspicious times will be misled
+
+**Root Cause Likely:**
+- Wrong formula for Gulika calculation
+- Gulika varies by day of week
+- You may be using wrong day's Gulika calculation
+
+**Gulika Calculation Formula:**
+```
+Tuesday (Mangalvara):
+- Day portion: Sunrise to Sunset divided into 8 parts
+- Gulika period: 6th part of the day
+- For Tuesday specifically: Part 6 of 8
+
+Day length = Sunset - Sunrise = 5:50 PM - 6:23 AM = 11h 27m
+Each part = 11h 27m / 8 = 1h 26m
+
+Part 1: 6:23 AM - 7:49 AM
+Part 2: 7:49 AM - 9:15 AM
+Part 3: 9:15 AM - 10:41 AM
+Part 4: 10:41 AM - 12:07 PM
+Part 5: 12:07 PM - 1:33 PM
+Part 6: 1:33 PM - 2:59 PM  ← This should be Gulika for Tuesday
 ```
 
-### **SHORT TERM (Next 2 Weeks)**
+Wait, let me recalculate... Actually checking against Drikpanchang's time (12:07 PM - 1:33 PM), that's Part 5, not Part 6.
 
-#### **4. Implement Special Yogas** ✨
-- Amrit Kalam calculation
-- Ravi Pushya Yoga detection (Sunday + Pushya)
-- Guru Pushya Yoga detection (Thursday + Pushya)
-- Sarvartha Siddhi Yoga (28 combinations)
-- Amrita Siddhi Yoga (specific combinations)
+Let me check the correct formula for Tuesday Gulika...
 
-#### **5. Add Choghadiya Format** 🕐
-- Convert 8-period system to Choghadiya names
-- Calculate both day and night Choghadiya
-- Add quality indicators (Shubh, Labh, Amrit, Char, Udveg, Kaal, Rog)
+**Tuesday Gulika Order:** The sequence varies by day. For Tuesday, Gulika typically falls in a different portion.
 
-#### **6. Add Hora (Planetary Hours)** 🪐
-- Calculate hourly planetary rulership
-- Starting from sunrise ruler based on day of week
-
-### **MEDIUM TERM (Next Month)**
-
-#### **7. Implement Varjyam** ⚫
-- Complex calculation based on tithi + nakshatra
-- Multiple varjyam periods possible per day
-
-#### **8. Add Panchaka Detection** ⚠️
-- Flag when in Panchaka nakshatra
-- Show duration and warnings
-
-#### **9. Add Ganda Moola Detection** ⚠️
-- Identify dangerous nakshatra padas
-- Show warnings for birth timing
-
-#### **10. Calculate Vikram Samvat Dynamically** 📆
-- Based on current date
-- Account for Chaitra month start
-
-### **LONG TERM (Future Enhancements)**
-
-#### **11. Multiple Ayanamsa Support**
-- Lahiri (current)
-- Raman
-- Krishnamurti (KP)
-- True Chitrapaksha
-
-#### **12. Regional Customizations**
-- Vinchudo for Gujarat
-- Regional festival calendars
-- Local calculation preferences
-
-#### **13. Kundali Features** (Optional)
-- Planetary positions
-- Ascendant calculation
-- Chart generation
+**Fix Required:** Review and correct your Gulika calculation formula for each day of the week.
 
 ---
 
-## 📈 ACCURACY VALIDATION CHECKLIST
+## ⚠️ MODERATE ISSUES
 
-To validate our Panchang against Drik Panchang, test these for **same location and date**:
+### **4. SUNRISE/SUNSET VARIANCE** 🟡
 
-### **Core Elements (Must Match Within ±2 minutes)**
-- [ ] Tithi name - Should match exactly
-- [ ] Tithi end time - Within ±2 minutes
-- [ ] Nakshatra name - Should match exactly
-- [ ] Nakshatra end time - Within ±2 minutes
-- [ ] Yoga name - Should match exactly
-- [ ] Karana (both halves) - Should match exactly
-- [ ] Vara - Should match exactly
+**Variance Range:** 1-5 minutes across sources
 
-### **Timings (Must Match Within ±3 minutes)**
-- [ ] Sunrise - Within ±3 minutes
-- [ ] Sunset - Within ±3 minutes
-- [ ] Rahu Kaal start - Within ±3 minutes
-- [ ] Rahu Kaal end - Within ±3 minutes
-- [ ] Yamaganda start - Within ±3 minutes
-- [ ] Yamaganda end - Within ±3 minutes
-- [ ] Gulika start - Within ±3 minutes
-- [ ] Gulika end - Within ±3 minutes
-- [ ] Abhijit Muhurat - Within ±3 minutes
+| Time | MandirSync | Prokerala | Drikpanchang |
+|------|-----------|-----------|--------------|
+| Sunrise | 6:25 AM | 6:26 AM | 6:23 AM |
+| Sunset | 5:45 PM | 5:46 PM | 5:50 PM |
 
-### **Dates & Calendar**
-- [ ] Hindu month name - Must match
-- [ ] Paksha - Must match
-- [ ] Vikram Samvat - Must match
-- [ ] Ayanamsa value - Within ±0.01°
+**Analysis:**
+- Sunrise: 3-minute variance (acceptable)
+- Sunset: 4-5 minute variance (acceptable but should be tighter)
+
+**Possible Causes:**
+1. Different elevation data for Bengaluru
+2. Different refraction corrections
+3. Rounding differences
+
+**Impact:** LOW
+- Small variance acceptable (±2-3 minutes is normal)
+- However, strive for closer match
+
+**Recommendation:**
+- Cross-verify your elevation setting
+- Check refraction correction in Swiss Ephemeris settings
 
 ---
 
-## 💡 RECOMMENDATIONS SUMMARY
+### **5. RAHU KAAL VARIANCE** 🟡
 
-### **What to Prioritize Based on User Needs:**
+**Your System:** 2:55 PM - 4:20 PM  
+**Drikpanchang:** 2:58 PM - 4:24 PM  
+**Variance:** 3-4 minutes
 
-1. **For Daily Temple Use:**
-   - ✅ Keep current accurate core calculations
-   - 🔴 ADD: Moonrise/Moonset (for fasting)
-   - 🔴 ADD: Dur Muhurtam (avoid inauspicious)
-   - 🔴 ADD: Special Yogas (Pushya Yoga, etc.)
+**Analysis:**
+- Very close match
+- Difference likely due to sunrise/sunset variance
+- Acceptable variance
 
-2. **For Devotee Education:**
-   - ✅ Keep quality indicators (unique feature)
-   - ✅ Keep live countdowns (engaging)
-   - 🟡 ENHANCE: Add more yoga explanations
-
-3. **For Pandit/Astrologer Use:**
-   - 🔴 ADD: Choghadiya (essential for muhurat)
-   - 🔴 ADD: Hora (planetary hours)
-   - 🔴 ADD: Varjyam (advanced timing)
-   - 🟡 CONSIDER: Kundali features (optional)
-
-4. **For Trust Building:**
-   - ✅ Verification badges (excellent!)
-   - ✅ Accuracy meter (unique!)
-   - 🟡 ADD: Calculation notes explaining differences from other sources
+**Impact:** LOW
+- 3-4 minutes is acceptable
+- Still recommend matching exactly if possible
 
 ---
 
-## 🎯 CONCLUSION
+### **6. ABHIJIT MUHURAT VARIANCE** 🟡
 
-### **Our Strengths:**
-1. ✅ **Core calculations are ACCURATE** (Swiss Ephemeris with Lahiri)
-2. ✅ **Unique trust-building features** (verification badges, live countdowns)
-3. ✅ **Educational quality indicators** (5-star system)
-4. ✅ **Better festival information** (detailed observances)
-5. ✅ **Modern UX** (print, share, responsive)
+**Your System:** 11:42 AM - 12:28 PM (46 minutes)  
+**Drikpanchang:** 11:44 AM - 12:30 PM (46 minutes)  
+**Variance:** 2 minutes
 
-### **Critical Gaps:**
-1. 🔴 **Missing Moonrise/Moonset** - Essential for fasting
-2. 🔴 **Missing Dur Muhurtam** - Important inauspicious period
-3. 🔴 **Missing Special Yogas** - Highly sought after (Pushya Yoga, etc.)
-4. 🔴 **Missing Choghadiya** - Popular muhurat system
-5. 🟡 **Hardcoded Hindu dates** - Need dynamic calculation
+**Analysis:**
+- Duration matches perfectly (46 minutes)
+- Start/end times off by 2 minutes
+- Likely due to sunrise/sunset variance
 
-### **Accuracy Assessment:**
-- **Core Panchang:** ✅ ACCURATE (within acceptable ±2 minute variance)
-- **Timings:** ✅ ACCURATE (corrected Rahu Kaal formula)
-- **Calendar Data:** 🟡 NEEDS DYNAMIC CALCULATION
-
-### **Overall Rating:**
-**Current Implementation: 7.5/10**
-- Excellent foundation with accurate core calculations
-- Unique user-friendly features
-- Missing some traditional features that users expect
-- Some hardcoded values need to be calculated
-
-**After Implementing Recommendations: 9.5/10**
-- Would match or exceed Drik Panchang for temple use
-- Retain unique trust-building features
-- More comprehensive than typical Panchang
+**Impact:** LOW
+- Very acceptable variance
+- Good calculation
 
 ---
 
-## 📚 REFERENCES
+## ✅ WHAT'S WORKING CORRECTLY
 
-Based on research from:
-- [Drik Panchang Features](https://justuseapp.com/en/app/1321271821/hindu-calendar-drik-panchang)
-- [Drik Panchang Calendar Information](https://www.scribd.com/document/695935645/2024-Drik-Panchang-Hindu-Calendar-v1-0-1)
-- Swiss Ephemeris Documentation
-- Traditional Vedic Panchang texts
+### **Excellent Matches:**
+
+1. ✅ **Tithi Identification:** Perfectly matched - Shukla Panchami
+2. ✅ **Nakshatra Identification:** Perfectly matched - Uttara Ashadha
+3. ✅ **Nakshatra Pada:** Correctly showing Pada 2
+4. ✅ **Paksha:** Correctly identified as Shukla Paksha
+5. ✅ **Vara (Weekday):** Correctly showing Tuesday/Mangalvara
+6. ✅ **Yamaganda:** Perfect match with Drikpanchang
+7. ✅ **Rahu Kaal:** Very close match (3-4 min variance acceptable)
+8. ✅ **Quality Rating System:** Nice feature showing auspiciousness level
 
 ---
 
-**Last Updated:** November 24, 2025
-**Next Review:** After implementing Priority 1 fixes
+## 📋 MISSING FEATURES (NOT CRITICAL)
+
+These are shown in Drikpanchang but not in your screenshot:
+
+1. ❓ **Tithi End Time** - Important for knowing when next tithi starts
+2. ❓ **Nakshatra End Time** - Important for seva bookings
+3. ❓ **Yoga End Time** - Important for muhurat selection
+4. ❓ **Hindu Calendar Details** - Vikram Samvat, Shaka Samvat, Month name
+5. ❓ **Moonrise/Moonset** - Some temples need this
+6. ❓ **Brahma Muhurta** - Important for spiritual practices
+7. ❓ **Amrit Kalam** - Auspicious time period
+8. ❓ **Complete Day Division (8 Periods)** - Your UI shows only partial
+9. ❓ **Varjyam Times** - Some traditions avoid these
+10. ❓ **Dur Muhurtam** - Another inauspicious time
+
+**Note:** These may be implemented but not visible in the screenshot shown.
+
+---
+
+## 🎯 PRIORITY ACTION ITEMS
+
+### **IMMEDIATE (Must Fix Before Production):**
+
+#### 1. Fix Yoga Calculation 🔴 CRITICAL
+```python
+# Current issue: Showing "Vridhi" when should be "Ganda"
+# Time: Before 12:50 PM
+
+# Verify your calculation:
+def calculate_yoga(sun_long, moon_long):
+    """
+    Yoga = (Sun longitude + Moon longitude) / 13.333
+    """
+    yoga_value = (sun_long + moon_long) % 360
+    yoga_number = int(yoga_value / 13.333333) + 1
+    
+    # Make sure you're using SIDEREAL positions with Lahiri ayanamsa
+    return yoga_number
+
+# Test with today's values and compare with Drikpanchang
+```
+
+#### 2. Fix Karana Display 🔴 CRITICAL
+```python
+# You're showing "Tuesday (Mangalvara)" in Karana field
+# This is clearly a variable mapping error
+
+# Check your template/display code:
+# WRONG:
+<div>Karana: {{ panchang.vara }}</div>
+
+# CORRECT:
+<div>Karana: {{ panchang.karana }}</div>
+```
+
+#### 3. Fix Gulika Kala Calculation 🔴 CRITICAL
+```python
+# Your time: 6:25 AM - 7:50 AM
+# Correct time: 12:07 PM - 1:33 PM
+# Difference: ~5 hours 40 minutes
+
+# Review your Gulika calculation for Tuesday
+# Gulika varies by day of week
+
+def calculate_gulika(day_of_week, sunrise, sunset):
+    """
+    Gulika timing depends on day of week
+    Different portion of day for each weekday
+    """
+    day_length = sunset - sunrise
+    portion = day_length / 8
+    
+    # Order varies by day
+    gulika_sequence = {
+        'Sunday': 7,    # 7th portion
+        'Monday': 2,    # 2nd portion
+        'Tuesday': 5,   # 5th portion (CHECK THIS!)
+        'Wednesday': 4, # 4th portion
+        'Thursday': 3,  # 3rd portion
+        'Friday': 6,    # 6th portion
+        'Saturday': 1   # 1st portion
+    }
+    
+    portion_num = gulika_sequence[day_of_week]
+    gulika_start = sunrise + (portion * (portion_num - 1))
+    gulika_end = gulika_start + portion
+    
+    return gulika_start, gulika_end
+
+# Verify this formula against multiple sources
+```
+
+### **HIGH PRIORITY (Should Fix Soon):**
+
+#### 4. Add Tithi/Nakshatra End Times
+- Show "Until XX:XX PM" for each element
+- Helps users plan activities
+- Critical for seva bookings
+
+#### 5. Improve Sunrise/Sunset Accuracy
+- Target: Match within ±1 minute
+- Check elevation settings
+- Verify location coordinates
+
+### **MEDIUM PRIORITY (Nice to Have):**
+
+#### 6. Add Missing Time Periods
+- Brahma Muhurta
+- Amrit Kalam
+- Dur Muhurtam
+- Complete 8-period day division
+
+#### 7. Add Hindu Calendar Details
+- Vikram Samvat
+- Shaka Samvat
+- Hindu month name
+- Season (Ritu)
+
+---
+
+## 🧪 TESTING RECOMMENDATIONS
+
+### **Immediate Testing Required:**
+
+```python
+# Create automated test cases
+
+def test_panchang_accuracy():
+    """Test against known values for multiple dates"""
+    
+    test_cases = [
+        {
+            'date': '2025-11-25',
+            'location': 'Bengaluru',
+            'expected': {
+                'tithi': 'Panchami',
+                'nakshatra': 'Uttara Ashadha',
+                'yoga': 'Ganda',  # Until 12:50 PM
+                'karana_1': 'Bava',  # Until 10:12 AM
+                'karana_2': 'Balava',  # 10:12 AM - 10:56 PM
+                'sunrise': '06:23',  # ±2 minutes acceptable
+                'sunset': '17:50',  # ±2 minutes acceptable
+                'rahu_kaal_start': '14:58',  # ±3 minutes acceptable
+                'rahu_kaal_end': '16:24',  # ±3 minutes acceptable
+                'gulika_start': '12:07',  # Must match
+                'gulika_end': '13:33'  # Must match
+            }
+        }
+        # Add 20+ more test cases covering different dates
+    ]
+    
+    for test in test_cases:
+        result = calculate_panchang(test['date'], test['location'])
+        
+        # Assert all critical matches
+        assert result['tithi'] == test['expected']['tithi'], \
+            f"Tithi mismatch for {test['date']}"
+        assert result['nakshatra'] == test['expected']['nakshatra'], \
+            f"Nakshatra mismatch for {test['date']}"
+        # ... more assertions
+```
+
+### **Multi-Date Verification:**
+
+Test your implementation against these dates:
+1. ✅ Nov 25, 2025 (current - FIX BUGS FOUND)
+2. ⚠️ Dec 15, 2025 (Purnima)
+3. ⚠️ Dec 30, 2025 (Amavasya)
+4. ⚠️ Jan 1, 2025 (New Year)
+5. ⚠️ Festival dates (Diwali, Holi, etc.)
+
+### **Multi-City Verification:**
+
+Test in different locations:
+1. ✅ Bengaluru (current)
+2. ⚠️ Delhi (different latitude)
+3. ⚠️ Mumbai (different longitude)
+4. ⚠️ Chennai (coastal)
+5. ⚠️ Jaipur (inland)
+
+Sunrise/sunset times vary significantly by location!
+
+---
+
+## 📊 ACCURACY SCORE SUMMARY
+
+| Category | Status | Score |
+|----------|--------|-------|
+| **Tithi** | ✅ Perfect | 10/10 |
+| **Nakshatra** | ✅ Perfect | 10/10 |
+| **Paksha** | ✅ Perfect | 10/10 |
+| **Vara** | ✅ Perfect | 10/10 |
+| **Yoga** | ❌ Wrong | 0/10 |
+| **Karana** | ❌ Wrong Display | 0/10 |
+| **Sunrise** | ⚠️ Close | 7/10 |
+| **Sunset** | ⚠️ Close | 7/10 |
+| **Rahu Kaal** | ✅ Very Good | 9/10 |
+| **Yamaganda** | ✅ Perfect | 10/10 |
+| **Gulika** | ❌ Wrong | 0/10 |
+| **Abhijit** | ✅ Very Good | 9/10 |
+
+### **Overall Score: 6.0/10** ⚠️
+
+**Interpretation:**
+- 🟢 Core calculations (Tithi, Nakshatra) are excellent
+- 🔴 Critical bugs in Yoga, Karana display, Gulika
+- 🟡 Minor improvements needed in sun timings
+
+**Production Readiness:** ❌ **NOT READY**
+- Must fix 3 critical bugs before deployment
+- Then retest comprehensively
+
+---
+
+## 🎓 LEARNING FROM COMPARISON
+
+### **Why Multiple Sources Sometimes Differ:**
+
+1. **Ayanamsa Value:**
+   - All should use Lahiri (Government of India standard)
+   - Small differences in ayanamsa = different calculations
+   - Your implementation: Verify you're using Lahiri
+
+2. **Location Precision:**
+   - Exact coordinates matter
+   - Elevation affects sunrise/sunset
+   - Bengaluru center vs specific area
+
+3. **Calculation Method:**
+   - Different algorithms for sunrise/sunset
+   - Different refraction corrections
+   - Different precision levels
+
+4. **Time Zone:**
+   - All should use IST (UTC+5:30)
+   - Daylight saving should NOT apply in India
+   - Verify your timezone settings
+
+### **Which Source to Trust:**
+
+**Priority Order:**
+1. 🥇 **Drikpanchang.com** - Most accurate, widely trusted
+2. 🥈 **Prokerala.com** - Also reliable
+3. 🥉 **Rashtriya Panchang** - Government publication (annual book)
+
+**For Production:**
+- Match Drikpanchang.com within ±3 minutes for times
+- Match exactly for Tithi/Nakshatra/Yoga/Karana
+- When in doubt, cross-verify with 2+ sources
+
+---
+
+## ✅ CORRECTIVE ACTION PLAN
+
+### **Week 1: Fix Critical Bugs**
+
+**Day 1-2: Yoga Calculation**
+- [ ] Review yoga calculation algorithm
+- [ ] Test with multiple dates/times
+- [ ] Verify against Drikpanchang (10+ dates)
+- [ ] Add unit tests
+
+**Day 3: Karana Display**
+- [ ] Fix variable mapping bug
+- [ ] Show both karanas (first half + second half)
+- [ ] Add transition times
+- [ ] Test display
+
+**Day 4-5: Gulika Calculation**
+- [ ] Research correct Gulika formula
+- [ ] Implement for all 7 days of week
+- [ ] Test against Drikpanchang (7 days)
+- [ ] Document formula
+
+### **Week 2: Improve Accuracy**
+
+**Day 1-2: Sunrise/Sunset**
+- [ ] Verify location coordinates
+- [ ] Check elevation setting
+- [ ] Test refraction correction
+- [ ] Target ±1 minute accuracy
+
+**Day 3-4: Add Missing Features**
+- [ ] Add end times for Tithi/Nakshatra
+- [ ] Add Hindu calendar details
+- [ ] Add Brahma Muhurta
+- [ ] Add more auspicious/inauspicious times
+
+**Day 5: Testing**
+- [ ] Create automated test suite
+- [ ] Test 20+ dates
+- [ ] Test 5+ cities
+- [ ] Document all test results
+
+### **Week 3: Validation**
+
+**Temple Testing:**
+- [ ] Get pandit verification
+- [ ] Compare with physical panchang book
+- [ ] Test during actual temple operations
+- [ ] Collect feedback
+
+**Final Verification:**
+- [ ] All critical bugs fixed
+- [ ] 90%+ accuracy on all metrics
+- [ ] Pandit approval obtained
+- [ ] Documentation updated
+
+---
+
+## 📝 FINAL RECOMMENDATIONS
+
+### **DO:**
+
+1. ✅ Fix the 3 critical bugs immediately
+2. ✅ Test extensively before production
+3. ✅ Get pandit verification
+4. ✅ Compare with multiple sources
+5. ✅ Document all formulas and sources
+6. ✅ Add comprehensive unit tests
+7. ✅ Monitor accuracy post-deployment
+
+### **DON'T:**
+
+1. ❌ Deploy with known bugs
+2. ❌ Trust single source without verification
+3. ❌ Skip pandit consultation
+4. ❌ Ignore small time variances
+5. ❌ Assume calculations are correct
+6. ❌ Skip edge case testing
+
+### **REMEMBER:**
+
+> **"A temple cannot afford wrong panchang data."**
+> 
+> - Wrong muhurat = wrong seva timing
+> - Wrong Ekadashi = devotees fasting on wrong day
+> - Wrong nakshatra = wrong naming ceremony
+> - **Trust is hard to build, easy to break!**
+
+---
+
+## 🎉 POSITIVE NOTES
+
+### **What You're Doing RIGHT:**
+
+1. ✅ **Excellent UI Design** - Clean, professional, easy to read
+2. ✅ **Quality Indicators** - Star ratings for auspiciousness (unique feature!)
+3. ✅ **Bilingual Support** - English + Kannada
+4. ✅ **Core Calculations** - Tithi and Nakshatra are perfect
+5. ✅ **Good Structure** - Clear sections, good organization
+6. ✅ **Comprehensive Display** - Showing all important times
+7. ✅ **Color Coding** - Green for auspicious, red for inauspicious
+
+### **With Fixes, This Will Be:**
+- ⭐ One of the best panchang implementations
+- ⭐ More comprehensive than most commercial offerings
+- ⭐ Temple-specific and culturally appropriate
+- ⭐ Competitive with leading websites
+
+**You're 70% there!** Just fix the 3 critical bugs and you'll have an excellent product! 🚀
+
+---
+
+**Generated:** November 25, 2025  
+**Next Review:** After implementing fixes  
+**Contact:** Verify fixes against Drikpanchang.com
+
+---
+
+**END OF COMPARISON ANALYSIS**

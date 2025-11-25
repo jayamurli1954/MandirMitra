@@ -57,3 +57,5 @@ If dashboard still shows ₹0 after this fix, it's likely because:
 
 The dashboard API fix (handling `temple_id = None`) is already applied, so once the backend restarts, it should show the correct amounts.
 
+
+
