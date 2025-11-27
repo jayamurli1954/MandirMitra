@@ -73,6 +73,7 @@ class Seva(Base):
     benefits = Column(Text, nullable=True)
     instructions = Column(Text, nullable=True)
     duration_minutes = Column(Integer, nullable=True)
+    materials_required = Column(Text, nullable=True)  # JSON array or comma-separated list of materials
 
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)

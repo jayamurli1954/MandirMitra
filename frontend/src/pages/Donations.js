@@ -21,10 +21,21 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import DownloadIcon from '@mui/icons-material/Download';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { useNotification } from '../contexts/NotificationContext';
 
 function Donations() {
+  const { showSuccess, showError } = useNotification();
   const [donations, setDonations] = useState([
     { devotee_name: '', devotee_phone: '', pincode: '', city: '', state: '', country: 'India', amount: '', category: '', payment_mode: 'Cash' }
   ]);
@@ -36,6 +47,11 @@ function Donations() {
   const [success, setSuccess] = useState('');
   const [donationList, setDonationList] = useState([]);
   const [searchingDevotees, setSearchingDevotees] = useState({});
+  const [tabValue, setTabValue] = useState(0);
+  const [bulkImportDialogOpen, setBulkImportDialogOpen] = useState(false);
+  const [bulkImportFile, setBulkImportFile] = useState(null);
+  const [bulkImportLoading, setBulkImportLoading] = useState(false);
+  const [bulkImportResult, setBulkImportResult] = useState(null);
 
   const paymentModes = ['Cash', 'Card', 'UPI', 'Cheque', 'Online'];
 
@@ -230,7 +246,14 @@ function Donations() {
         </Alert>
       )}
 
-      <Paper sx={{ p: 3, mt: 2 }}>
+      <Paper sx={{ mt: 2 }}>
+        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
+          <Tab label="Record Donations" />
+          <Tab label="Donation List" />
+        </Tabs>
+
+        {tabValue === 0 && (
+          <Box sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
             Record Donations (Up to 5 entries)

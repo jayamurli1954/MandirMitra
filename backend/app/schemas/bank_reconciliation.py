@@ -76,6 +76,7 @@ class BankStatementResponse(BaseModel):
     imported_at: datetime
     is_reconciled: bool
     entries: List[BankStatementEntryResponse] = []
+    total_entries: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -152,6 +153,10 @@ class ReconciliationSummaryResponse(BaseModel):
     outstanding_cheques_amount: float
     deposits_in_transit_count: int
     deposits_in_transit_amount: float
+    matched_count: Optional[int] = None
+    total_count: Optional[int] = None
+    difference: Optional[float] = None
+    bank_balance: Optional[float] = None
 
 
 

@@ -10,6 +10,7 @@ ADD COLUMN IF NOT EXISTS module_assets_enabled BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS module_accounting_enabled BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS module_tender_enabled BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS module_hr_enabled BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS module_hundi_enabled BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS module_panchang_enabled BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS module_reports_enabled BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS module_token_seva_enabled BOOLEAN DEFAULT TRUE;
@@ -24,6 +25,7 @@ SET
     module_accounting_enabled = TRUE,
     module_tender_enabled = FALSE,  -- Optional module, disabled by default
     module_hr_enabled = TRUE,  -- HR & Salary Management
+    module_hundi_enabled = TRUE,  -- Hundi Management
     module_panchang_enabled = TRUE,
     module_reports_enabled = TRUE,
     module_token_seva_enabled = TRUE
@@ -37,6 +39,7 @@ COMMENT ON COLUMN temples.module_assets_enabled IS 'Enable/disable asset managem
 COMMENT ON COLUMN temples.module_accounting_enabled IS 'Enable/disable accounting module';
 COMMENT ON COLUMN temples.module_tender_enabled IS 'Enable/disable tender management module (optional)';
 COMMENT ON COLUMN temples.module_hr_enabled IS 'Enable/disable HR & Salary Management module';
+COMMENT ON COLUMN temples.module_hundi_enabled IS 'Enable/disable Hundi Management module';
 COMMENT ON COLUMN temples.module_panchang_enabled IS 'Enable/disable panchang module';
 COMMENT ON COLUMN temples.module_reports_enabled IS 'Enable/disable reports module';
 COMMENT ON COLUMN temples.module_token_seva_enabled IS 'Enable/disable token seva module';

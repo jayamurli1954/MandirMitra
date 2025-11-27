@@ -65,7 +65,8 @@ function SevaManagement() {
     is_active: true,
     benefits: '',
     instructions: '',
-    duration_minutes: ''
+    duration_minutes: '',
+    materials_required: ''
   });
 
   const categories = [
@@ -161,7 +162,8 @@ function SevaManagement() {
       is_active: seva.is_active !== undefined ? seva.is_active : true,
       benefits: seva.benefits || '',
       instructions: seva.instructions || '',
-      duration_minutes: seva.duration_minutes || ''
+      duration_minutes: seva.duration_minutes || '',
+      materials_required: seva.materials_required || ''
     });
     setEditDialogOpen(true);
   };
@@ -570,6 +572,18 @@ function SevaManagement() {
                 multiline
                 rows={2}
                 fullWidth
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Materials Required"
+                value={sevaForm.materials_required}
+                onChange={(e) => setSevaForm({...sevaForm, materials_required: e.target.value})}
+                multiline
+                rows={3}
+                fullWidth
+                helperText="Enter materials needed for this seva (comma-separated or one per line). Example: Flowers, Coconut, Camphor, Incense sticks"
+                placeholder="e.g., Flowers, Coconut, Camphor, Incense sticks"
               />
             </Grid>
 

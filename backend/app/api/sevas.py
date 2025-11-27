@@ -434,6 +434,20 @@ def create_booking(
             traceback.print_exc()
             # Don't fail the booking if accounting fails
 
+    # Auto-send SMS/Email confirmation (if enabled and devotee preferences allow)
+    try:
+        if booking.devotee and booking.devotee.receive_sms and booking.devotee.phone:
+            # Send SMS booking confirmation (async - don't block response)
+            # TODO: Implement SMS service integration
+            pass
+        if booking.devotee and booking.devotee.receive_email and booking.devotee.email:
+            # Send Email booking confirmation (async - don't block response)
+            # TODO: Implement Email service integration
+            pass
+    except Exception as e:
+        # Don't fail booking creation if SMS/Email fails
+        print(f"Failed to send booking confirmation: {str(e)}")
+
     # Refresh to get relationships
     db.refresh(booking)
     
@@ -543,6 +557,20 @@ def cancel_booking(
     booking.cancelled_at = datetime.utcnow()
     booking.cancellation_reason = reason
     db.commit()
+
+    # Auto-send SMS/Email notification (if enabled and devotee preferences allow)
+    try:
+        if booking.devotee and booking.devotee.receive_sms and booking.devotee.phone:
+            # Send SMS cancellation notification (async - don't block response)
+            # TODO: Implement SMS service integration
+            pass
+        if booking.devotee and booking.devotee.receive_email and booking.devotee.email:
+            # Send Email cancellation notification (async - don't block response)
+            # TODO: Implement Email service integration
+            pass
+    except Exception as e:
+        # Don't fail cancellation if SMS/Email fails
+        print(f"Failed to send cancellation notification: {str(e)}")
 
     return {"message": "Booking cancelled successfully"}
 
@@ -738,4 +766,205 @@ def remove_priest(
     return {
         "message": "Priest assignment removed successfully",
         "booking": SevaBookingResponse.from_orm(booking)
+    }
+
+
+@router.post("/bookings/{booking_id}/process-refund", response_model=dict)
+def process_refund(
+    booking_id: int,
+    refund_amount: Optional[float] = Query(None, description="Refund amount (default: 90% of booking amount)"),
+    refund_method: str = Query("original", description="Refund method: original, cash, bank_transfer"),
+    refund_reference: Optional[str] = Query(None, description="Transaction reference for refund"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Process refund for a cancelled booking
+    Business rule: 90% refund (10% processing fee)
+    Only admins or accountants can process refunds
+    """
+    # Check permissions
+    if current_user.role not in ["admin", "accountant", "temple_manager"]:
+        raise HTTPException(status_code=403, detail="Only admins and accountants can process refunds")
+    
+    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    if booking.status != SevaBookingStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Booking must be cancelled before processing refund")
+    
+    # Check if refund already processed
+    if hasattr(booking, 'refund_processed') and booking.refund_processed:
+        raise HTTPException(status_code=400, detail="Refund already processed for this booking")
+    
+    # Calculate refund amount (90% of booking amount, 10% processing fee)
+    if refund_amount is None:
+        refund_amount = booking.amount_paid * 0.9  # 90% refund
+    else:
+        # Validate refund amount doesn't exceed booking amount
+        if refund_amount > booking.amount_paid:
+            raise HTTPException(status_code=400, detail="Refund amount cannot exceed booking amount")
+    
+    processing_fee = booking.amount_paid - refund_amount
+    
+    # Create refund record (add refund fields to booking model if not exists)
+    # For now, store in admin_notes or create separate refund table
+    refund_note = f"Refund processed: ₹{refund_amount:.2f} via {refund_method}. Processing fee: ₹{processing_fee:.2f}. Reference: {refund_reference or 'N/A'}"
+    
+    if booking.admin_notes:
+        booking.admin_notes += f"\n{refund_note}"
+    else:
+        booking.admin_notes = refund_note
+    
+    # Mark refund as processed (if field exists)
+    if hasattr(booking, 'refund_processed'):
+        booking.refund_processed = True
+    if hasattr(booking, 'refund_amount'):
+        booking.refund_amount = refund_amount
+    if hasattr(booking, 'refund_method'):
+        booking.refund_method = refund_method
+    if hasattr(booking, 'refund_reference'):
+        booking.refund_reference = refund_reference
+    if hasattr(booking, 'refund_processed_at'):
+        booking.refund_processed_at = datetime.utcnow()
+    if hasattr(booking, 'refund_processed_by'):
+        booking.refund_processed_by = current_user.id
+    
+    # Create accounting entry for refund
+    # Dr: Seva Income (reversal), Cr: Cash/Bank (refund payment)
+    temple_id = current_user.temple_id if current_user else None
+    if temple_id:
+        try:
+            # Get seva income account
+            seva = booking.seva
+            credit_account = None
+            if seva and hasattr(seva, 'account_id') and seva.account_id:
+                credit_account = db.query(Account).filter(Account.id == seva.account_id).first()
+            
+            if not credit_account:
+                credit_account_code = '4200'  # Seva Income - Main
+                credit_account = db.query(Account).filter(
+                    Account.temple_id == temple_id,
+                    Account.account_code == credit_account_code
+                ).first()
+            
+            # Get debit account (refund payment method)
+            debit_account_code = None
+            if refund_method.upper() in ['CASH', 'COUNTER']:
+                debit_account_code = '1101'  # Cash in Hand - Counter
+            elif refund_method.upper() in ['BANK_TRANSFER', 'ONLINE']:
+                debit_account_code = '1110'  # Bank Account
+            else:
+                debit_account_code = '1101'  # Default to cash
+            
+            debit_account = db.query(Account).filter(
+                Account.temple_id == temple_id,
+                Account.account_code == debit_account_code
+            ).first()
+            
+            if debit_account and credit_account:
+                # Generate entry number
+                year = datetime.now().year
+                prefix = f"JE/{year}/"
+                last_entry = db.query(JournalEntry).filter(
+                    JournalEntry.temple_id == temple_id,
+                    JournalEntry.entry_number.like(f"{prefix}%")
+                ).order_by(JournalEntry.id.desc()).first()
+                
+                if last_entry:
+                    try:
+                        last_num = int(last_entry.entry_number.split('/')[-1])
+                        new_num = last_num + 1
+                    except:
+                        new_num = 1
+                else:
+                    new_num = 1
+                
+                entry_number = f"{prefix}{new_num:04d}"
+                
+                # Create journal entry for refund
+                refund_entry = JournalEntry(
+                    temple_id=temple_id,
+                    entry_date=datetime.now().date(),
+                    entry_number=entry_number,
+                    narration=f"Refund for booking {booking.receipt_number} - {seva.name_english if seva else 'Seva'}",
+                    reference_type=TransactionType.SEVA_BOOKING,
+                    reference_id=booking.id,
+                    total_amount=refund_amount,
+                    status=JournalEntryStatus.POSTED,
+                    created_by=current_user.id,
+                    posted_by=current_user.id,
+                    posted_at=datetime.utcnow()
+                )
+                db.add(refund_entry)
+                db.flush()
+                
+                # Create journal lines
+                # Dr: Seva Income (reversal - reduce income)
+                db.add(JournalLine(
+                    journal_entry_id=refund_entry.id,
+                    account_id=credit_account.id,
+                    debit_amount=refund_amount,
+                    credit_amount=0,
+                    description=f"Refund reversal for booking {booking.receipt_number}"
+                ))
+                
+                # Cr: Cash/Bank (refund payment)
+                db.add(JournalLine(
+                    journal_entry_id=refund_entry.id,
+                    account_id=debit_account.id,
+                    debit_amount=0,
+                    credit_amount=refund_amount,
+                    description=f"Refund payment for booking {booking.receipt_number}"
+                ))
+                
+                db.commit()
+        except Exception as e:
+            print(f"Failed to create refund accounting entry: {str(e)}")
+            # Don't fail refund if accounting fails
+    
+    db.commit()
+    db.refresh(booking)
+    
+    return {
+        "message": "Refund processed successfully",
+        "refund_amount": refund_amount,
+        "processing_fee": processing_fee,
+        "booking": SevaBookingResponse.from_orm(booking)
+    }
+
+
+@router.get("/bookings/{booking_id}/refund-status", response_model=dict)
+def get_refund_status(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get refund status for a cancelled booking"""
+    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    refund_processed = hasattr(booking, 'refund_processed') and booking.refund_processed
+    refund_amount = getattr(booking, 'refund_amount', None)
+    refund_method = getattr(booking, 'refund_method', None)
+    refund_reference = getattr(booking, 'refund_reference', None)
+    
+    # Calculate expected refund (90% of booking amount)
+    expected_refund = booking.amount_paid * 0.9
+    processing_fee = booking.amount_paid * 0.1
+    
+    return {
+        "booking_id": booking.id,
+        "receipt_number": booking.receipt_number,
+        "booking_amount": booking.amount_paid,
+        "expected_refund": expected_refund,
+        "processing_fee": processing_fee,
+        "refund_processed": refund_processed,
+        "refund_amount": refund_amount,
+        "refund_method": refund_method,
+        "refund_reference": refund_reference,
+        "refund_processed_at": getattr(booking, 'refund_processed_at', None),
+        "is_cancelled": booking.status == SevaBookingStatus.CANCELLED
     }

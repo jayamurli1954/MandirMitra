@@ -41,6 +41,7 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import BusinessIcon from '@mui/icons-material/Business';
 import GavelIcon from '@mui/icons-material/Gavel';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import Watermark from './Watermark';
 
 const drawerWidth = 260;
@@ -55,6 +56,7 @@ const baseMenuItems = [
   { text: 'Asset Management', icon: <BusinessIcon />, path: '/assets', module: 'module_assets_enabled' },
   { text: 'Tender Management', icon: <GavelIcon />, path: '/tenders', module: 'module_tender_enabled' },
   { text: 'HR & Payroll', icon: <PeopleAltIcon />, path: '/hr', module: 'module_hr_enabled' },
+  { text: 'Hundi Management', icon: <AccountBalanceWalletIcon />, path: '/hundi', module: 'module_hundi_enabled' },
   { text: 'Reports', icon: <AssessmentIcon />, path: '/reports', module: 'module_reports_enabled' },
   { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', module: 'module_panchang_enabled' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', module: null }, // Always visible
@@ -65,13 +67,21 @@ const accountingMenuItems = [
   { text: 'Quick Expense', icon: <MoneyOffIcon />, path: '/accounting/quick-expense' },
   { text: 'Journal Entries', icon: <ReceiptIcon />, path: '/accounting/journal-entries' },
   { text: 'UPI Payments', icon: <PaymentIcon />, path: '/accounting/upi-payments' },
+  { text: 'Bank Reconciliation', icon: <AccountBalanceIcon />, path: '/bank-reconciliation' },
+  { text: 'Financial Closing', icon: <CalendarMonthIcon />, path: '/financial-closing' },
   { text: 'Accounting Reports', icon: <SummarizeIcon />, path: '/accounting/reports' },
+];
+
+const sevaMenuItems = [
+  { text: 'Seva Schedule', icon: <CalendarTodayIcon />, path: '/sevas/schedule' },
+  { text: 'Reschedule Approval', icon: <SettingsIcon />, path: '/sevas/reschedule-approval' },
 ];
 
 function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [accountingOpen, setAccountingOpen] = useState(true); // Default to open
+  const [sevaOpen, setSevaOpen] = useState(false);
   const [showVideoFallback, setShowVideoFallback] = useState(false);
   const [moduleConfig, setModuleConfig] = useState({
     module_donations_enabled: true,
@@ -81,6 +91,7 @@ function Layout({ children }) {
     module_accounting_enabled: true,
     module_tender_enabled: true, // Enabled by default for demo/showcase
     module_hr_enabled: true, // HR & Salary Management
+    module_hundi_enabled: true, // Hundi Management
     module_panchang_enabled: true,
     module_reports_enabled: true,
     module_token_seva_enabled: true,

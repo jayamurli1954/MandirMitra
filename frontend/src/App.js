@@ -41,6 +41,9 @@ import AssetReportsPage from './pages/assets/AssetReportsPage';
 import RevaluationDisposal from './pages/assets/RevaluationDisposal';
 import TenderManagement from './pages/tenders/TenderManagement';
 import HRManagement from './pages/hr/HRManagement';
+import HundiManagement from './pages/hundi/HundiManagement';
+import BankReconciliation from './pages/accounting/BankReconciliation';
+import FinancialClosing from './pages/accounting/FinancialClosing';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const theme = createTheme({
@@ -349,6 +352,30 @@ function App() {
             element={
               <ProtectedRoute>
                 <HRManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hundi"
+            element={
+              <ProtectedRoute>
+                <HundiManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bank-reconciliation"
+            element={
+              <ProtectedRoute>
+                <BankReconciliation />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/financial-closing"
+            element={
+              <ProtectedRoute>
+                <FinancialClosing />
               </ProtectedRoute>
             }
           />

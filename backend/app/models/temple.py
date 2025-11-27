@@ -94,6 +94,7 @@ class Temple(Base):
     module_accounting_enabled = Column(Boolean, default=True)
     module_tender_enabled = Column(Boolean, default=False)  # Optional module
     module_hr_enabled = Column(Boolean, default=True)  # HR & Salary Management
+    module_hundi_enabled = Column(Boolean, default=True)  # Hundi Management
     module_panchang_enabled = Column(Boolean, default=True)
     module_reports_enabled = Column(Boolean, default=True)
     module_token_seva_enabled = Column(Boolean, default=True)
@@ -136,6 +137,7 @@ class Temple(Base):
         back_populates="temple",
         uselist=False  # One-to-one relationship
     )
+    hundi_openings = relationship("HundiOpening", back_populates="temple")
     
     def __repr__(self):
         return f"<Temple(id={self.id}, name='{self.name}', slug='{self.slug}')>"

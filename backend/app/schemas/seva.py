@@ -51,6 +51,7 @@ class SevaBase(BaseModel):
     benefits: Optional[str] = None
     instructions: Optional[str] = None
     duration_minutes: Optional[int] = Field(None, gt=0)
+    materials_required: Optional[str] = None
 
 class SevaCreate(SevaBase):
     pass
@@ -75,6 +76,7 @@ class SevaUpdate(BaseModel):
     benefits: Optional[str] = None
     instructions: Optional[str] = None
     duration_minutes: Optional[int] = Field(None, gt=0)
+    materials_required: Optional[str] = None
     account_id: Optional[int] = Field(None, description="Link to accounting account")
 
 class SevaResponse(SevaBase):

@@ -95,6 +95,8 @@ class Item(Base):
     # Stock Management
     reorder_level = Column(Float, default=0.0)  # Minimum stock level
     reorder_quantity = Column(Float, default=0.0)  # Quantity to order when below reorder level
+    has_expiry = Column(Boolean, default=False)  # Whether item has expiry date
+    shelf_life_days = Column(Integer, nullable=True)  # Shelf life in days (if applicable)
     
     # Pricing (optional - for valuation)
     standard_cost = Column(Float, default=0.0)  # Standard cost per unit
@@ -140,6 +142,10 @@ class StockBalance(Base):
     quantity = Column(Float, nullable=False, default=0.0)
     value = Column(Float, nullable=False, default=0.0)  # Total value = quantity * standard_cost
     
+    # Expiry tracking (for items with expiry dates)
+    earliest_expiry_date = Column(Date, nullable=True, index=True)  # Earliest expiry in stock
+    batch_numbers = Column(Text, nullable=True)  # JSON array of batch numbers
+    
     # Last movement
     last_movement_date = Column(Date)
     last_movement_id = Column(Integer, ForeignKey("stock_movements.id"), nullable=True)
@@ -177,6 +183,10 @@ class StockMovement(Base):
     # For transfers - destination store
     to_store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
     
+    # Link to GRN/GIN
+    grn_id = Column(Integer, ForeignKey("grns.id"), nullable=True, index=True)
+    gin_id = Column(Integer, ForeignKey("gins.id"), nullable=True, index=True)
+    
     # Quantity and Value
     quantity = Column(Float, nullable=False)
     unit_price = Column(Float, default=0.0)  # Price per unit (for purchase) or cost (for issue)
@@ -188,6 +198,10 @@ class StockMovement(Base):
     issued_to = Column(String(200))  # Person/department who received (for issues)
     purpose = Column(String(200))  # Purpose of issue (Pooja, Annadanam, Maintenance, etc.)
     notes = Column(Text)
+    
+    # Expiry Date (for items with expiry)
+    expiry_date = Column(Date, nullable=True, index=True)
+    batch_number = Column(String(100), nullable=True)
     
     # Accounting
     journal_entry_id = Column(Integer, ForeignKey("journal_entries.id"), nullable=True)  # Linked journal entry
@@ -207,6 +221,8 @@ class StockMovement(Base):
     vendor = relationship("Vendor")
     journal_entry = relationship("JournalEntry")
     creator = relationship("User")
+    grn = relationship("GRN", back_populates="stock_movement")
+    gin = relationship("GIN", back_populates="stock_movement")
     
     def __repr__(self):
         return f"<StockMovement(number='{self.movement_number}', type='{self.movement_type}', qty={self.quantity})>"
