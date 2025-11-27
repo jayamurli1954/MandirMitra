@@ -322,6 +322,24 @@ def create_revaluation(
     revaluation.journal_entry_id = journal_entry.id
     asset.updated_at = datetime.utcnow()
     
+    # Add to valuation history
+    from app.models.asset_history import AssetValuationHistory
+    valuation_history = AssetValuationHistory(
+        asset_id=asset_id,
+        valuation_date=revaluation_data.revaluation_date,
+        valuation_type="REVALUATION",
+        valuation_amount=revaluation_data.revalued_amount,
+        valuation_method=revaluation_data.valuation_method,
+        valuer_name=revaluation_data.valuer_name,
+        valuation_report_number=revaluation_data.valuation_report_number,
+        valuation_report_date=revaluation_data.valuation_report_date,
+        reference_id=revaluation.id,
+        reference_type="revaluation",
+        notes=None,
+        created_by=current_user.id
+    )
+    db.add(valuation_history)
+    
     db.commit()
     db.refresh(revaluation)
     return revaluation

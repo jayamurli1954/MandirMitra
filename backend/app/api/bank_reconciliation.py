@@ -184,6 +184,177 @@ def get_statement(
     return statement
 
 
+@router.get("/statements/{statement_id}/entries", response_model=List[BankStatementEntryResponse])
+def get_statement_entries(
+    statement_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all entries for a bank statement"""
+    statement = db.query(BankStatement).filter(BankStatement.id == statement_id).first()
+    if not statement:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    
+    entries = db.query(BankStatementEntry).filter(
+        BankStatementEntry.statement_id == statement_id
+    ).order_by(BankStatementEntry.transaction_date, BankStatementEntry.id).all()
+    
+    return entries
+
+
+@router.get("/statements/{statement_id}/summary", response_model=ReconciliationSummaryResponse)
+def get_statement_summary(
+    statement_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get reconciliation summary for a statement"""
+    statement = db.query(BankStatement).filter(BankStatement.id == statement_id).first()
+    if not statement:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    
+    # Get all entries
+    entries = db.query(BankStatementEntry).filter(
+        BankStatementEntry.statement_id == statement_id
+    ).all()
+    
+    matched_count = sum(1 for e in entries if e.is_matched)
+    total_count = len(entries)
+    
+    # Calculate book balance
+    account = db.query(Account).filter(Account.id == statement.account_id).first()
+    temple_id = current_user.temple_id
+    
+    balance_filter = [
+        JournalLine.account_id == statement.account_id,
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) <= statement.to_date
+    ]
+    if temple_id is not None:
+        balance_filter.append(JournalEntry.temple_id == temple_id)
+    
+    balance_query = db.query(
+        func.sum(JournalLine.debit_amount).label('total_debit'),
+        func.sum(JournalLine.credit_amount).label('total_credit')
+    ).join(JournalLine.journal_entry).filter(*balance_filter).first()
+    
+    book_balance = (float(balance_query.total_debit or 0) + account.opening_balance_debit) - \
+                   (float(balance_query.total_credit or 0) + account.opening_balance_credit)
+    
+    difference = abs(book_balance - statement.closing_balance)
+    
+    return ReconciliationSummaryResponse(
+        account_id=statement.account_id,
+        account_name=account.account_name,
+        last_reconciled_date=statement.reconciled_at.date() if statement.reconciled_at else None,
+        last_reconciliation_id=None,
+        book_balance=book_balance,
+        statement_balance=statement.closing_balance,
+        bank_balance=statement.closing_balance,
+        unmatched_statement_entries=total_count - matched_count,
+        unmatched_book_entries=0,
+        outstanding_cheques_count=0,
+        outstanding_cheques_amount=0.0,
+        deposits_in_transit_count=0,
+        deposits_in_transit_amount=0.0,
+        matched_count=matched_count,
+        total_count=total_count,
+        difference=difference
+    )
+
+
+@router.get("/statements/{statement_id}/unmatched-book-entries", response_model=List[dict])
+def get_unmatched_book_entries(
+    statement_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get unmatched book entries for matching with statement"""
+    statement = db.query(BankStatement).filter(BankStatement.id == statement_id).first()
+    if not statement:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    
+    temple_id = current_user.temple_id
+    
+    # Get journal lines for this account in the statement period
+    lines = db.query(JournalLine).join(JournalLine.journal_entry).filter(
+        JournalLine.account_id == statement.account_id,
+        JournalEntry.status == JournalEntryStatus.POSTED,
+        func.date(JournalEntry.entry_date) >= statement.from_date,
+        func.date(JournalEntry.entry_date) <= statement.to_date
+    )
+    if temple_id is not None:
+        lines = lines.filter(JournalEntry.temple_id == temple_id)
+    
+    lines = lines.all()
+    
+    # Get matched journal line IDs
+    matched_line_ids = db.query(BankStatementEntry.matched_journal_line_id).filter(
+        BankStatementEntry.statement_id == statement_id,
+        BankStatementEntry.is_matched == True,
+        BankStatementEntry.matched_journal_line_id.isnot(None)
+    ).all()
+    matched_ids = [m[0] for m in matched_line_ids]
+    
+    # Filter unmatched
+    unmatched = [line for line in lines if line.id not in matched_ids]
+    
+    return [
+        {
+            "id": line.id,
+            "entry_number": line.journal_entry.entry_number,
+            "entry_date": line.journal_entry.entry_date.isoformat() if hasattr(line.journal_entry.entry_date, 'isoformat') else str(line.journal_entry.entry_date),
+            "narration": line.journal_entry.narration or line.description or "",
+            "debit_amount": line.debit_amount,
+            "credit_amount": line.credit_amount,
+            "amount": line.debit_amount or line.credit_amount or 0.0
+        }
+        for line in unmatched
+    ]
+
+
+@router.post("/match", response_model=dict)
+def match_entry(
+    match_request: ReconciliationMatchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Match a statement entry with a journal line"""
+    statement_entry = db.query(BankStatementEntry).filter(
+        BankStatementEntry.id == match_request.statement_entry_id
+    ).first()
+    
+    if not statement_entry:
+        raise HTTPException(status_code=404, detail="Statement entry not found")
+    
+    journal_line = db.query(JournalLine).filter(JournalLine.id == match_request.journal_line_id).first()
+    if not journal_line:
+        raise HTTPException(status_code=404, detail="Journal line not found")
+    
+    # Verify amounts match (with tolerance)
+    tolerance = 0.01
+    entry_amount = abs(statement_entry.amount)
+    line_amount = abs(journal_line.debit_amount or journal_line.credit_amount or 0)
+    
+    if abs(entry_amount - line_amount) > tolerance:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Amounts don't match: Statement {entry_amount} vs Book {line_amount}"
+        )
+    
+    # Match
+    statement_entry.is_matched = True
+    statement_entry.matched_journal_line_id = journal_line.id
+    statement_entry.matched_at = datetime.utcnow()
+    statement_entry.matched_by = current_user.id
+    if match_request.notes:
+        statement_entry.notes = match_request.notes
+    
+    db.commit()
+    
+    return {"message": "Entry matched successfully"}
+
+
 @router.post("/statements/{statement_id}/match", response_model=dict)
 def match_statement_entry(
     statement_id: int,

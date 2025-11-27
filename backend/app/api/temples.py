@@ -50,6 +50,7 @@ class ModuleConfigUpdate(BaseModel):
     module_accounting_enabled: Optional[bool] = None
     module_tender_enabled: Optional[bool] = None
     module_hr_enabled: Optional[bool] = None
+    module_hundi_enabled: Optional[bool] = None
     module_panchang_enabled: Optional[bool] = None
     module_reports_enabled: Optional[bool] = None
     module_token_seva_enabled: Optional[bool] = None
@@ -106,6 +107,8 @@ def get_module_config(
         "module_assets_enabled": temple.module_assets_enabled if hasattr(temple, 'module_assets_enabled') else True,
         "module_accounting_enabled": temple.module_accounting_enabled if hasattr(temple, 'module_accounting_enabled') else True,
         "module_tender_enabled": temple.module_tender_enabled if hasattr(temple, 'module_tender_enabled') else False,
+        "module_hr_enabled": temple.module_hr_enabled if hasattr(temple, 'module_hr_enabled') else True,
+        "module_hundi_enabled": temple.module_hundi_enabled if hasattr(temple, 'module_hundi_enabled') else True,
         "module_panchang_enabled": temple.module_panchang_enabled if hasattr(temple, 'module_panchang_enabled') else True,
         "module_reports_enabled": temple.module_reports_enabled if hasattr(temple, 'module_reports_enabled') else True,
         "module_token_seva_enabled": temple.module_token_seva_enabled if hasattr(temple, 'module_token_seva_enabled') else True,
@@ -142,6 +145,8 @@ def update_module_config(
         "module_assets_enabled": temple.module_assets_enabled if hasattr(temple, 'module_assets_enabled') else True,
         "module_accounting_enabled": temple.module_accounting_enabled if hasattr(temple, 'module_accounting_enabled') else True,
         "module_tender_enabled": temple.module_tender_enabled if hasattr(temple, 'module_tender_enabled') else False,
+        "module_hr_enabled": temple.module_hr_enabled if hasattr(temple, 'module_hr_enabled') else True,
+        "module_hundi_enabled": temple.module_hundi_enabled if hasattr(temple, 'module_hundi_enabled') else True,
         "module_panchang_enabled": temple.module_panchang_enabled if hasattr(temple, 'module_panchang_enabled') else True,
         "module_reports_enabled": temple.module_reports_enabled if hasattr(temple, 'module_reports_enabled') else True,
         "module_token_seva_enabled": temple.module_token_seva_enabled if hasattr(temple, 'module_token_seva_enabled') else True,

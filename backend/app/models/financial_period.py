@@ -98,6 +98,8 @@ class PeriodClosing(Base):
     # Closing details
     closing_type = Column(SQLEnum(ClosingType), nullable=False)
     closing_date = Column(Date, nullable=False, index=True)
+    period_start = Column(Date, nullable=True)  # Actual period start date
+    period_end = Column(Date, nullable=True)   # Actual period end date
     
     # Financial summary
     total_income = Column(Float, default=0.0)

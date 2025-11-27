@@ -138,6 +138,22 @@ class Donation(Base):
     donation_date = Column(Date, nullable=False, index=True)
     financial_year = Column(String(10))  # e.g., '2024-25'
     
+    # FCRA (Foreign Contribution Regulation Act) - For foreign donations
+    is_fcra_donation = Column(Boolean, default=False, index=True)  # True if from foreign source
+    fcra_receipt_number = Column(String(50))  # FCRA receipt number if applicable
+    foreign_currency = Column(String(10))  # Currency code (USD, GBP, etc.)
+    foreign_amount = Column(Float)  # Amount in foreign currency
+    exchange_rate = Column(Float)  # Exchange rate at time of donation
+    
+    # TDS/GST
+    tds_applicable = Column(Boolean, default=False)
+    tds_amount = Column(Float, default=0.0)
+    tds_section = Column(String(50))  # TDS section (e.g., "194A", "80G")
+    gst_applicable = Column(Boolean, default=False)
+    gst_amount = Column(Float, default=0.0)
+    gst_rate = Column(Float, default=0.0)
+    hsn_code = Column(String(20))  # HSN code for GST
+    
     # Status
     is_cancelled = Column(Boolean, default=False)
     cancelled_at = Column(String)

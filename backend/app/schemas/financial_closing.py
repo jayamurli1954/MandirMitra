@@ -43,12 +43,16 @@ class PeriodClosingResponse(BaseModel):
     financial_year_id: int
     closing_type: ClosingType
     closing_date: date
+    period_start: Optional[date] = None
+    period_end: Optional[date] = None
     total_income: float
     total_expenses: float
     net_surplus: float
     is_completed: bool
     completed_at: Optional[datetime]
     notes: Optional[str]
+    journal_entry_id: Optional[int] = None
+    journal_entry_number: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -61,6 +65,7 @@ class ClosingSummaryResponse(BaseModel):
     total_expenses: float
     net_surplus: float
     transaction_count: int
+    journal_entry_number: Optional[str] = None
 
 
 

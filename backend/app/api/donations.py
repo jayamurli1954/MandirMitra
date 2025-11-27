@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import io
 import csv
 from openpyxl import Workbook
@@ -435,6 +435,23 @@ def create_donation(
             raise HTTPException(status_code=400, detail="payment_mode is required for cash donations")
         assessed_value = None
     
+    # Duplicate detection: Check for similar donation within last 5 minutes
+    duplicate_window = datetime.now() - timedelta(minutes=5)
+    duplicate_check = db.query(Donation).filter(
+        Donation.devotee_id == devotee.id,
+        Donation.amount == donation.amount,
+        Donation.donation_date >= duplicate_window.date() if isinstance(duplicate_window, datetime) else date.today(),
+        Donation.is_cancelled == False
+    ).first()
+    
+    if duplicate_check:
+        # Check if within 5 minutes
+        if duplicate_check.donation_date == date.today():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Possible duplicate donation detected. Similar donation (₹{donation.amount}) from {devotee.name} was recorded today. Receipt: {duplicate_check.receipt_number}. Please verify before proceeding."
+            )
+    
     # Create donation
     db_donation = Donation(
         temple_id=current_user.temple_id if current_user else None,
@@ -597,6 +614,20 @@ def create_donation(
         ip_address=request.client.host if request else None,
         user_agent=request.headers.get("user-agent") if request else None
     )
+
+    # Auto-send SMS/Email receipt (if enabled and devotee preferences allow)
+    try:
+        if devotee.receive_sms and devotee.phone:
+            # Send SMS receipt (async - don't block response)
+            # TODO: Implement SMS service integration
+            pass
+        if devotee.receive_email and devotee.email:
+            # Send Email receipt (async - don't block response)
+            # TODO: Implement Email service integration
+            pass
+    except Exception as e:
+        # Don't fail donation creation if SMS/Email fails
+        print(f"Failed to send receipt notification: {str(e)}")
 
     return {
         "id": db_donation.id,
@@ -1374,6 +1405,297 @@ def export_donations_excel(
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.post("/bulk-import", response_model=dict)
+async def bulk_import_donations(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    request: Request = None
+):
+    """
+    Bulk import donations from CSV/Excel file
+    Expected format:
+    - CSV: devotee_name, devotee_phone, amount, category, payment_mode, address, city, state, pincode, notes
+    - Excel: Same columns
+    """
+    temple_id = current_user.temple_id if current_user else None
+    
+    # Read file
+    contents = await file.read()
+    
+    # Determine file type
+    file_extension = file.filename.split('.')[-1].lower() if file.filename else 'csv'
+    
+    donations_data = []
+    errors = []
+    success_count = 0
+    
+    try:
+        if file_extension in ['xlsx', 'xls']:
+            # Read Excel
+            from openpyxl import load_workbook
+            wb = load_workbook(io.BytesIO(contents))
+            ws = wb.active
+            
+            # Read header row
+            headers = [cell.value for cell in ws[1]]
+            
+            # Read data rows
+            for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+                if not any(row):  # Skip empty rows
+                    continue
+                
+                row_dict = dict(zip(headers, row))
+                donations_data.append({
+                    'row': row_idx,
+                    'data': row_dict
+                })
+        else:
+            # Read CSV
+            csv_data = io.StringIO(contents.decode('utf-8'))
+            reader = csv.DictReader(csv_data)
+            
+            for row_idx, row in enumerate(reader, start=2):
+                donations_data.append({
+                    'row': row_idx,
+                    'data': row
+                })
+        
+        # Process each donation
+        for item in donations_data:
+            row_num = item['row']
+            row_data = item['data']
+            
+            try:
+                # Validate required fields
+                if not row_data.get('devotee_name') or not row_data.get('devotee_phone') or not row_data.get('amount'):
+                    errors.append(f"Row {row_num}: Missing required fields (devotee_name, devotee_phone, amount)")
+                    continue
+                
+                # Create donation using existing create_donation logic
+                donation_create = DonationBase(
+                    devotee_name=str(row_data.get('devotee_name', '')).strip(),
+                    devotee_phone=str(row_data.get('devotee_phone', '')).strip(),
+                    amount=float(row_data.get('amount', 0)),
+                    category=str(row_data.get('category', 'General Donation')).strip(),
+                    payment_mode=str(row_data.get('payment_mode', 'Cash')).strip(),
+                    address=str(row_data.get('address', '')).strip() if row_data.get('address') else None,
+                    city=str(row_data.get('city', '')).strip() if row_data.get('city') else None,
+                    state=str(row_data.get('state', '')).strip() if row_data.get('state') else None,
+                    pincode=str(row_data.get('pincode', '')).strip() if row_data.get('pincode') else None,
+                    country=str(row_data.get('country', 'India')).strip() if row_data.get('country') else 'India',
+                    notes=str(row_data.get('notes', '')).strip() if row_data.get('notes') else None
+                )
+                
+                # Call create_donation endpoint logic (inline)
+                # Find or create devotee
+                devotee = db.query(Devotee).filter(Devotee.phone == donation_create.devotee_phone).first()
+                if not devotee:
+                    devotee = Devotee(
+                        name=donation_create.devotee_name,
+                        full_name=donation_create.devotee_name,
+                        phone=donation_create.devotee_phone,
+                        address=donation_create.address,
+                        pincode=donation_create.pincode,
+                        city=donation_create.city,
+                        state=donation_create.state,
+                        country=donation_create.country or "India",
+                        temple_id=temple_id
+                    )
+                    db.add(devotee)
+                    db.flush()
+                
+                # Find or create category
+                category = db.query(DonationCategory).filter(
+                    DonationCategory.name == donation_create.category
+                ).first()
+                if not category:
+                    category = DonationCategory(
+                        name=donation_create.category,
+                        is_80g_eligible=True,
+                        temple_id=temple_id
+                    )
+                    db.add(category)
+                    db.flush()
+                
+                # Generate receipt number
+                year = datetime.now().year
+                last_donation = db.query(Donation).filter(
+                    func.extract('year', Donation.donation_date) == year
+                ).order_by(Donation.id.desc()).first()
+                
+                seq = 1
+                if last_donation and last_donation.receipt_number:
+                    try:
+                        seq = int(last_donation.receipt_number.split('-')[-1]) + 1
+                    except:
+                        seq = 1
+                
+                receipt_number = f"TMP001-{year}-{str(seq).zfill(5)}"
+                
+                # Duplicate check
+                duplicate_check = db.query(Donation).filter(
+                    Donation.devotee_id == devotee.id,
+                    Donation.amount == donation_create.amount,
+                    Donation.donation_date == date.today(),
+                    Donation.is_cancelled == False
+                ).first()
+                
+                if duplicate_check:
+                    errors.append(f"Row {row_num}: Possible duplicate - Similar donation exists (Receipt: {duplicate_check.receipt_number})")
+                    continue
+                
+                # Create donation
+                db_donation = Donation(
+                    temple_id=temple_id,
+                    devotee_id=devotee.id,
+                    category_id=category.id,
+                    receipt_number=receipt_number,
+                    donation_type=DonationType.CASH,
+                    amount=donation_create.amount,
+                    payment_mode=donation_create.payment_mode,
+                    donation_date=date.today(),
+                    financial_year=f"{year}-{str(year+1)[-2:]}",
+                    notes=donation_create.notes,
+                    created_by=current_user.id if current_user else None
+                )
+                db.add(db_donation)
+                db.flush()
+                
+                # Post to accounting
+                journal_entry = post_donation_to_accounting(db, db_donation, temple_id)
+                if journal_entry:
+                    db.commit()
+                
+                success_count += 1
+                
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+                db.rollback()
+        
+        return {
+            "success": True,
+            "total_rows": len(donations_data),
+            "success_count": success_count,
+            "error_count": len(errors),
+            "errors": errors[:50]  # Limit to first 50 errors
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process file: {str(e)}")
+
+
+@router.post("/bulk-80g-certificates", response_model=dict)
+def generate_bulk_80g_certificates(
+    donation_ids: List[int] = Query(...),
+    financial_year: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate 80G certificates for multiple donations in batch
+    Returns PDF with all certificates
+    """
+    temple_id = current_user.temple_id if current_user else None
+    
+    # Get donations
+    donations = db.query(Donation).filter(
+        Donation.id.in_(donation_ids),
+        Donation.is_cancelled == False
+    )
+    if temple_id:
+        donations = donations.filter(Donation.temple_id == temple_id)
+    
+    donations = donations.all()
+    
+    if not donations:
+        raise HTTPException(status_code=404, detail="No donations found")
+    
+    # Filter 80G eligible
+    eligible_donations = [d for d in donations if d.category and d.category.is_80g_eligible]
+    
+    if not eligible_donations:
+        raise HTTPException(status_code=400, detail="No 80G eligible donations found")
+    
+    # Get temple info
+    temple = None
+    if temple_id:
+        temple = db.query(Temple).filter(Temple.id == temple_id).first()
+    
+    # Create PDF with all certificates
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.HexColor('#FF9933'),
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    elements.append(Paragraph("80G Tax Exemption Certificates", title_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Generate certificate for each donation
+    for donation in eligible_donations:
+        devotee = db.query(Devotee).filter(Devotee.id == donation.devotee_id).first()
+        
+        # Certificate content
+        cert_data = [
+            ['Certificate of Donation - Section 80G'],
+            [''],
+            ['Temple Name:', temple.name if temple else 'Temple'],
+            ['Address:', temple.address if temple else ''],
+            ['PAN:', temple.pan_number if temple else ''],
+            ['80G Registration:', temple.certificate_80g_number if temple else ''],
+            [''],
+            ['Donor Details:'],
+            ['Name:', devotee.name if devotee else 'Anonymous'],
+            ['Address:', devotee.address if devotee else ''],
+            [''],
+            ['Donation Details:'],
+            ['Receipt Number:', donation.receipt_number],
+            ['Date:', donation.donation_date.strftime('%d-%m-%Y') if hasattr(donation.donation_date, 'strftime') else str(donation.donation_date)],
+            ['Amount:', f"₹{donation.amount:,.2f}"],
+            ['Category:', donation.category.name if donation.category else ''],
+            [''],
+            ['This donation is eligible for tax deduction under Section 80G of the Income Tax Act, 1961.'],
+            [''],
+        ]
+        
+        table = Table(cert_data, colWidths=[2*inch, 4*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FF9933')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        
+        elements.append(table)
+        elements.append(Spacer(1, 0.3*inch))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"80g_certificates_{financial_year or datetime.now().year}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 

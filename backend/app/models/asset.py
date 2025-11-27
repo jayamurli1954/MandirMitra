@@ -195,6 +195,11 @@ class Asset(Base):
     revaluations = relationship("AssetRevaluation", back_populates="asset")
     disposals = relationship("AssetDisposal", back_populates="asset")
     maintenance_records = relationship("AssetMaintenance", back_populates="asset")
+    transfer_history = relationship("AssetTransfer", back_populates="asset", cascade="all, delete-orphan")
+    valuation_history = relationship("AssetValuationHistory", back_populates="asset", cascade="all, delete-orphan")
+    physical_verifications = relationship("AssetPhysicalVerification", back_populates="asset", cascade="all, delete-orphan")
+    insurance_records = relationship("AssetInsurance", back_populates="asset", cascade="all, delete-orphan")
+    documents = relationship("AssetDocument", back_populates="asset", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Asset(asset_number='{self.asset_number}', name='{self.name}')>"
@@ -391,6 +396,11 @@ class AssetDisposal(Base):
     buyer_name = Column(String(200))  # If sold
     disposal_document_number = Column(String(100))
     
+    # Approval Workflow
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    
     # Accounting
     journal_entry_id = Column(Integer, ForeignKey("journal_entries.id"), nullable=True)
     
@@ -401,6 +411,7 @@ class AssetDisposal(Base):
     # Relationships
     asset = relationship("Asset", back_populates="disposals")
     journal_entry = relationship("JournalEntry")
+    approved_by_user = relationship("User", foreign_keys=[approved_by])
     
     def __repr__(self):
         return f"<AssetDisposal(asset_id={self.asset_id}, disposal_type='{self.disposal_type}')>"

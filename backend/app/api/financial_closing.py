@@ -112,7 +112,26 @@ def close_month(
     
     # Calculate income and expenses for the month
     month_start = closing_data.closing_date.replace(day=1)
-    month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    # Calculate month end correctly
+    if month_start.month == 12:
+        month_end = date(month_start.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(month_start.year, month_start.month + 1, 1) - timedelta(days=1)
+    
+    # Check if period is already closed
+    existing_closing = db.query(PeriodClosing).filter(
+        PeriodClosing.financial_year_id == financial_year.id,
+        PeriodClosing.temple_id == temple_id,
+        PeriodClosing.closing_type == ClosingType.MONTH_END,
+        PeriodClosing.closing_date >= month_start,
+        PeriodClosing.closing_date <= month_end,
+        PeriodClosing.is_completed == True
+    ).first()
+    if existing_closing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Month-end closing for {month_start.strftime('%B %Y')} is already completed."
+        )
     
     # Get income accounts
     income_filter = [
@@ -239,6 +258,8 @@ def close_month(
         temple_id=temple_id,
         closing_type=ClosingType.MONTH_END,
         closing_date=closing_data.closing_date,
+        period_start=month_start,
+        period_end=month_end,
         total_income=total_income,
         total_expenses=total_expenses,
         net_surplus=net_surplus,
@@ -253,6 +274,7 @@ def close_month(
     # Lock the period (create or update FinancialPeriod)
     period = db.query(FinancialPeriod).filter(
         FinancialPeriod.financial_year_id == financial_year.id,
+        FinancialPeriod.temple_id == temple_id,
         FinancialPeriod.start_date == month_start,
         FinancialPeriod.end_date == month_end
     ).first()
@@ -287,9 +309,7 @@ def close_month(
 
 @router.post("/close-year", response_model=PeriodClosingResponse)
 def close_year(
-    financial_year_id: int,
-    closing_date: date,
-    notes: Optional[str] = None,
+    closing_data: PeriodClosingRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -300,15 +320,33 @@ def close_year(
     if current_user.role not in ["admin", "accountant"]:
         raise HTTPException(status_code=403, detail="Only admins and accountants can close financial years")
     
-    financial_year = db.query(FinancialYear).filter(FinancialYear.id == financial_year_id).first()
+    temple_id = current_user.temple_id
+    
+    # Get financial year
+    financial_year = db.query(FinancialYear).filter(
+        FinancialYear.id == closing_data.financial_year_id,
+        FinancialYear.temple_id == temple_id
+    ).first()
     if not financial_year:
         raise HTTPException(status_code=404, detail="Financial year not found")
     
     if financial_year.is_closed:
         raise HTTPException(status_code=400, detail="Financial year is already closed")
     
+    # Check if year-end closing already exists
+    existing_closing = db.query(PeriodClosing).filter(
+        PeriodClosing.financial_year_id == closing_data.financial_year_id,
+        PeriodClosing.temple_id == temple_id,
+        PeriodClosing.closing_type == ClosingType.YEAR_END,
+        PeriodClosing.is_completed == True
+    ).first()
+    if existing_closing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Year-end closing for {financial_year.year_code} is already completed."
+        )
+    
     # Calculate year totals
-    temple_id = current_user.temple_id
     
     # Get income and expenses for the year
     income_accounts = db.query(Account).filter(
@@ -364,7 +402,7 @@ def close_year(
     closing_entry = JournalEntry(
         temple_id=temple_id,
         entry_number=entry_number,
-        entry_date=closing_date,
+        entry_date=closing_data.closing_date,
         reference_type="year_end_closing",
         narration=f"Year-end closing for {financial_year.year_code}",
         status=JournalEntryStatus.POSTED,
@@ -402,7 +440,9 @@ def close_year(
         financial_year_id=financial_year.id,
         temple_id=temple_id,
         closing_type=ClosingType.YEAR_END,
-        closing_date=closing_date,
+        closing_date=closing_data.closing_date,
+        period_start=financial_year.start_date,
+        period_end=financial_year.end_date,
         total_income=total_income,
         total_expenses=total_expenses,
         net_surplus=net_surplus,
@@ -410,7 +450,7 @@ def close_year(
         is_completed=True,
         completed_at=datetime.utcnow(),
         completed_by=current_user.id,
-        notes=notes
+        notes=closing_data.notes
     )
     db.add(period_closing)
     
@@ -419,11 +459,79 @@ def close_year(
     financial_year.is_active = False
     financial_year.closed_at = datetime.utcnow()
     financial_year.closed_by = current_user.id
+    financial_year.closing_date = closing_data.closing_date
     
     db.commit()
     db.refresh(period_closing)
     
     return period_closing
+
+
+@router.get("/period-closings", response_model=List[PeriodClosingResponse])
+def get_period_closings(
+    financial_year_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all period closings"""
+    query = db.query(PeriodClosing)
+    
+    if current_user.temple_id:
+        query = query.filter(PeriodClosing.temple_id == current_user.temple_id)
+    
+    if financial_year_id:
+        query = query.filter(PeriodClosing.financial_year_id == financial_year_id)
+    
+    return query.order_by(PeriodClosing.closing_date.desc()).all()
+
+
+@router.get("/closings/{closing_id}/summary", response_model=ClosingSummaryResponse)
+def get_closing_summary_by_id(
+    closing_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get closing summary by closing ID"""
+    closing = db.query(PeriodClosing).filter(PeriodClosing.id == closing_id).first()
+    if not closing:
+        raise HTTPException(status_code=404, detail="Closing not found")
+    
+    # Get period dates
+    period_start = closing.period_start if hasattr(closing, 'period_start') and closing.period_start else None
+    period_end = closing.period_end if hasattr(closing, 'period_end') and closing.period_end else None
+    
+    if not period_start or not period_end:
+        # Calculate from closing date
+        if closing.closing_type == ClosingType.MONTH_END:
+            period_start = closing.closing_date.replace(day=1)
+            next_month = period_start.replace(month=period_start.month % 12 + 1) if period_start.month < 12 else period_start.replace(year=period_start.year + 1, month=1)
+            period_end = (next_month - timedelta(days=1))
+        else:
+            # Year end - get from financial year
+            financial_year = db.query(FinancialYear).filter(FinancialYear.id == closing.financial_year_id).first()
+            if financial_year:
+                period_start = financial_year.start_date
+                period_end = financial_year.end_date
+            else:
+                period_start = closing.closing_date.replace(month=1, day=1)
+                period_end = closing.closing_date.replace(month=12, day=31)
+    
+    # Get journal entry number
+    journal_entry_number = None
+    if closing.closing_journal_entry_id:
+        journal_entry = db.query(JournalEntry).filter(JournalEntry.id == closing.closing_journal_entry_id).first()
+        if journal_entry:
+            journal_entry_number = journal_entry.entry_number
+    
+    return ClosingSummaryResponse(
+        period_start=period_start,
+        period_end=period_end,
+        total_income=closing.total_income or 0.0,
+        total_expenses=closing.total_expenses or 0.0,
+        net_surplus=closing.net_surplus or 0.0,
+        transaction_count=0,
+        journal_entry_number=journal_entry_number
+    )
 
 
 @router.get("/closing-summary", response_model=ClosingSummaryResponse)

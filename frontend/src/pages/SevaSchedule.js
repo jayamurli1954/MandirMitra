@@ -15,18 +15,40 @@ import {
   Chip,
   TextField,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  IconButton,
 } from '@mui/material';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import ExportButton from '../components/ExportButton';
 import PrintButton from '../components/PrintButton';
 import { exportToCSV, exportToExcel } from '../utils/export';
+import { useNotification } from '../contexts/NotificationContext';
 
 function SevaSchedule() {
+  const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [days, setDays] = useState(3);
   const [scheduleData, setScheduleData] = useState(null);
+  const [priests, setPriests] = useState([]);
+  const [priestDialog, setPriestDialog] = useState({ open: false, booking: null });
+  const [selectedPriestId, setSelectedPriestId] = useState('');
+  const [refundDialog, setRefundDialog] = useState({ open: false, booking: null });
+  const [refundForm, setRefundForm] = useState({
+    refund_amount: '',
+    refund_method: 'original',
+    refund_reference: '',
+  });
 
   const fetchSchedule = async () => {
     try {
@@ -48,7 +70,67 @@ function SevaSchedule() {
 
   useEffect(() => {
     fetchSchedule();
+    fetchPriests();
   }, [days]);
+
+  const fetchPriests = async () => {
+    try {
+      const response = await api.get('/api/v1/sevas/priests');
+      setPriests(response.data);
+    } catch (err) {
+      console.error('Failed to fetch priests:', err);
+    }
+  };
+
+  const handleAssignPriest = (booking) => {
+    setPriestDialog({ open: true, booking });
+    setSelectedPriestId(booking.priest_id || '');
+  };
+
+  const handleConfirmPriestAssignment = async () => {
+    try {
+      if (selectedPriestId) {
+        await api.put(`/api/v1/sevas/bookings/${priestDialog.booking.id}/assign-priest`, null, {
+          params: { priest_id: selectedPriestId }
+        });
+        showSuccess('Priest assigned successfully');
+      } else {
+        await api.put(`/api/v1/sevas/bookings/${priestDialog.booking.id}/remove-priest`);
+        showSuccess('Priest assignment removed');
+      }
+      setPriestDialog({ open: false, booking: null });
+      fetchSchedule();
+    } catch (err) {
+      showError(err.response?.data?.detail || 'Failed to assign priest');
+    }
+  };
+
+  const handleProcessRefund = (booking) => {
+    const expectedRefund = booking.amount_paid * 0.9;
+    setRefundForm({
+      refund_amount: expectedRefund.toFixed(2),
+      refund_method: 'original',
+      refund_reference: '',
+    });
+    setRefundDialog({ open: true, booking });
+  };
+
+  const handleConfirmRefund = async () => {
+    try {
+      await api.post(`/api/v1/sevas/bookings/${refundDialog.booking.id}/process-refund`, null, {
+        params: {
+          refund_amount: refundForm.refund_amount,
+          refund_method: refundForm.refund_method,
+          refund_reference: refundForm.refund_reference,
+        }
+      });
+      showSuccess('Refund processed successfully');
+      setRefundDialog({ open: false, booking: null });
+      fetchSchedule();
+    } catch (err) {
+      showError(err.response?.data?.detail || 'Failed to process refund');
+    }
+  };
 
   const handleExport = (format) => {
     if (!scheduleData) return;
@@ -143,13 +225,15 @@ function SevaSchedule() {
                     <TableCell><strong>Mobile</strong></TableCell>
                     <TableCell align="right"><strong>Amount (₹)</strong></TableCell>
                     <TableCell><strong>Status</strong></TableCell>
+                    <TableCell><strong>Priest</strong></TableCell>
                     <TableCell><strong>Special Request</strong></TableCell>
+                    <TableCell><strong>Actions</strong></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {scheduleData.schedule.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} align="center">
+                      <TableCell colSpan={10} align="center">
                         <Typography color="text.secondary">No sevas scheduled for the next {days} days</Typography>
                       </TableCell>
                     </TableRow>
@@ -175,7 +259,30 @@ function SevaSchedule() {
                             size="small"
                           />
                         </TableCell>
+                        <TableCell>{item.priest?.name || 'Not Assigned'}</TableCell>
                         <TableCell>{item.special_request || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => handleAssignPriest(item)}
+                              title="Assign Priest"
+                            >
+                              <PersonAddIcon fontSize="small" />
+                            </IconButton>
+                            {item.status === 'Cancelled' && (
+                              <IconButton
+                                size="small"
+                                color="secondary"
+                                onClick={() => handleProcessRefund(item)}
+                                title="Process Refund"
+                              >
+                                <AccountBalanceIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Box>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -190,6 +297,95 @@ function SevaSchedule() {
             <CircularProgress />
           </Box>
         )}
+
+        {/* Priest Assignment Dialog */}
+        <Dialog open={priestDialog.open} onClose={() => setPriestDialog({ open: false, booking: null })} maxWidth="sm" fullWidth>
+          <DialogTitle>Assign Priest</DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 2 }}>
+              <FormControl fullWidth>
+                <InputLabel>Select Priest</InputLabel>
+                <Select
+                  value={selectedPriestId}
+                  onChange={(e) => setSelectedPriestId(e.target.value)}
+                  label="Select Priest"
+                >
+                  <MenuItem value="">None (Remove Assignment)</MenuItem>
+                  {priests.map((priest) => (
+                    <MenuItem key={priest.id} value={priest.id}>
+                      {priest.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {priestDialog.booking && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  Seva: {priestDialog.booking.seva_name}<br />
+                  Devotee: {priestDialog.booking.devotee_name}<br />
+                  Date: {new Date(priestDialog.booking.date).toLocaleDateString()}
+                </Typography>
+              )}
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setPriestDialog({ open: false, booking: null })}>Cancel</Button>
+            <Button variant="contained" onClick={handleConfirmPriestAssignment}>
+              {selectedPriestId ? 'Assign' : 'Remove Assignment'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Refund Processing Dialog */}
+        <Dialog open={refundDialog.open} onClose={() => setRefundDialog({ open: false, booking: null })} maxWidth="sm" fullWidth>
+          <DialogTitle>Process Refund</DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 2 }}>
+              {refundDialog.booking && (
+                <>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Booking Amount: ₹{refundDialog.booking.amount_paid.toLocaleString()}<br />
+                    Processing Fee (10%): ₹{(refundDialog.booking.amount_paid * 0.1).toFixed(2)}<br />
+                    Refund Amount (90%): ₹{(refundDialog.booking.amount_paid * 0.9).toFixed(2)}
+                  </Alert>
+                  <TextField
+                    fullWidth
+                    label="Refund Amount"
+                    type="number"
+                    value={refundForm.refund_amount}
+                    onChange={(e) => setRefundForm({ ...refundForm, refund_amount: e.target.value })}
+                    sx={{ mb: 2 }}
+                    helperText="Default: 90% of booking amount"
+                  />
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Refund Method</InputLabel>
+                    <Select
+                      value={refundForm.refund_method}
+                      onChange={(e) => setRefundForm({ ...refundForm, refund_method: e.target.value })}
+                      label="Refund Method"
+                    >
+                      <MenuItem value="original">Original Payment Method</MenuItem>
+                      <MenuItem value="cash">Cash</MenuItem>
+                      <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    fullWidth
+                    label="Refund Reference"
+                    value={refundForm.refund_reference}
+                    onChange={(e) => setRefundForm({ ...refundForm, refund_reference: e.target.value })}
+                    helperText="Transaction reference number (optional)"
+                  />
+                </>
+              )}
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setRefundDialog({ open: false, booking: null })}>Cancel</Button>
+            <Button variant="contained" color="secondary" onClick={handleConfirmRefund}>
+              Process Refund
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Layout>
   );

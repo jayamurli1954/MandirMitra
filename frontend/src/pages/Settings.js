@@ -60,6 +60,7 @@ function Settings() {
     module_accounting_enabled: true,
     module_tender_enabled: true, // Enabled by default for demo
     module_hr_enabled: true, // HR & Salary Management
+    module_hundi_enabled: true, // Hundi Management
     module_panchang_enabled: true,
     module_reports_enabled: true,
     module_token_seva_enabled: true,
@@ -501,6 +502,17 @@ function Settings() {
                         />
                       }
                       label="HR & Payroll Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_hundi_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_hundi_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Hundi Management Module"
                     />
                   </Grid>
                   <Grid item xs={12} sm={6} md={4}>
