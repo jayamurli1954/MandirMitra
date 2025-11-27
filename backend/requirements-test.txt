@@ -1,0 +1,44 @@
+# Testing Dependencies for MandirSync
+# Install with: pip install -r requirements-test.txt
+
+# Core testing framework
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# PERFORMANCE OPTIMIZATION
+pytest-xdist==3.5.0           # Parallel test execution (-n auto)
+pytest-cache==1.0             # Cache test results for faster reruns
+pytest-picked==0.5.0          # Run tests from modified files only
+
+# Coverage reporting
+pytest-cov==4.1.0             # Code coverage
+coverage[toml]==7.3.2         # Coverage configuration
+
+# Test data generation
+factory-boy==3.3.0            # Test data factories
+faker==20.1.0                 # Fake data generation
+
+# HTTP testing
+httpx==0.25.2                 # Async HTTP client for FastAPI testing
+requests-mock==1.11.0         # Mock HTTP requests
+
+# Database testing
+pytest-postgresql==5.0.0      # PostgreSQL fixtures for testing
+
+# Performance and monitoring
+pytest-benchmark==4.0.0       # Benchmark test performance
+pytest-timeout==2.2.0         # Prevent hanging tests
+pytest-profiling==1.7.0       # Profile slow tests
+
+# Better output and reporting
+pytest-html==4.1.1            # HTML test reports
+pytest-json-report==1.5.0     # JSON test reports
+pytest-sugar==0.9.7           # Better progress output
+
+# Mocking and fixtures
+pytest-mock==3.12.0           # Enhanced mocking capabilities
+freezegun==1.4.0              # Mock datetime/timezone
+
+# Development helpers
+pytest-watch==4.2.0           # Auto-run tests on file changes
+pytest-testmon==2.1.0         # Run only tests affected by changes

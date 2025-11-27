@@ -2,30 +2,60 @@
 Pytest Configuration and Fixtures for MandirSync Testing
 
 This file provides reusable test fixtures for FastAPI testing.
+
+PERFORMANCE OPTIMIZATIONS:
+- SQLite in-memory database for 10x faster tests
+- Session-scoped database for reusable connections
+- Automatic cleanup after tests
+- Foreign key constraints enabled
 """
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+import os
 
 from app.main import app
 from app.database import Base, get_db
 
-# Test database URL (using SQLite in-memory for fast tests)
-# For PostgreSQL tests, use: postgresql://postgres:postgres@localhost:5432/mandirsync_test
-TEST_DATABASE_URL = "sqlite:///:memory:"
+# Test database URL (using SQLite in-memory for FAST tests)
+# Override with: TEST_DATABASE_URL=postgresql://... pytest
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite:///:memory:")
 
-# Create test engine
+# OPTIMIZATION: Create engine with optimized settings
 engine = create_engine(
     TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False} if "sqlite" in TEST_DATABASE_URL else {},
     poolclass=StaticPool,
+    echo=False,  # Disable SQL logging for faster tests
 )
+
+# Enable foreign keys for SQLite (important for referential integrity)
+if "sqlite" in TEST_DATABASE_URL:
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA synchronous=OFF")  # Faster writes (safe for tests)
+        cursor.execute("PRAGMA journal_mode=MEMORY")  # Keep journal in memory
+        cursor.close()
 
 # Create test session factory
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+# OPTIMIZATION: Create tables once per test session instead of per test
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_database():
+    """
+    Create database tables once at the start of test session.
+    This is much faster than creating/dropping per test.
+    """
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(scope="function")
