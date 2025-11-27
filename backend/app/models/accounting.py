@@ -71,6 +71,9 @@ class TransactionType(str, enum.Enum):
     VENDOR_PAYMENT = "vendor_payment"
     MANUAL = "manual"
     BANK_RECONCILIATION = "bank_reconciliation"
+    INVENTORY_PURCHASE = "inventory_purchase"
+    INVENTORY_ISSUE = "inventory_issue"
+    INVENTORY_ADJUSTMENT = "inventory_adjustment"
 
 
 # Models

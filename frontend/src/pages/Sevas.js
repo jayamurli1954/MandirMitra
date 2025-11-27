@@ -40,7 +40,7 @@ function Sevas() {
   // Booking dialog state
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [selectedSeva, setSelectedSeva] = useState(null);
-  const [devotees, setDevotees] = useState([]);
+  const [, setDevotees] = useState([]);
   const [bookingForm, setBookingForm] = useState({
     devotee_id: '',
     booking_date: new Date().toISOString().split('T')[0],
@@ -64,10 +64,12 @@ function Sevas() {
   const [newDevoteeData, setNewDevoteeData] = useState({
     name: '',
     address: '',
+    pincode: '',
     city: '',
     state: '',
-    pincode: ''
+    country: 'India'
   });
+  const [lookingUpPincode, setLookingUpPincode] = useState(false);
 
   // Dropdown options state
   const [dropdownOptions, setDropdownOptions] = useState({
@@ -84,21 +86,30 @@ function Sevas() {
 
   useEffect(() => {
     filterSevas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sevas, selectedCategory]);
 
   const fetchSevas = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await api.get('/api/v1/sevas/');
-      setSevas(response.data);
+      
+      if (response.data && Array.isArray(response.data)) {
+        setSevas(response.data);
 
-      // Extract unique categories
-      const uniqueCategories = [...new Set(response.data.map(s => s.category))];
-      setCategories(uniqueCategories);
+        // Extract unique categories
+        const uniqueCategories = [...new Set(response.data.map(s => s.category))];
+        setCategories(uniqueCategories);
+      } else {
+        setError('Invalid response format from server');
+      }
 
       setLoading(false);
     } catch (err) {
-      setError('Failed to load sevas');
+      console.error('Error fetching sevas:', err);
+      const errorMsg = err.response?.data?.detail || err.message || 'Failed to load sevas. Please check if backend is running.';
+      setError(errorMsg);
       setLoading(false);
     }
   };
@@ -191,14 +202,56 @@ function Sevas() {
         // Devotee not found - show create form
         setFoundDevotee(null);
         setShowNewDevoteeForm(true);
-        setNewDevoteeData({ ...newDevoteeData, name: '' });
+        setNewDevoteeData({ name: '', address: '', pincode: '', city: '', state: '', country: 'India' });
       }
     } catch (err) {
       // Devotee not found - show create form
       setFoundDevotee(null);
       setShowNewDevoteeForm(true);
+      setNewDevoteeData({ name: '', address: '', pincode: '', city: '', state: '', country: 'India' });
     } finally {
       setSearchingDevotee(false);
+    }
+  };
+
+  const lookupPincode = async (pincode) => {
+    if (!pincode || pincode.length !== 6) return null;
+    
+    setLookingUpPincode(true);
+    try {
+      const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+      const data = await response.json();
+      
+      if (data && data[0] && data[0].Status === 'Success' && data[0].PostOffice && data[0].PostOffice.length > 0) {
+        const postOffice = data[0].PostOffice[0];
+        return {
+          city: postOffice.District || postOffice.Name || '',
+          state: postOffice.State || '',
+          country: 'India'
+        };
+      }
+    } catch (err) {
+      console.error('Error looking up pincode:', err);
+    } finally {
+      setLookingUpPincode(false);
+    }
+    return null;
+  };
+
+  const handlePincodeChange = async (pincode) => {
+    setNewDevoteeData({ ...newDevoteeData, pincode });
+    
+    if (pincode && pincode.length === 6) {
+      const locationData = await lookupPincode(pincode);
+      if (locationData) {
+        setNewDevoteeData({
+          ...newDevoteeData,
+          pincode,
+          city: locationData.city || '',
+          state: locationData.state || '',
+          country: locationData.country || 'India'
+        });
+      }
     }
   };
 
@@ -215,7 +268,8 @@ function Sevas() {
         address: newDevoteeData.address,
         city: newDevoteeData.city,
         state: newDevoteeData.state,
-        pincode: newDevoteeData.pincode
+        pincode: newDevoteeData.pincode,
+        country: newDevoteeData.country || 'India'
       };
 
       const response = await api.post('/api/v1/devotees/', devoteeData);
@@ -254,6 +308,14 @@ function Sevas() {
         setMobileNumber('');
         setFoundDevotee(null);
         setShowNewDevoteeForm(false);
+        setNewDevoteeData({
+          name: '',
+          address: '',
+          pincode: '',
+          city: '',
+          state: '',
+          country: 'India'
+        });
         setBookingForm({
           devotee_id: '',
           booking_date: new Date().toISOString().split('T')[0],
@@ -609,6 +671,19 @@ function Sevas() {
                         fullWidth
                         size="small"
                       />
+                      {/* PIN Code - Early field for auto-fill */}
+                      <TextField
+                        label="PIN Code"
+                        value={newDevoteeData.pincode}
+                        onChange={(e) => handlePincodeChange(e.target.value)}
+                        size="small"
+                        inputProps={{ maxLength: 6 }}
+                        fullWidth
+                        helperText={lookingUpPincode ? 'Looking up...' : (newDevoteeData.pincode && newDevoteeData.pincode.length === 6 ? 'Auto-fills city/state below' : 'Enter 6-digit PIN code')}
+                        InputProps={{
+                          endAdornment: lookingUpPincode ? <CircularProgress size={16} /> : null
+                        }}
+                      />
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <TextField
                           label="City"
@@ -616,23 +691,17 @@ function Sevas() {
                           onChange={(e) => setNewDevoteeData({ ...newDevoteeData, city: e.target.value })}
                           size="small"
                           sx={{ flex: 1 }}
+                          helperText={newDevoteeData.city ? '✓ Auto-filled' : ''}
                         />
                         <TextField
-                          label="Pincode"
-                          value={newDevoteeData.pincode}
-                          onChange={(e) => setNewDevoteeData({ ...newDevoteeData, pincode: e.target.value })}
+                          label="State"
+                          value={newDevoteeData.state}
+                          onChange={(e) => setNewDevoteeData({ ...newDevoteeData, state: e.target.value })}
                           size="small"
-                          inputProps={{ maxLength: 6 }}
-                          sx={{ width: '120px' }}
+                          sx={{ flex: 1 }}
+                          helperText={newDevoteeData.state ? '✓ Auto-filled' : ''}
                         />
                       </Box>
-                      <TextField
-                        label="State"
-                        value={newDevoteeData.state}
-                        onChange={(e) => setNewDevoteeData({ ...newDevoteeData, state: e.target.value })}
-                        fullWidth
-                        size="small"
-                      />
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button
                           variant="contained"

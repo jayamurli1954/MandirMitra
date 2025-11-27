@@ -317,13 +317,14 @@ class PanchangService:
             # Get Julian day for the date at midnight UTC
             jd_midnight = swe.julday(int(dt.year), int(dt.month), int(dt.day), 0.0)
 
-            # Calculate sunrise - swe.rise_trans(jd_ut, ipl, rsmi, lon, lat, height)
+            # Calculate sunrise - swe.rise_trans(jd_ut, ipl, rsmi, geopos, height)
+            # geopos must be a tuple/list: [longitude, latitude]
+            geopos = [lon, lat]
             sunrise_result = swe.rise_trans(
                 jd_midnight,
                 swe.SUN,
                 swe.CALC_RISE | swe.BIT_DISC_CENTER,
-                lon,
-                lat,
+                geopos,
                 0.0
             )
 
@@ -332,8 +333,7 @@ class PanchangService:
                 jd_midnight,
                 swe.SUN,
                 swe.CALC_SET | swe.BIT_DISC_CENTER,
-                lon,
-                lat,
+                geopos,
                 0.0
             )
 
@@ -395,13 +395,15 @@ class PanchangService:
         jd_start = swe.julday(int(dt.year), int(dt.month), int(dt.day), 0.0)
 
         try:
+            # geopos must be a tuple/list: [longitude, latitude]
+            geopos = [lon, lat]
+            
             # Moonrise - search from previous day to catch events near midnight
             rise_result = swe.rise_trans(
                 jd_start - 1,  # start searching from previous day
                 swe.MOON,
                 swe.CALC_RISE | swe.BIT_DISC_CENTER | swe.BIT_NO_REFRACTION,
-                lon,
-                lat,
+                geopos,
                 0.0
             )
 
@@ -410,8 +412,7 @@ class PanchangService:
                 jd_start - 1,  # start searching from previous day
                 swe.MOON,
                 swe.CALC_SET | swe.BIT_DISC_CENTER | swe.BIT_NO_REFRACTION,
-                lon,
-                lat,
+                geopos,
                 0.0
             )
 
@@ -2144,7 +2145,7 @@ class PanchangService:
         South Indian chart layout:
         - House 1 is at top-center (Lagna)
         - Houses arranged clockwise
-        - Planets placed in their respective houses
+        - Planets placed in their respective houses with proper spacing
         """
         # Planet symbols and colors
         symbols = {
@@ -2162,82 +2163,112 @@ class PanchangService:
         rashi_abbr = ["Me", "Vr", "Mi", "Ka", "Si", "Kn", "Tu", "Vc", "Dh", "Ma", "Ku", "Pi"]
 
         svg = f'''
-        <svg width="420" height="480" viewBox="0 0 420 480" xmlns="http://www.w3.org/2000/svg" style="background:#fff8f0;">
-            <rect x="10" y="40" width="400" height="400" fill="none" stroke="#8b4513" stroke-width="5"/>
-            <line x1="210" y1="40" x2="210" y2="440" stroke="#8b4513" stroke-width="4"/>
-            <line x1="10" y1="240" x2="410" y2="240" stroke="#8b4513" stroke-width="4"/>
-            <line x1="10" y1="40" x2="410" y2="440" stroke="#8b4513" stroke-width="4"/>
-            <line x1="10" y1="440" x2="410" y2="40" stroke="#8b4513" stroke-width="4"/>
-            <text x="210" y="25" font-size="20" text-anchor="middle" fill="#8b4513" font-weight="bold">{title}</text>
+        <svg width="500" height="520" viewBox="0 0 500 520" xmlns="http://www.w3.org/2000/svg" style="background:#fff8f0;">
+            <rect x="20" y="50" width="460" height="460" fill="none" stroke="#8b4513" stroke-width="5"/>
+            <line x1="250" y1="50" x2="250" y2="510" stroke="#8b4513" stroke-width="4"/>
+            <line x1="20" y1="280" x2="480" y2="280" stroke="#8b4513" stroke-width="4"/>
+            <line x1="20" y1="50" x2="480" y2="510" stroke="#8b4513" stroke-width="4"/>
+            <line x1="20" y1="510" x2="480" y2="50" stroke="#8b4513" stroke-width="4"/>
+            <text x="250" y="30" font-size="22" text-anchor="middle" fill="#8b4513" font-weight="bold">{title}</text>
         '''
 
-        # 12 House centers (South Indian clockwise layout)
+        # 12 House centers (South Indian clockwise layout) - Adjusted for larger chart
         # Houses arranged in South Indian style: House 1 is at top-right, going clockwise
-        # Layout matches traditional South Indian chart style
         centers = [
-            (315, 135),  # House 1 - Top right (Lagna position)
-            (315, 345),  # House 2 - Right center
-            (105, 345),  # House 3 - Bottom left
-            (105, 135),  # House 4 - Top left
-            (195, 70),   # House 5 - Top area
-            (285, 160),  # House 6 - Top right area
-            (285, 320),  # House 7 - Right area
-            (195, 390),  # House 8 - Bottom area
-            (105, 250),  # House 9 - Left area
-            (105, 230),  # House 10 - Left area
-            (315, 250),  # House 11 - Right area
-            (315, 230)   # House 12 - Right area
+            (385, 165),  # House 1 - Top right (Lagna position)
+            (385, 395),  # House 2 - Right center
+            (115, 395),  # House 3 - Bottom left
+            (115, 165),  # House 4 - Top left
+            (235, 90),   # House 5 - Top area
+            (345, 190),  # House 6 - Top right area
+            (345, 370),  # House 7 - Right area
+            (235, 470),  # House 8 - Bottom area
+            (115, 290),  # House 9 - Left area
+            (115, 270),  # House 10 - Left area
+            (385, 290),  # House 11 - Right area
+            (385, 270)   # House 12 - Right area
         ]
 
-        # Draw house numbers + rashi symbols
-        # In South Indian chart, houses are numbered starting from Lagna position
-        # House 1 = Lagna, then houses go clockwise
-        for i in range(12):
-            # South Indian style: House numbers start from Lagna position (which is at index 0 in centers)
-            # Adjust house number based on layout: (i + 2) % 12 + 1 gives house numbers in correct order
-            house_num = (i + 2) % 12 + 1
-            cx, cy = centers[i]
-            
-            # Calculate which rashi is in this house (based on Lagna)
-            # In South Indian system, house 1 = Lagna rashi
-            rashi_index = int((lagna_deg + (house_num - 1) * 30) % 360 // 30)
-            rashi_sym = rashi_abbr[rashi_index]
-
-            svg += f'<text x="{cx}" y="{cy-15}" font-size="18" fill="#8b0000" text-anchor="middle" font-weight="bold">{house_num}</text>'
-            svg += f'<text x="{cx}" y="{cy+12}" font-size="24" fill="#8b4513" text-anchor="middle" font-weight="bold">{rashi_sym}</text>'
-
-        # Place planets in correct houses
+        # Group planets by house
+        planets_by_house = {}
         for sym, deg in positions.items():
-            # Skip Lagna symbol in Navamsa
             if sym == "Lg" and is_navamsa:
                 continue
             
-            # Calculate which house this planet is in
-            # Relative to Lagna (house 1 = 0° from Lagna)
             rel_deg = (deg - lagna_deg + 360) % 360
             house_num = int(rel_deg // 30) % 12
-            # Map house number (0-11) to center index
-            # House 1 (Lagna) is at centers[0], House 2 at centers[1], etc.
             house_idx = house_num
-            cx, cy = centers[house_idx]
+            
+            if house_idx not in planets_by_house:
+                planets_by_house[house_idx] = []
+            planets_by_house[house_idx].append(sym)
 
-            color = colors.get(sym, colors["default"])
-            symbol = symbols.get(sym, "?")
+        # Draw house numbers + rashi symbols
+        for i in range(12):
+            house_num = (i + 2) % 12 + 1
+            cx, cy = centers[i]
             
-            # Draw planet symbol
-            svg += f'<text x="{cx}" y="{cy+55}" font-size="36" fill="{color}" text-anchor="middle">{symbol}</text>'
+            # Calculate which rashi is in this house
+            rashi_index = int((lagna_deg + (house_num - 1) * 30) % 360 // 30)
+            rashi_sym = rashi_abbr[rashi_index]
+
+            svg += f'<text x="{cx}" y="{cy-20}" font-size="16" fill="#8b0000" text-anchor="middle" font-weight="bold">{house_num}</text>'
+            svg += f'<text x="{cx}" y="{cy+8}" font-size="20" fill="#8b4513" text-anchor="middle" font-weight="bold">{rashi_sym}</text>'
+
+        # Place planets in houses with proper spacing
+        name_map = {
+            "Su": "Sun", "Mo": "Moon", "Ma": "Mars", "Me": "Merc",
+            "Ju": "Jup", "Ve": "Ven", "Sa": "Sat", "Ra": "Rah", "Ke": "Ket"
+        }
+        
+        for house_idx, planet_symbols in planets_by_house.items():
+            cx, cy = centers[house_idx]
+            num_planets = len(planet_symbols)
             
-            # Add planet name below symbol (except for Lagna)
-            if sym != "Lg":
-                name_map = {
-                    "Su": "Sun", "Mo": "Moon", "Ma": "Mars", "Me": "Merc",
-                    "Ju": "Jup", "Ve": "Ven", "Sa": "Sat", "Ra": "Rah", "Ke": "Ket"
-                }
-                planet_name = name_map.get(sym, sym)
-                svg += f'<text x="{cx}" y="{cy+80}" font-size="12" fill="#555" text-anchor="middle">{planet_name}</text>'
+            # Calculate spacing for multiple planets
+            if num_planets == 1:
+                offsets = [0]
+            elif num_planets == 2:
+                offsets = [-25, 25]
+            elif num_planets == 3:
+                offsets = [-35, 0, 35]
+            elif num_planets == 4:
+                offsets = [-40, -15, 15, 40]
             else:
-                # Show "Lg" for Lagna
-                svg += f'<text x="{cx}" y="{cy+80}" font-size="14" fill="#006400" text-anchor="middle" font-weight="bold">Lg</text>'
+                # For 5+ planets, create a grid
+                offsets = []
+                for i in range(num_planets):
+                    offset = (i - (num_planets - 1) / 2) * 20
+                    offsets.append(offset)
+            
+            for idx, sym in enumerate(planet_symbols):
+                offset_x = offsets[idx] if idx < len(offsets) else 0
+                offset_y = 0
+                
+                # For multiple planets, stack vertically if needed
+                if num_planets > 4:
+                    row = idx // 3
+                    col = idx % 3
+                    offset_x = (col - 1) * 35
+                    offset_y = row * 60
+                
+                planet_x = cx + offset_x
+                planet_y = cy + 40 + offset_y  # Start below rashi symbol
+                
+                color = colors.get(sym, colors["default"])
+                symbol = symbols.get(sym, "?")
+                
+                # Draw planet symbol
+                svg += f'<text x="{planet_x}" y="{planet_y}" font-size="28" fill="{color}" text-anchor="middle">{symbol}</text>'
+                
+                # Add planet name/label below symbol
+                if sym != "Lg":
+                    planet_name = name_map.get(sym, sym)
+                    # Use shorter names for better fit
+                    short_name = planet_name[:3] if len(planet_name) > 3 else planet_name
+                    svg += f'<text x="{planet_x}" y="{planet_y + 22}" font-size="10" fill="#555" text-anchor="middle">{short_name}</text>'
+                else:
+                    svg += f'<text x="{planet_x}" y="{planet_y + 22}" font-size="11" fill="#006400" text-anchor="middle" font-weight="bold">Lg</text>'
 
         svg += '</svg>'
         return svg

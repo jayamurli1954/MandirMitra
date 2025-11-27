@@ -2,7 +2,7 @@
 Temple Model - Master temple data
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, Text
+from sqlalchemy import Column, Integer, String, Boolean, Text, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -82,6 +82,21 @@ class Temple(Base):
     receipt_prefix_seva = Column(String(20), default='SEVA')
     receipt_prefix_sponsorship = Column(String(20), default='SP')
     receipt_prefix_inkind = Column(String(20), default='IK')
+    
+    # Token Seva Configuration
+    token_seva_threshold = Column(Float, default=50.0)  # Default threshold ₹50 for token sevas
+
+    # Module Configuration (Enable/Disable modules per temple)
+    module_donations_enabled = Column(Boolean, default=True)
+    module_sevas_enabled = Column(Boolean, default=True)
+    module_inventory_enabled = Column(Boolean, default=True)
+    module_assets_enabled = Column(Boolean, default=True)
+    module_accounting_enabled = Column(Boolean, default=True)
+    module_tender_enabled = Column(Boolean, default=False)  # Optional module
+    module_hr_enabled = Column(Boolean, default=True)  # HR & Salary Management
+    module_panchang_enabled = Column(Boolean, default=True)
+    module_reports_enabled = Column(Boolean, default=True)
+    module_token_seva_enabled = Column(Boolean, default=True)
 
     # Management
     chairman_name = Column(String(100))

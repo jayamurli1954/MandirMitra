@@ -124,3 +124,7 @@ class PeriodClosing(Base):
     closing_journal_entry = relationship("JournalEntry")
 
 
+
+
+
+

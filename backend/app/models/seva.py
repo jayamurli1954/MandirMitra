@@ -61,6 +61,11 @@ class Seva(Base):
     requires_approval = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
 
+    # Token Seva Settings (for small-value sevas)
+    is_token_seva = Column(Boolean, default=False)  # If True, uses pre-printed tokens instead of receipts
+    token_color = Column(String(50), nullable=True)  # Color code for token (e.g., "RED", "BLUE", "GREEN")
+    token_threshold = Column(Float, nullable=True)  # Amount threshold (default from temple config)
+
     # Accounting Link
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
 

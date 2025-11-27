@@ -30,12 +30,25 @@ from app.models.accounting import Account, JournalEntry, JournalLine
 from app.models.bank_reconciliation import BankStatement, BankStatementEntry, BankReconciliation, ReconciliationOutstandingItem
 from app.models.financial_period import FinancialYear, FinancialPeriod, PeriodClosing
 from app.models.vendor import Vendor
+from app.models.token_seva import TokenInventory, TokenSale, TokenReconciliation
 from app.models.inkind_sponsorship import (
     InKindDonation, InKindConsumption,
     Sponsorship, SponsorshipPayment
 )
 from app.models.upi_banking import (
     UpiPayment, BankAccount, BankTransaction
+)
+from app.models.inventory import (
+    Store, Item, StockBalance, StockMovement
+)
+from app.models.asset import (
+    Asset, AssetCategory, CapitalWorkInProgress, AssetExpense,
+    DepreciationSchedule, AssetRevaluation, AssetDisposal, AssetMaintenance,
+    Tender, TenderBid
+)
+from app.models.hr import (
+    Employee, Department, Designation, SalaryComponent, SalaryStructure,
+    SalaryStructureComponent, Payroll, PayrollComponent, LeaveType, LeaveApplication
 )
 # Note: BankReconciliation is now in app.models.bank_reconciliation (not upi_banking)
 
@@ -60,6 +73,17 @@ from app.api.audit_logs import router as audit_logs_router
 from app.api.certificates import router as certificates_router
 from app.api.bank_reconciliation import router as bank_reconciliation_router
 from app.api.financial_closing import router as financial_closing_router
+from app.api.token_seva import router as token_seva_router
+from app.api.inventory import router as inventory_router
+from app.api.asset import router as asset_router
+from app.api.cwip import router as cwip_router
+from app.api.depreciation import router as depreciation_router
+from app.api.revaluation import router as revaluation_router
+from app.api.disposal import router as disposal_router
+from app.api.asset_reports import router as asset_reports_router
+from app.api.tenders import router as tenders_router
+from app.api.temples import router as temples_router
+from app.api.hr import router as hr_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -109,6 +133,17 @@ app.include_router(audit_logs_router)
 app.include_router(certificates_router)
 app.include_router(bank_reconciliation_router)
 app.include_router(financial_closing_router)
+app.include_router(token_seva_router)
+app.include_router(inventory_router)
+app.include_router(asset_router)
+app.include_router(cwip_router)
+app.include_router(depreciation_router)
+app.include_router(revaluation_router)
+app.include_router(disposal_router)
+app.include_router(asset_reports_router)
+app.include_router(tenders_router)
+app.include_router(temples_router)
+app.include_router(hr_router)
 
 # Initialize database on startup
 @app.on_event("startup")

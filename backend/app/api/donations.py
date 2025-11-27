@@ -28,7 +28,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.audit import log_action, get_entity_dict
 from fastapi import Request
-from app.models.donation import Donation, DonationCategory
+from app.models.donation import Donation, DonationCategory, DonationType, InKindDonationSubType
 from app.models.devotee import Devotee
 from app.models.temple import Temple
 from app.models.user import User
@@ -65,26 +65,78 @@ def get_donation_categories(
 def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int):
     """
     Create journal entry for donation in accounting system
+    
+    For Cash Donations:
     Dr: Cash/Bank Account (based on payment mode)
-    Cr: Donation Income Account (based on category if linked, else payment mode)
+    Cr: Donation Income Account
+    
+    For In-Kind Donations:
+    - Inventory: Dr. Inventory Asset (1300), Cr. Donation Income
+    - Assets: Dr. Asset Account (based on asset type), Cr. Donation Income
+    - Event Sponsorship: Dr. Prepaid Expense or Expense, Cr. Donation Income
+
+    Behaviour:
+    - If donation category is linked to a specific income account -> credit that account
+    - Otherwise -> credit 4100 (Donation Income - Main)
+
+    This keeps Trial Balance short (single donation income line),
+    while still allowing detailed category-wise accounts for temples that link them.
     """
     try:
-        # Determine debit account (payment method)
-        debit_account_code = None
-        if donation.payment_mode.upper() in ['CASH', 'COUNTER']:
-            debit_account_code = '1101'  # Cash in Hand - Counter
-        elif donation.payment_mode.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
-            debit_account_code = '1110'  # Bank - SBI Current Account
-        elif 'HUNDI' in donation.payment_mode.upper():
-            debit_account_code = '1102'  # Cash in Hand - Hundi
+        # Handle in-kind donations differently
+        if donation.donation_type == DonationType.IN_KIND:
+            # Determine debit account based on in-kind subtype
+            debit_account_code = None
+            if donation.inkind_subtype == InKindDonationSubType.INVENTORY:
+                debit_account_code = '1300'  # Inventory Asset
+            elif donation.inkind_subtype == InKindDonationSubType.ASSET:
+                # Determine asset account based on asset type
+                if donation.purity:  # Precious items (gold, silver)
+                    debit_account_code = '1500'  # Precious Assets (or specific account)
+                else:
+                    debit_account_code = '1400'  # Fixed Assets
+            elif donation.inkind_subtype == InKindDonationSubType.EVENT_SPONSORSHIP:
+                # For event sponsorship, debit prepaid expense or expense account
+                debit_account_code = '5100'  # Prepaid Expenses (or expense when event occurs)
+            else:
+                debit_account_code = '1300'  # Default to inventory
+            
+            # Get debit account
+            debit_account = db.query(Account).filter(
+                Account.temple_id == temple_id,
+                Account.account_code == debit_account_code
+            ).first()
+            
+            if not debit_account:
+                # Try to find by account_subtype
+                from app.models.accounting import AccountSubType
+                if donation.inkind_subtype == InKindDonationSubType.INVENTORY:
+                    debit_account = db.query(Account).filter(
+                        Account.temple_id == temple_id,
+                        Account.account_subtype == AccountSubType.INVENTORY
+                    ).first()
+                elif donation.inkind_subtype == InKindDonationSubType.ASSET:
+                    debit_account = db.query(Account).filter(
+                        Account.temple_id == temple_id,
+                        Account.account_subtype == AccountSubType.PRECIOUS_ASSET
+                    ).first()
         else:
-            debit_account_code = '1101'  # Default to cash counter
+            # Cash donation - determine debit account (payment method)
+            debit_account_code = None
+            if donation.payment_mode and donation.payment_mode.upper() in ['CASH', 'COUNTER']:
+                debit_account_code = '1101'  # Cash in Hand - Counter
+            elif donation.payment_mode and donation.payment_mode.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
+                debit_account_code = '1110'  # Bank - SBI Current Account
+            elif donation.payment_mode and 'HUNDI' in donation.payment_mode.upper():
+                debit_account_code = '1102'  # Cash in Hand - Hundi
+            else:
+                debit_account_code = '1101'  # Default to cash counter
 
-        # Get debit account
-        debit_account = db.query(Account).filter(
-            Account.temple_id == temple_id,
-            Account.account_code == debit_account_code
-        ).first()
+            # Get debit account
+            debit_account = db.query(Account).filter(
+                Account.temple_id == temple_id,
+                Account.account_code == debit_account_code
+            ).first()
 
         # Determine credit account - PRIORITY: Category-linked account
         credit_account = None
@@ -95,20 +147,20 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
             if credit_account:
                 print(f"  Using category-linked account: {credit_account.account_code} - {credit_account.account_name}")
 
-        # Fallback: Only use default General Donation account if category not linked
-        # DO NOT use payment-mode accounts (4102, 4103) - all should go to category accounts
+        # Fallback:
+        # Use 4100 - Donation Income (Main) as default when category is not linked.
+        # DO NOT use payment-mode accounts (4102, 4103) - all should go to income accounts.
         if not credit_account:
-            # Use 4101 as absolute last resort only
-            credit_account_code = '4101'  # General Donation (default fallback)
+            credit_account_code = '4100'  # Donation Income - Main (parent)
             credit_account = db.query(Account).filter(
                 Account.temple_id == temple_id,
                 Account.account_code == credit_account_code
             ).first()
 
             if credit_account:
-                print(f"  WARNING: Category '{donation.category.name if donation.category else 'Unknown'}' not linked to account. Using default: {credit_account_code}")
+                print(f"  INFO: Category '{donation.category.name if donation.category else 'Unknown'}' not linked to account. Using main donation income account: {credit_account_code}")
             else:
-                print(f"  ERROR: Default account {credit_account_code} not found. Please link category to account or create default account.")
+                print(f"  ERROR: Main donation income account {credit_account_code} not found. Please ensure it exists in Chart of Accounts or link category to a specific account.")
 
         if not debit_account:
             error_msg = f"Debit account ({debit_account_code}) not found for temple {temple_id}. Please create the account in Chart of Accounts."
@@ -126,9 +178,15 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
             return None
 
         # Create narration
-        narration = f"Donation from {donation.devotee.name if donation.devotee else 'Anonymous'}"
-        if donation.category:
-            narration += f" - {donation.category.name}"
+        if donation.donation_type == DonationType.IN_KIND:
+            item_desc = donation.item_name or "In-kind donation"
+            narration = f"In-kind donation from {donation.devotee.name if donation.devotee else 'Anonymous'}: {item_desc}"
+            if donation.category:
+                narration += f" - {donation.category.name}"
+        else:
+            narration = f"Donation from {donation.devotee.name if donation.devotee else 'Anonymous'}"
+            if donation.category:
+                narration += f" - {donation.category.name}"
 
         # Generate entry number first
         year = donation.donation_date.year
@@ -179,22 +237,33 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
         db.flush()  # Get journal_entry.id
 
         # Create journal lines
-        # Debit: Payment Account (Cash/Bank increases)
+        # Debit: Payment Account (Cash/Bank) or Asset Account (In-kind)
+        if donation.donation_type == DonationType.IN_KIND:
+            debit_description = f"In-kind donation: {donation.item_name or 'Item'}"
+            if donation.quantity and donation.unit:
+                debit_description += f" - {donation.quantity} {donation.unit}"
+        else:
+            debit_description = f"Donation received via {donation.payment_mode or 'Cash'}"
+        
         debit_line = JournalLine(
             journal_entry_id=journal_entry.id,
             account_id=debit_account.id,
             debit_amount=donation.amount,
             credit_amount=0,
-            description=f"Donation received via {donation.payment_mode}"
+            description=debit_description
         )
 
         # Credit: Donation Income (Income increases)
+        credit_description = f"Donation income - {donation.category.name if donation.category else 'General'}"
+        if donation.donation_type == DonationType.IN_KIND:
+            credit_description += f" (In-kind: {donation.item_name or 'Item'})"
+        
         credit_line = JournalLine(
             journal_entry_id=journal_entry.id,
             account_id=credit_account.id,
             debit_amount=0,
             credit_amount=donation.amount,
-            description=f"Donation income - {donation.category.name if donation.category else 'General'}"
+            description=credit_description
         )
 
         db.add(debit_line)
@@ -213,12 +282,42 @@ class DonationBase(BaseModel):
     devotee_phone: str
     amount: float
     category: str
-    payment_mode: str = "Cash"
+    donation_type: DonationType = DonationType.CASH  # Default to cash donation
+    payment_mode: Optional[str] = "Cash"  # Required for cash donations, optional for in-kind
     address: Optional[str] = None  # Street address
     pincode: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = "India"
+    
+    # In-Kind Donation Fields (only for donation_type = IN_KIND)
+    inkind_subtype: Optional[InKindDonationSubType] = None
+    item_name: Optional[str] = None
+    item_description: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    value_assessed: Optional[float] = None  # Assessed value (same as amount for in-kind)
+    appraised_by: Optional[str] = None
+    appraisal_date: Optional[date] = None
+    
+    # For Precious Items
+    purity: Optional[str] = None
+    weight_gross: Optional[float] = None
+    weight_net: Optional[float] = None
+    
+    # For Event Sponsorship
+    event_name: Optional[str] = None
+    event_date: Optional[date] = None
+    sponsorship_category: Optional[str] = None
+    
+    # Links to Inventory or Asset
+    inventory_item_id: Optional[int] = None
+    asset_id: Optional[int] = None
+    store_id: Optional[int] = None  # Store where inventory is received
+    
+    # Photo/Document URLs
+    photo_url: Optional[str] = None
+    document_url: Optional[str] = None
 
 
 class DonationCreate(DonationBase):
@@ -229,10 +328,20 @@ class DonationResponse(BaseModel):
     id: int
     receipt_number: str
     amount: float
-    payment_mode: str
+    donation_type: DonationType
+    payment_mode: Optional[str] = None
     donation_date: date
     devotee: Optional[dict] = None
     category: Optional[dict] = None
+    
+    # In-Kind Donation Fields
+    inkind_subtype: Optional[InKindDonationSubType] = None
+    item_name: Optional[str] = None
+    item_description: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    value_assessed: Optional[float] = None
+    
     created_at: str
     
     class Config:
@@ -308,20 +417,163 @@ def create_donation(
     
     receipt_number = f"TMP001-{year}-{str(seq).zfill(5)}"
     
+    # Validate in-kind donation fields if donation_type is IN_KIND
+    if donation.donation_type == DonationType.IN_KIND:
+        if not donation.item_name:
+            raise HTTPException(status_code=400, detail="item_name is required for in-kind donations")
+        if not donation.quantity or donation.quantity <= 0:
+            raise HTTPException(status_code=400, detail="quantity must be greater than 0 for in-kind donations")
+        if not donation.unit:
+            raise HTTPException(status_code=400, detail="unit is required for in-kind donations")
+        if not donation.inkind_subtype:
+            raise HTTPException(status_code=400, detail="inkind_subtype is required for in-kind donations")
+        # Use value_assessed if provided, otherwise use amount
+        assessed_value = donation.value_assessed if donation.value_assessed is not None else donation.amount
+    else:
+        # For cash donations, payment_mode is required
+        if not donation.payment_mode:
+            raise HTTPException(status_code=400, detail="payment_mode is required for cash donations")
+        assessed_value = None
+    
     # Create donation
     db_donation = Donation(
         temple_id=current_user.temple_id if current_user else None,
         devotee_id=devotee.id,
         category_id=category.id,
         receipt_number=receipt_number,
+        donation_type=donation.donation_type,
         amount=donation.amount,
-        payment_mode=donation.payment_mode,
+        payment_mode=donation.payment_mode if donation.donation_type == DonationType.CASH else None,
         donation_date=date.today(),
         financial_year=f"{year}-{str(year+1)[-2:]}",
         notes=donation.notes,
-        created_by=current_user.id if current_user else None
+        created_by=current_user.id if current_user else None,
+        # In-kind donation fields
+        inkind_subtype=donation.inkind_subtype if donation.donation_type == DonationType.IN_KIND else None,
+        item_name=donation.item_name if donation.donation_type == DonationType.IN_KIND else None,
+        item_description=donation.item_description if donation.donation_type == DonationType.IN_KIND else None,
+        quantity=donation.quantity if donation.donation_type == DonationType.IN_KIND else None,
+        unit=donation.unit if donation.donation_type == DonationType.IN_KIND else None,
+        value_assessed=assessed_value if donation.donation_type == DonationType.IN_KIND else None,
+        appraised_by=donation.appraised_by if donation.donation_type == DonationType.IN_KIND else None,
+        appraisal_date=donation.appraisal_date if donation.donation_type == DonationType.IN_KIND else None,
+        purity=donation.purity if donation.donation_type == DonationType.IN_KIND else None,
+        weight_gross=donation.weight_gross if donation.donation_type == DonationType.IN_KIND else None,
+        weight_net=donation.weight_net if donation.donation_type == DonationType.IN_KIND else None,
+        event_name=donation.event_name if donation.donation_type == DonationType.IN_KIND else None,
+        event_date=donation.event_date if donation.donation_type == DonationType.IN_KIND else None,
+        sponsorship_category=donation.sponsorship_category if donation.donation_type == DonationType.IN_KIND else None,
+        inventory_item_id=donation.inventory_item_id if donation.donation_type == DonationType.IN_KIND else None,
+        asset_id=donation.asset_id if donation.donation_type == DonationType.IN_KIND else None,
+        store_id=donation.store_id if donation.donation_type == DonationType.IN_KIND else None,
+        photo_url=donation.photo_url if donation.donation_type == DonationType.IN_KIND else None,
+        document_url=donation.document_url if donation.donation_type == DonationType.IN_KIND else None,
+        current_balance=donation.quantity if (donation.donation_type == DonationType.IN_KIND and donation.inkind_subtype == InKindDonationSubType.INVENTORY) else None
     )
     db.add(db_donation)
+    db.flush()  # Flush to get the ID
+    
+    # If in-kind donation is inventory type, create stock movement
+    if donation.donation_type == DonationType.IN_KIND and donation.inkind_subtype == InKindDonationSubType.INVENTORY:
+        from app.models.inventory import StockMovement, StockMovementType, StockBalance
+        from datetime import datetime as dt
+        
+        # Get or create inventory item if inventory_item_id is provided
+        if donation.inventory_item_id:
+            item_id = donation.inventory_item_id
+        else:
+            # Create a new inventory item for this donation
+            from app.models.inventory import Item, ItemCategory, Unit as InvUnit
+            # Try to find existing item by name
+            existing_item = db.query(Item).filter(
+                Item.temple_id == current_user.temple_id if current_user else None,
+                Item.name.ilike(donation.item_name)
+            ).first()
+            
+            if existing_item:
+                item_id = existing_item.id
+            else:
+                # Create new item
+                new_item = Item(
+                    temple_id=current_user.temple_id if current_user else None,
+                    code=f"ITM-{db_donation.id:05d}",
+                    name=donation.item_name,
+                    description=donation.item_description or f"In-kind donation: {donation.item_name}",
+                    category=ItemCategory.GROCERY,  # Default to grocery for consumables
+                    unit=InvUnit.KG if donation.unit.lower() in ['kg', 'kilogram'] else InvUnit.PIECE
+                )
+                db.add(new_item)
+                db.flush()
+                item_id = new_item.id
+        
+        # Get default store if store_id not provided
+        store_id = donation.store_id
+        if not store_id:
+            from app.models.inventory import Store
+            default_store = db.query(Store).filter(
+                Store.temple_id == current_user.temple_id if current_user else None,
+                Store.is_active == True
+            ).first()
+            if default_store:
+                store_id = default_store.id
+            else:
+                # Create default store if none exists
+                default_store = Store(
+                    temple_id=current_user.temple_id if current_user else None,
+                    code="ST001",
+                    name="Main Store",
+                    is_active=True
+                )
+                db.add(default_store)
+                db.flush()
+                store_id = default_store.id
+        
+        # Create stock movement for donation receipt
+        movement_number = f"DON/{year}/{db_donation.id:05d}"
+        stock_movement = StockMovement(
+            temple_id=current_user.temple_id if current_user else None,
+            movement_type=StockMovementType.PURCHASE,  # Treat donation as purchase
+            movement_number=movement_number,
+            movement_date=date.today(),
+            item_id=item_id,
+            store_id=store_id,
+            quantity=donation.quantity,
+            unit_price=assessed_value / donation.quantity if donation.quantity > 0 else 0,
+            total_value=assessed_value,
+            reference_number=db_donation.receipt_number,
+            notes=f"In-kind donation from {devotee.name}",
+            created_by=current_user.id if current_user else None
+        )
+        db.add(stock_movement)
+        db.flush()
+        
+        # Update or create stock balance
+        stock_balance = db.query(StockBalance).filter(
+            StockBalance.item_id == item_id,
+            StockBalance.store_id == store_id
+        ).first()
+        
+        if stock_balance:
+            stock_balance.quantity += donation.quantity
+            stock_balance.value += assessed_value
+            stock_balance.last_movement_date = date.today()
+            stock_balance.last_movement_id = stock_movement.id
+        else:
+            stock_balance = StockBalance(
+                temple_id=current_user.temple_id if current_user else None,
+                item_id=item_id,
+                store_id=store_id,
+                quantity=donation.quantity,
+                value=assessed_value,
+                last_movement_date=date.today(),
+                last_movement_id=stock_movement.id
+            )
+            db.add(stock_balance)
+        
+        # Update donation with inventory_item_id and store_id
+        db_donation.inventory_item_id = item_id
+        db_donation.store_id = store_id
+    
     db.commit()
     db.refresh(db_donation)
 

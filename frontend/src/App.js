@@ -5,12 +5,14 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { LoadingProvider } from './contexts/LoadingContext';
 import Login from './pages/Login';
+import Splash from './pages/Splash';
 import Dashboard from './pages/Dashboard';
 import Donations from './pages/Donations';
 import Devotees from './pages/Devotees';
 import Reports from './pages/Reports';
 import Panchang from './pages/Panchang';
 import PanchangSettings from './pages/PanchangSettings';
+import Kundli from './pages/Kundli';
 import Sevas from './pages/Sevas';
 import SevaManagement from './pages/SevaManagement';
 import Settings from './pages/Settings';
@@ -24,6 +26,21 @@ import QuickExpense from './pages/accounting/QuickExpense';
 import JournalEntries from './pages/accounting/JournalEntries';
 import UpiPayments from './pages/accounting/UpiPayments';
 import AccountingReports from './pages/accounting/AccountingReports';
+import Inventory from './pages/Inventory';
+import ItemMaster from './pages/inventory/ItemMaster';
+import StoreMaster from './pages/inventory/StoreMaster';
+import PurchaseEntry from './pages/inventory/PurchaseEntry';
+import IssueEntry from './pages/inventory/IssueEntry';
+import StockReport from './pages/inventory/StockReport';
+import AssetManagement from './pages/AssetManagement';
+import AssetMaster from './pages/assets/AssetMaster';
+import AssetPurchase from './pages/assets/AssetPurchase';
+import CWIPManagement from './pages/assets/CWIPManagement';
+import DepreciationPage from './pages/assets/DepreciationPage';
+import AssetReportsPage from './pages/assets/AssetReportsPage';
+import RevaluationDisposal from './pages/assets/RevaluationDisposal';
+import TenderManagement from './pages/tenders/TenderManagement';
+import HRManagement from './pages/hr/HRManagement';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const theme = createTheme({
@@ -46,6 +63,14 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route
+            path="/splash"
+            element={
+              <ProtectedRoute>
+                <Splash />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/dashboard"
             element={
@@ -134,6 +159,15 @@ function App() {
               </ProtectedRoute>
             }
           />
+          {/* Kundli route - Hidden from menu but accessible if users specifically request it */}
+          <Route
+            path="/kundli"
+            element={
+              <ProtectedRoute>
+                <Kundli />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/sevas"
             element={
@@ -195,6 +229,126 @@ function App() {
             element={
               <ProtectedRoute>
                 <AccountingReports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory"
+            element={
+              <ProtectedRoute>
+                <Inventory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory/items"
+            element={
+              <ProtectedRoute>
+                <ItemMaster />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory/stores"
+            element={
+              <ProtectedRoute>
+                <StoreMaster />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory/purchase"
+            element={
+              <ProtectedRoute>
+                <PurchaseEntry />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory/issue"
+            element={
+              <ProtectedRoute>
+                <IssueEntry />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory/stock-report"
+            element={
+              <ProtectedRoute>
+                <StockReport />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/assets"
+            element={
+              <ProtectedRoute>
+                <AssetManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/assets/master"
+            element={
+              <ProtectedRoute>
+                <AssetMaster />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/assets/purchase"
+            element={
+              <ProtectedRoute>
+                <AssetPurchase />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/assets/cwip"
+            element={
+              <ProtectedRoute>
+                <CWIPManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/assets/depreciation"
+            element={
+              <ProtectedRoute>
+                <DepreciationPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/assets/reports"
+            element={
+              <ProtectedRoute>
+                <AssetReportsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/assets/revaluation"
+            element={
+              <ProtectedRoute>
+                <RevaluationDisposal />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tenders"
+            element={
+              <ProtectedRoute>
+                <TenderManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hr"
+            element={
+              <ProtectedRoute>
+                <HRManagement />
               </ProtectedRoute>
             }
           />

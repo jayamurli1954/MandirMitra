@@ -21,3 +21,7 @@ COMMENT ON COLUMN temples.fcra_applicable IS 'Whether FCRA is applicable (receiv
 COMMENT ON COLUMN temples.fcra_bank_account_id IS 'Link to bank account used for FCRA transactions';
 
 
+
+
+
+

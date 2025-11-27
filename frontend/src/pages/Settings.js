@@ -52,6 +52,19 @@ function Settings() {
     fcra_valid_to: '',
   });
 
+  const [moduleConfig, setModuleConfig] = useState({
+    module_donations_enabled: true,
+    module_sevas_enabled: true,
+    module_inventory_enabled: true,
+    module_assets_enabled: true,
+    module_accounting_enabled: true,
+    module_tender_enabled: true, // Enabled by default for demo
+    module_hr_enabled: true, // HR & Salary Management
+    module_panchang_enabled: true,
+    module_reports_enabled: true,
+    module_token_seva_enabled: true,
+  });
+
   useEffect(() => {
     // Password protection disabled for demo - always fetch settings
     // const isAuth = sessionStorage.getItem('settings_authenticated') === 'true';
@@ -59,7 +72,17 @@ function Settings() {
     
     // Always fetch settings for demo
     fetchSettings();
+    fetchModuleConfig();
   }, []);
+
+  const fetchModuleConfig = async () => {
+    try {
+      const response = await api.get('/api/v1/temples/modules/config');
+      setModuleConfig(response.data);
+    } catch (err) {
+      console.error('Failed to fetch module configuration:', err);
+    }
+  };
 
   // Password protection disabled for demo - will be enabled later
   // const handlePasswordSubmit = () => {
@@ -118,10 +141,21 @@ function Settings() {
   const handleSave = async () => {
     try {
       setLoading(true);
-      // Save settings via API
+      
+      // Save module configuration
+      await api.put('/api/v1/temples/modules/config', moduleConfig);
+      
+      // Save other settings (if API exists)
+      // await api.put('/api/v1/temples/settings', settings);
+      
       showSuccess('Settings saved successfully');
+      
+      // Refresh page to update menu
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (err) {
-      showError('Failed to save settings');
+      showError(err.response?.data?.detail || 'Failed to save settings');
     } finally {
       setLoading(false);
     }
@@ -377,6 +411,132 @@ function Settings() {
                     />
                   </>
                 )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Module Configuration */}
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Module Configuration
+                </Typography>
+                <Typography variant="body2" color="text.secondary" paragraph>
+                  Enable or disable modules based on your temple's requirements. Disabled modules will be hidden from the menu.
+                </Typography>
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_donations_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_donations_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Donations Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_sevas_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_sevas_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Sevas Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_inventory_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_inventory_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Inventory Management"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_assets_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_assets_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Asset Management"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_accounting_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_accounting_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Accounting Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_tender_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_tender_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Tender Management (Optional)"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_hr_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_hr_enabled: e.target.checked })}
+                        />
+                      }
+                      label="HR & Payroll Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_panchang_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_panchang_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Panchang Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_reports_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_reports_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Reports Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={moduleConfig.module_token_seva_enabled}
+                          onChange={(e) => setModuleConfig({ ...moduleConfig, module_token_seva_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Token Seva Module"
+                    />
+                  </Grid>
+                </Grid>
               </CardContent>
             </Card>
           </Grid>

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import {
   Box,
   Drawer,
@@ -35,17 +36,28 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import MoneyOffIcon from '@mui/icons-material/MoneyOff';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import BusinessIcon from '@mui/icons-material/Business';
+import GavelIcon from '@mui/icons-material/Gavel';
+import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
+import Watermark from './Watermark';
 
 const drawerWidth = 260;
 
-const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'Donations', icon: <AccountBalanceIcon />, path: '/donations' },
-  { text: 'Sevas', icon: <TempleHinduIcon />, path: '/sevas' },
-  { text: 'Devotees', icon: <PeopleIcon />, path: '/devotees' },
-  { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
-  { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
+// Base menu items (always visible)
+const baseMenuItems = [
+  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', module: null }, // Always visible
+  { text: 'Donations', icon: <AccountBalanceIcon />, path: '/donations', module: 'module_donations_enabled' },
+  { text: 'Sevas', icon: <TempleHinduIcon />, path: '/sevas', module: 'module_sevas_enabled' },
+  { text: 'Devotees', icon: <PeopleIcon />, path: '/devotees', module: null }, // Always visible
+  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory', module: 'module_inventory_enabled' },
+  { text: 'Asset Management', icon: <BusinessIcon />, path: '/assets', module: 'module_assets_enabled' },
+  { text: 'Tender Management', icon: <GavelIcon />, path: '/tenders', module: 'module_tender_enabled' },
+  { text: 'HR & Payroll', icon: <PeopleAltIcon />, path: '/hr', module: 'module_hr_enabled' },
+  { text: 'Reports', icon: <AssessmentIcon />, path: '/reports', module: 'module_reports_enabled' },
+  { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', module: 'module_panchang_enabled' },
+  { text: 'Settings', icon: <SettingsIcon />, path: '/settings', module: null }, // Always visible
 ];
 
 const accountingMenuItems = [
@@ -59,10 +71,48 @@ const accountingMenuItems = [
 function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [accountingOpen, setAccountingOpen] = useState(true);
+  const [accountingOpen, setAccountingOpen] = useState(true); // Default to open
+  const [showVideoFallback, setShowVideoFallback] = useState(false);
+  const [moduleConfig, setModuleConfig] = useState({
+    module_donations_enabled: true,
+    module_sevas_enabled: true,
+    module_inventory_enabled: true,
+    module_assets_enabled: true,
+    module_accounting_enabled: true,
+    module_tender_enabled: true, // Enabled by default for demo/showcase
+    module_hr_enabled: true, // HR & Salary Management
+    module_panchang_enabled: true,
+    module_reports_enabled: true,
+    module_token_seva_enabled: true,
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  // Fetch module configuration on mount
+  useEffect(() => {
+    fetchModuleConfig();
+  }, []);
+
+  const fetchModuleConfig = async () => {
+    try {
+      const response = await axios.get('/api/v1/temples/modules/config', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      setModuleConfig(response.data);
+    } catch (err) {
+      console.error('Failed to fetch module configuration:', err);
+      // Use defaults if API fails (for demo/showcase)
+    }
+  };
+
+  // Filter menu items based on module configuration
+  const menuItems = baseMenuItems.filter(item => {
+    if (item.module === null) return true; // Always show items without module requirement
+    return moduleConfig[item.module] !== false; // Show if enabled or not set (default true)
+  });
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -85,16 +135,39 @@ function Layout({ children }) {
   const drawer = (
     <Box>
       <Box sx={{ p: 2, textAlign: 'center', bgcolor: '#FF9933', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5 }}>
-        <Box
-          component="img"
-          src="/temple-gopuram.svg"
-          alt="Temple Gopuram"
-          sx={{
-            height: 32,
-            width: 32,
-            filter: 'brightness(0) invert(1)', // Makes it white
-          }}
-        />
+        {!showVideoFallback ? (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            onError={() => {
+              console.error('Video logo load error - showing fallback');
+              setShowVideoFallback(true);
+            }}
+            onLoadStart={() => console.log('Video logo loading...')}
+            onLoadedData={() => console.log('Video logo loaded successfully')}
+            style={{
+              width: '60px',
+              height: '60px',
+              marginRight: '10px',
+              objectFit: 'contain'
+            }}
+          >
+            <source src="/mandirsync-logo.mp4" type="video/mp4" />
+          </video>
+        ) : (
+          <Box
+            component="img"
+            src="/temple-gopuram.svg"
+            alt="Temple Gopuram"
+            sx={{
+              height: 32,
+              width: 32,
+              filter: 'brightness(0) invert(1)', // Makes it white
+            }}
+          />
+        )}
         <Typography 
           variant="h6" 
           sx={{ 
@@ -266,6 +339,7 @@ function Layout({ children }) {
       >
         <Toolbar />
         {children}
+        <Watermark />
       </Box>
     </Box>
   );

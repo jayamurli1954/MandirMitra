@@ -56,6 +56,7 @@ function Dashboard() {
     country: 'India',
   });
   const [pincodeLoading, setPincodeLoading] = useState(false);
+  const [searchingDevotee, setSearchingDevotee] = useState(false);
   const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
 
@@ -137,8 +138,33 @@ function Dashboard() {
     }
   };
 
-  const handleDonationChange = (field, value) => {
-    setDonationForm({ ...donationForm, [field]: value });
+  const handleDonationChange = async (field, value) => {
+    const updatedForm = { ...donationForm, [field]: value };
+    setDonationForm(updatedForm);
+    
+    // Mobile-first: when 10-digit mobile is entered, auto-fill devotee details if found
+    if (field === 'devotee_phone' && value && value.length === 10) {
+      setSearchingDevotee(true);
+      try {
+        const response = await api.get(`/api/v1/devotees/search/by-mobile/${value}`);
+        if (response.data) {
+          setDonationForm(prev => ({
+            ...prev,
+            devotee_name: response.data.name || prev.devotee_name,
+            address: response.data.address || prev.address,
+            pincode: response.data.pincode || prev.pincode,
+            city: response.data.city || prev.city,
+            state: response.data.state || prev.state,
+            country: response.data.country || prev.country || 'India',
+          }));
+        }
+      } catch (err) {
+        // Devotee not found is ok; user will enter details manually
+        console.log('Devotee not found for mobile:', value);
+      } finally {
+        setSearchingDevotee(false);
+      }
+    }
     
     // Auto-fill City and State when PIN code is entered (6 digits)
     if (field === 'pincode' && value.length === 6) {
@@ -413,25 +439,38 @@ function Dashboard() {
             </Typography>
             <Box component="form" onSubmit={handleDonationSubmit}>
               <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Devotee Name"
-                    value={donationForm.devotee_name}
-                    onChange={(e) => handleDonationChange('devotee_name', e.target.value)}
-                    required
-                    size="small"
-                  />
-                </Grid>
+                {/* Mobile Number - FIRST FIELD */}
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="Phone Number"
+                    label="Mobile Number *"
                     value={donationForm.devotee_phone}
                     onChange={(e) => handleDonationChange('devotee_phone', e.target.value)}
                     required
                     size="small"
                     inputProps={{ maxLength: 10 }}
+                    helperText={
+                      donationForm.devotee_phone.length === 10
+                        ? (donationForm.devotee_name ? '✓ Existing devotee auto-filled' : 'New devotee – enter details')
+                        : 'Enter 10-digit mobile'
+                    }
+                    InputProps={{
+                      endAdornment: searchingDevotee && (
+                        <InputAdornment position="end">
+                          <CircularProgress size={18} />
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Devotee Name *"
+                    value={donationForm.devotee_name}
+                    onChange={(e) => handleDonationChange('devotee_name', e.target.value)}
+                    required
+                    size="small"
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>

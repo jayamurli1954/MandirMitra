@@ -96,6 +96,24 @@ function DetailedSevaReport() {
     }
   };
 
+  // Build seva-type-wise summary for the current report
+  const buildSevaTypeSummary = () => {
+    if (!reportData || !reportData.sevas) return [];
+
+    const summaryMap = {};
+
+    reportData.sevas.forEach((s) => {
+      const key = s.seva_name || 'Unknown Seva';
+      if (!summaryMap[key]) {
+        summaryMap[key] = { seva_name: key, count: 0, amount: 0 };
+      }
+      summaryMap[key].count += 1;
+      summaryMap[key].amount += s.amount || 0;
+    });
+
+    return Object.values(summaryMap).sort((a, b) => a.seva_name.localeCompare(b.seva_name));
+  };
+
   const handleExport = (format) => {
     if (!reportData) return;
 
@@ -186,7 +204,42 @@ function DetailedSevaReport() {
           </Grid>
         </Paper>
 
-        {/* Report Table */}
+        {/* Seva Type-wise Summary Table */}
+        {reportData && (
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Seva Type-wise Summary (for selected period)
+            </Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell><strong>Seva Name</strong></TableCell>
+                    <TableCell align="right"><strong>Count</strong></TableCell>
+                    <TableCell align="right"><strong>Amount (₹)</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {buildSevaTypeSummary().map((row) => (
+                    <TableRow key={row.seva_name}>
+                      <TableCell>{row.seva_name}</TableCell>
+                      <TableCell align="right">{row.count}</TableCell>
+                      <TableCell align="right">
+                        {new Intl.NumberFormat('en-IN', {
+                          style: 'currency',
+                          currency: 'INR',
+                          maximumFractionDigits: 0,
+                        }).format(row.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        )}
+
+        {/* Detailed Booking-Level Report Table */}
         {reportData && (
           <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -307,6 +360,9 @@ function DetailedSevaReport() {
 }
 
 export default DetailedSevaReport;
+
+
+
 
 
 

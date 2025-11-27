@@ -63,3 +63,7 @@ class ClosingSummaryResponse(BaseModel):
     transaction_count: int
 
 
+
+
+
+

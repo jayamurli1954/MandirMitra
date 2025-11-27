@@ -10,13 +10,13 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showVideoFallback, setShowVideoFallback] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -53,7 +53,8 @@ function Login() {
         role: 'temple_manager'
       }));
 
-      navigate('/dashboard');
+      // After successful login, show splash screen (video) before dashboard
+      navigate('/splash');
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'Login failed. Please check your credentials and ensure the backend is running.');
@@ -74,10 +75,44 @@ function Login() {
       >
         <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
-            <LockOutlinedIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-            <Typography component="h1" variant="h4" sx={{ fontWeight: 'bold' }}>
-              🕉️ MandirSync
-            </Typography>
+            {!showVideoFallback ? (
+              <Box
+                component="div"
+                sx={{
+                  width: 'auto',
+                  height: '80px',
+                  maxWidth: '300px',
+                  mb: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <video
+                  src="/mandirsync-logo.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  onError={(e) => {
+                    console.error('Video load error:', e);
+                    setShowVideoFallback(true);
+                  }}
+                  onLoadStart={() => console.log('Video loading...')}
+                  onLoadedData={() => console.log('Video loaded successfully')}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    maxWidth: '300px',
+                    objectFit: 'contain'
+                  }}
+                />
+              </Box>
+            ) : (
+              <Typography component="h1" variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                🕉️ MandirSync
+              </Typography>
+            )}
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               Temple Management System
             </Typography>

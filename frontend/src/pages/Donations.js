@@ -26,7 +26,7 @@ import api from '../services/api';
 
 function Donations() {
   const [donations, setDonations] = useState([
-    { devotee_name: '', devotee_phone: '', amount: '', category: '', payment_mode: 'Cash' }
+    { devotee_name: '', devotee_phone: '', pincode: '', city: '', state: '', country: 'India', amount: '', category: '', payment_mode: 'Cash' }
   ]);
   const [categories, setCategories] = useState([]);
   const [devotees, setDevotees] = useState([]);
@@ -35,6 +35,7 @@ function Donations() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [donationList, setDonationList] = useState([]);
+  const [searchingDevotees, setSearchingDevotees] = useState({});
 
   const paymentModes = ['Cash', 'Card', 'UPI', 'Cheque', 'Online'];
 
@@ -87,7 +88,7 @@ function Donations() {
 
   const handleAddRow = () => {
     if (donations.length < 5) {
-      setDonations([...donations, { devotee_name: '', devotee_phone: '', amount: '', category: '', payment_mode: 'Cash' }]);
+      setDonations([...donations, { devotee_name: '', devotee_phone: '', pincode: '', city: '', state: '', country: 'India', amount: '', category: '', payment_mode: 'Cash' }]);
     }
   };
 
@@ -97,15 +98,59 @@ function Donations() {
     }
   };
 
-  const handleChange = (index, field, value) => {
+  const lookupPincode = async (pincode) => {
+    if (!pincode || pincode.length !== 6) return null;
+    
+    try {
+      const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+      const data = await response.json();
+      
+      if (data && data[0] && data[0].Status === 'Success' && data[0].PostOffice && data[0].PostOffice.length > 0) {
+        const postOffice = data[0].PostOffice[0];
+        return {
+          city: postOffice.District || postOffice.Name || '',
+          state: postOffice.State || '',
+          country: 'India'
+        };
+      }
+    } catch (err) {
+      console.error('Error looking up pincode:', err);
+    }
+    return null;
+  };
+
+  const handleChange = async (index, field, value) => {
     const updated = [...donations];
     updated[index][field] = value;
     
-    // Auto-fill devotee name if phone matches
-    if (field === 'devotee_phone' && value) {
-      const devotee = devotees.find(d => d.phone === value);
-      if (devotee) {
-        updated[index].devotee_name = devotee.name || '';
+    // Auto-fill devotee details when mobile number is entered
+    if (field === 'devotee_phone' && value && value.length === 10) {
+      setSearchingDevotees({ ...searchingDevotees, [index]: true });
+      try {
+        const response = await api.get(`/api/v1/devotees/search/by-mobile/${value}`);
+        if (response.data) {
+          // Devotee found - auto-fill all details
+          updated[index].devotee_name = response.data.name || '';
+          updated[index].pincode = response.data.pincode || '';
+          updated[index].city = response.data.city || '';
+          updated[index].state = response.data.state || '';
+          updated[index].country = response.data.country || 'India';
+        }
+      } catch (err) {
+        // Devotee not found - that's okay, user will enter manually
+        console.log('Devotee not found for mobile:', value);
+      } finally {
+        setSearchingDevotees({ ...searchingDevotees, [index]: false });
+      }
+    }
+    
+    // Auto-fill city/state/country when PIN code is entered
+    if (field === 'pincode' && value && value.length === 6) {
+      const locationData = await lookupPincode(value);
+      if (locationData) {
+        updated[index].city = locationData.city || '';
+        updated[index].state = locationData.state || '';
+        updated[index].country = locationData.country || 'India';
       }
     }
     
@@ -138,13 +183,17 @@ function Donations() {
           amount: parseFloat(donation.amount),
           category: donation.category,
           payment_mode: donation.payment_mode,
+          pincode: donation.pincode || undefined,
+          city: donation.city || undefined,
+          state: donation.state || undefined,
+          country: donation.country || 'India',
         })
       );
 
       await Promise.all(promises);
       
       setSuccess(`Successfully recorded ${validDonations.length} donation(s)!`);
-      setDonations([{ devotee_name: '', devotee_phone: '', amount: '', category: '', payment_mode: 'Cash' }]);
+      setDonations([{ devotee_name: '', devotee_phone: '', pincode: '', city: '', state: '', country: 'India', amount: '', category: '', payment_mode: 'Cash' }]);
       fetchDonations();
       
       setTimeout(() => setSuccess(''), 3000);
@@ -215,25 +264,66 @@ function Donations() {
               </Box>
 
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3}>
-                  <TextField
-                    fullWidth
-                    label="Devotee Name"
-                    value={donation.devotee_name}
-                    onChange={(e) => handleChange(index, 'devotee_name', e.target.value)}
-                    required
-                    size="small"
-                  />
-                </Grid>
+                {/* Mobile Number - FIRST FIELD */}
                 <Grid item xs={12} sm={6} md={2}>
                   <TextField
                     fullWidth
-                    label="Phone"
+                    label="Mobile Number *"
                     value={donation.devotee_phone}
                     onChange={(e) => handleChange(index, 'devotee_phone', e.target.value)}
                     required
                     size="small"
                     inputProps={{ maxLength: 10 }}
+                    helperText={searchingDevotees[index] ? 'Searching...' : 'Enter 10-digit mobile'}
+                    InputProps={{
+                      endAdornment: searchingDevotees[index] ? <CircularProgress size={16} /> : null
+                    }}
+                  />
+                </Grid>
+                {/* Devotee Name - Auto-filled when mobile found */}
+                <Grid item xs={12} sm={6} md={2.5}>
+                  <TextField
+                    fullWidth
+                    label="Devotee Name *"
+                    value={donation.devotee_name}
+                    onChange={(e) => handleChange(index, 'devotee_name', e.target.value)}
+                    required
+                    size="small"
+                    helperText={donation.devotee_name ? '✓ Auto-filled' : ''}
+                  />
+                </Grid>
+                {/* PIN Code - Early field for auto-fill */}
+                <Grid item xs={12} sm={6} md={1.5}>
+                  <TextField
+                    fullWidth
+                    label="PIN Code"
+                    value={donation.pincode}
+                    onChange={(e) => handleChange(index, 'pincode', e.target.value)}
+                    size="small"
+                    inputProps={{ maxLength: 6 }}
+                    helperText="Auto-fills city/state"
+                  />
+                </Grid>
+                {/* City - Auto-filled from PIN */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <TextField
+                    fullWidth
+                    label="City"
+                    value={donation.city}
+                    onChange={(e) => handleChange(index, 'city', e.target.value)}
+                    size="small"
+                    helperText={donation.city ? '✓ Auto-filled' : ''}
+                  />
+                </Grid>
+                {/* State - Auto-filled from PIN */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <TextField
+                    fullWidth
+                    label="State"
+                    value={donation.state}
+                    onChange={(e) => handleChange(index, 'state', e.target.value)}
+                    size="small"
+                    helperText={donation.state ? '✓ Auto-filled' : ''}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={2}>
@@ -298,7 +388,7 @@ function Donations() {
             </Button>
             <Button
               variant="outlined"
-              onClick={() => setDonations([{ devotee_name: '', devotee_phone: '', amount: '', category: '', payment_mode: 'Cash' }])}
+              onClick={() => setDonations([{ devotee_name: '', devotee_phone: '', pincode: '', city: '', state: '', country: 'India', amount: '', category: '', payment_mode: 'Cash' }])}
             >
               Clear All
             </Button>

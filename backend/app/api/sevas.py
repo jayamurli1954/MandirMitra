@@ -26,7 +26,14 @@ def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
     """
     Create journal entry for seva booking in accounting system
     Dr: Cash/Bank Account (based on payment method)
-    Cr: Seva Income Account (based on seva type if linked, else default)
+    Cr: Seva Income Account
+
+    Behaviour:
+    - If seva has a specific income account linked -> credit that account
+    - Otherwise -> credit 4200 (Seva Income - Main)
+
+    This keeps Trial Balance short (single seva income line),
+    while still allowing detailed seva-wise income accounts for temples that link them.
     """
     try:
         # Determine debit account (payment method)
@@ -53,9 +60,9 @@ def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
         if booking.seva and hasattr(booking.seva, 'account_id') and booking.seva.account_id:
             credit_account = db.query(Account).filter(Account.id == booking.seva.account_id).first()
 
-        # Fallback: Use default Special Pooja account
+        # Fallback: Use Seva Income main account (4200)
         if not credit_account:
-            credit_account_code = '4208'  # Special Pooja (default)
+            credit_account_code = '4200'  # Seva Income - Main (parent)
             credit_account = db.query(Account).filter(
                 Account.temple_id == temple_id,
                 Account.account_code == credit_account_code
@@ -427,7 +434,70 @@ def create_booking(
             traceback.print_exc()
             # Don't fail the booking if accounting fails
 
-    return booking
+    # Refresh to get relationships
+    db.refresh(booking)
+    
+    # Manually construct response to handle relationships properly
+    response_data = {
+        "id": booking.id,
+        "seva_id": booking.seva_id,
+        "devotee_id": booking.devotee_id,
+        "user_id": booking.user_id,
+        "priest_id": booking.priest_id,
+        "booking_date": booking.booking_date,
+        "booking_time": booking.booking_time,
+        "status": booking.status.value if hasattr(booking.status, 'value') else str(booking.status),
+        "amount_paid": booking.amount_paid,
+        "payment_method": booking.payment_method,
+        "payment_reference": booking.payment_reference,
+        "receipt_number": booking.receipt_number,
+        "devotee_names": booking.devotee_names,
+        "gotra": booking.gotra,
+        "nakshatra": booking.nakshatra,
+        "rashi": booking.rashi,
+        "special_request": booking.special_request,
+        "admin_notes": booking.admin_notes,
+        "completed_at": booking.completed_at,
+        "cancelled_at": booking.cancelled_at,
+        "cancellation_reason": booking.cancellation_reason,
+        "original_booking_date": booking.original_booking_date,
+        "reschedule_requested_date": booking.reschedule_requested_date,
+        "reschedule_reason": booking.reschedule_reason,
+        "reschedule_approved": booking.reschedule_approved,
+        "reschedule_approved_by": booking.reschedule_approved_by,
+        "reschedule_approved_at": booking.reschedule_approved_at,
+        "created_at": booking.created_at,
+        "updated_at": booking.updated_at,
+    }
+    
+    # Serialize seva relationship
+    if booking.seva:
+        response_data["seva"] = SevaResponse.from_attributes(booking.seva)
+    else:
+        response_data["seva"] = None
+    
+    # Serialize devotee relationship as dict
+    if booking.devotee:
+        response_data["devotee"] = {
+            "id": booking.devotee.id,
+            "name": booking.devotee.name,
+            "phone": booking.devotee.phone,
+            "email": getattr(booking.devotee, 'email', None)
+        }
+    else:
+        response_data["devotee"] = None
+    
+    # Serialize priest relationship as dict (if exists)
+    if booking.priest:
+        response_data["priest"] = {
+            "id": booking.priest.id,
+            "name": getattr(booking.priest, 'name', None) or getattr(booking.priest, 'full_name', None),
+            "email": getattr(booking.priest, 'email', None)
+        }
+    else:
+        response_data["priest"] = None
+    
+    return SevaBookingResponse(**response_data)
 
 @router.put("/bookings/{booking_id}", response_model=SevaBookingResponse)
 def update_booking(

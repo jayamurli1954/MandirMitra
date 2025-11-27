@@ -567,3 +567,7 @@ SELECT * FROM audit_logs WHERE user_email = 'clerk1@temple.local' ORDER BY creat
 
 
 
+
+
+
+

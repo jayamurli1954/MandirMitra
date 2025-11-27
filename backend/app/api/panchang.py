@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from typing import Optional
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -54,14 +55,18 @@ def get_today_panchang(
     return panchang_data
 
 
+class KundliRequest(BaseModel):
+    birth_datetime: str
+    latitude: float
+    longitude: float
+    name: str = "Devotee"
+    temple_name: Optional[str] = None
+    temple_logo_url: Optional[str] = None
+
+
 @router.post("/kundli/generate")
 def generate_kundli(
-    birth_datetime: str,
-    latitude: float,
-    longitude: float,
-    name: str = "Devotee",
-    temple_name: Optional[str] = None,
-    temple_logo_url: Optional[str] = None,
+    request: KundliRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -73,12 +78,17 @@ def generate_kundli(
     - Returns HTML ready for PDF conversion
     
     birth_datetime: ISO format "YYYY-MM-DDTHH:MM:SS" (IST)
+    
+    NOTE: This endpoint has been flagged for known issues:
+    - Report generation is not correct
+    - Horoscope chart style needs correction
     """
     try:
         # Parse birth datetime
-        dt_birth = datetime.fromisoformat(birth_datetime.replace('Z', '+05:30'))
+        dt_birth = datetime.fromisoformat(request.birth_datetime.replace('Z', '+05:30'))
         
         # Get temple name if not provided
+        temple_name = request.temple_name
         if not temple_name:
             from app.models.temple import Temple
             temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
@@ -87,11 +97,11 @@ def generate_kundli(
         # Generate Kundli data
         kundli_data = panchang_service.generate_kundli_pdf_data(
             dt_birth=dt_birth,
-            lat=latitude,
-            lon=longitude,
-            name=name,
+            lat=request.latitude,
+            lon=request.longitude,
+            name=request.name,
             temple_name=temple_name,
-            temple_logo_url=temple_logo_url or ""
+            temple_logo_url=request.temple_logo_url or ""
         )
         
         return {
