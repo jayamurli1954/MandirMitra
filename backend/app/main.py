@@ -60,6 +60,7 @@ from app.api.audit_logs import router as audit_logs_router
 from app.api.certificates import router as certificates_router
 from app.api.bank_reconciliation import router as bank_reconciliation_router
 from app.api.financial_closing import router as financial_closing_router
+from app.api.license import router as license_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -109,12 +110,27 @@ app.include_router(audit_logs_router)
 app.include_router(certificates_router)
 app.include_router(bank_reconciliation_router)
 app.include_router(financial_closing_router)
+app.include_router(license_router)
 
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on application startup"""
     init_db()
+
+    # Check license status on startup
+    from app.licensing import check_trial_status
+    try:
+        status = check_trial_status()
+        if status.get("is_active"):
+            print(f"✅ License Active: {status.get('message')}")
+            if status.get("is_grace_period"):
+                print(f"⚠️  WARNING: Grace period - {status.get('grace_days_left')} days remaining")
+        else:
+            print(f"⚠️  LICENSE WARNING: {status.get('message')}")
+            print("   Some features may be restricted.")
+    except Exception as e:
+        print(f"ℹ️  No license found. Activate license to enable all features.")
 
 
 @app.get("/")
