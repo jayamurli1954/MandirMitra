@@ -244,3 +244,5 @@ curl -X PUT http://localhost:8000/api/v1/temples/modules/config \
 **Migration:** ✅ Run `python run_module_config_migration.py`
 **Default:** All modules enabled (including Tender) for demo/showcase
 
+
+

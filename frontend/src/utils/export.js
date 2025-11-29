@@ -558,3 +558,27 @@ export const exportAccountingReportToPDF = (reportData, reportType, dateRange = 
 
   doc.save(`${filename}.pdf`);
 };
+
+/**
+ * Export data to JSON format
+ */
+export const exportToJSON = (data, filename = 'export') => {
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    alert('No data to export');
+    return;
+  }
+
+  // Convert data to JSON string
+  const jsonContent = JSON.stringify(data, null, 2);
+
+  // Create blob and download
+  const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}.json`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};

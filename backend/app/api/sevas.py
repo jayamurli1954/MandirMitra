@@ -3,15 +3,17 @@ Seva API Endpoints
 Handles temple sevas/poojas/archanas
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date, datetime, timedelta
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.seva import Seva, SevaBooking, SevaCategory, SevaAvailability, SevaBookingStatus
+from app.models.devotee import Devotee
 from app.models.accounting import Account, JournalEntry, JournalLine, JournalEntryStatus, TransactionType
 from app.schemas.seva import (
     SevaCreate, SevaUpdate, SevaResponse, SevaListResponse,
@@ -20,6 +22,97 @@ from app.schemas.seva import (
 from app.constants.hindu_constants import GOTHRAS, NAKSHATRAS, RASHIS
 
 router = APIRouter(prefix="/api/v1/sevas", tags=["sevas"])
+
+
+def get_seva_safely(db: Session, seva_id: int = None, filter_conditions: dict = None):
+    """
+    Safely query Seva model, handling missing materials_required column
+    Returns Seva object or None (single) or list of Seva objects
+    """
+    from sqlalchemy import text
+    
+    # Check if materials_required column exists
+    column_check = db.execute(
+        text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'sevas' AND column_name = 'materials_required'
+        """)
+    ).fetchone()
+    
+    has_materials_column = column_check is not None
+    
+    if not has_materials_column:
+        # Use raw SQL
+        sql = """
+            SELECT id, name_english, name_kannada, name_sanskrit, description, category, 
+                   amount, min_amount, max_amount, availability, specific_day, except_day, 
+                   time_slot, max_bookings_per_day, advance_booking_days, requires_approval,
+                   is_active, is_token_seva, token_color, token_threshold, account_id,
+                   benefits, instructions, duration_minutes, created_at, updated_at
+            FROM sevas
+            WHERE 1=1
+        """
+        params = {}
+        
+        if seva_id:
+            sql += " AND id = :seva_id"
+            params["seva_id"] = seva_id
+        
+        if filter_conditions:
+            for key, value in filter_conditions.items():
+                sql += f" AND {key} = :{key}"
+                params[key] = value
+        
+        result = db.execute(text(sql), params)
+        rows = result.fetchall()
+        
+        if not rows:
+            return None if seva_id else []
+        
+        class SevaProxy:
+            def __init__(self, row_data):
+                self.id = row_data[0]
+                self.name_english = row_data[1]
+                self.name_kannada = row_data[2]
+                self.name_sanskrit = row_data[3]
+                self.description = row_data[4]
+                self.category = row_data[5]
+                self.amount = row_data[6]
+                self.min_amount = row_data[7]
+                self.max_amount = row_data[8]
+                self.availability = row_data[9]
+                self.specific_day = row_data[10]
+                self.except_day = row_data[11]
+                self.time_slot = row_data[12]
+                self.max_bookings_per_day = row_data[13]
+                self.advance_booking_days = row_data[14]
+                self.requires_approval = row_data[15]
+                self.is_active = row_data[16]
+                self.is_token_seva = row_data[17]
+                self.token_color = row_data[18]
+                self.token_threshold = row_data[19]
+                self.account_id = row_data[20]
+                self.benefits = row_data[21]
+                self.instructions = row_data[22]
+                self.duration_minutes = row_data[23]
+                self.created_at = row_data[24]
+                self.updated_at = row_data[25]
+                self.materials_required = None
+        
+        if seva_id:
+            return SevaProxy(rows[0]) if rows else None
+        else:
+            return [SevaProxy(r) for r in rows]
+    else:
+        # Use normal ORM
+        query = db.query(Seva)
+        if seva_id:
+            query = query.filter(Seva.id == seva_id)
+        if filter_conditions:
+            for key, value in filter_conditions.items():
+                query = query.filter(getattr(Seva, key) == value)
+        return query.first() if seva_id else query.all()
 
 
 def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
@@ -174,12 +267,78 @@ def list_sevas(
     db: Session = Depends(get_db)
 ):
     """List all sevas with availability check"""
-    query = db.query(Seva).filter(Seva.is_active == is_active)
-
-    if category:
-        query = query.filter(Seva.category == category)
-
-    sevas = query.all()
+    from sqlalchemy import text
+    
+    # Check if materials_required column exists in database
+    column_check = db.execute(
+        text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'sevas' AND column_name = 'materials_required'
+        """)
+    ).fetchone()
+    
+    has_materials_column = column_check is not None
+    
+    # Build query using raw SQL if column doesn't exist, otherwise use ORM
+    if not has_materials_column:
+        # Use raw SQL to select only existing columns
+        sql = """
+            SELECT id, name_english, name_kannada, name_sanskrit, description, category, 
+                   amount, min_amount, max_amount, availability, specific_day, except_day, 
+                   time_slot, max_bookings_per_day, advance_booking_days, requires_approval,
+                   is_active, is_token_seva, token_color, token_threshold, account_id,
+                   benefits, instructions, duration_minutes, created_at, updated_at
+            FROM sevas
+            WHERE is_active = :is_active
+        """
+        params = {"is_active": is_active}
+        
+        if category:
+            sql += " AND category = :category"
+            params["category"] = category.value
+        
+        result = db.execute(text(sql), params)
+        rows = result.fetchall()
+        
+        # Convert rows to Seva-like objects
+        class SevaProxy:
+            def __init__(self, row_data):
+                self.id = row_data[0]
+                self.name_english = row_data[1]
+                self.name_kannada = row_data[2]
+                self.name_sanskrit = row_data[3]
+                self.description = row_data[4]
+                self.category = row_data[5]
+                self.amount = row_data[6]
+                self.min_amount = row_data[7]
+                self.max_amount = row_data[8]
+                self.availability = row_data[9]
+                self.specific_day = row_data[10]
+                self.except_day = row_data[11]
+                self.time_slot = row_data[12]
+                self.max_bookings_per_day = row_data[13]
+                self.advance_booking_days = row_data[14]
+                self.requires_approval = row_data[15]
+                self.is_active = row_data[16]
+                self.is_token_seva = row_data[17]
+                self.token_color = row_data[18]
+                self.token_threshold = row_data[19]
+                self.account_id = row_data[20]
+                self.benefits = row_data[21]
+                self.instructions = row_data[22]
+                self.duration_minutes = row_data[23]
+                self.created_at = row_data[24]
+                self.updated_at = row_data[25]
+                self.materials_required = None  # Set to None since column doesn't exist
+        
+        sevas = [SevaProxy(row) for row in rows]
+    else:
+        # Use normal ORM query
+        query = db.query(Seva).filter(Seva.is_active == is_active)
+        if category:
+            query = query.filter(Seva.category == category)
+        sevas = query.all()
 
     # Add availability check for specific date
     check_date = for_date or date.today()
@@ -189,17 +348,48 @@ def list_sevas(
 
     result = []
     for seva in sevas:
-        seva_dict = SevaListResponse.from_orm(seva).__dict__
+        # Convert enum values to lowercase for Pydantic schema
+        # Database may have uppercase values (SPECIAL, SPECIFIC_DAY) but schema expects lowercase
+        # Handle both enum objects and string values from database
+        def normalize_enum(value):
+            """Convert enum or string to lowercase string"""
+            if value is None:
+                return None
+            if hasattr(value, 'value'):
+                # It's an enum object
+                return value.value.lower()
+            # It's a string (from raw SQL query)
+            return str(value).lower()
+        
+        seva_data = {
+            'id': seva.id,
+            'name_english': seva.name_english,
+            'name_kannada': seva.name_kannada,
+            'name_sanskrit': seva.name_sanskrit,
+            'description': seva.description,
+            'category': normalize_enum(seva.category),
+            'amount': seva.amount,
+            'min_amount': seva.min_amount,
+            'max_amount': seva.max_amount,
+            'availability': normalize_enum(seva.availability),
+            'specific_day': seva.specific_day,
+            'except_day': seva.except_day,
+            'time_slot': seva.time_slot,
+            'is_active': seva.is_active,
+        }
+        seva_dict = SevaListResponse(**seva_data).__dict__
 
         # Check availability
+        # Normalize availability for comparison (handle both enum and string)
+        availability_str = normalize_enum(seva.availability)
         is_available = True
-        if seva.availability == SevaAvailability.SPECIFIC_DAY:
+        if availability_str == 'specific_day':
             is_available = (day_of_week == seva.specific_day)
-        elif seva.availability == SevaAvailability.EXCEPT_DAY:
+        elif availability_str == 'except_day':
             is_available = (day_of_week != seva.except_day)
-        elif seva.availability == SevaAvailability.WEEKDAY:
+        elif availability_str == 'weekday':
             is_available = (day_of_week >= 1 and day_of_week <= 5)
-        elif seva.availability == SevaAvailability.WEEKEND:
+        elif availability_str == 'weekend':
             is_available = (day_of_week == 0 or day_of_week == 6)
 
         seva_dict['is_available_today'] = is_available
@@ -243,7 +433,7 @@ def get_seva(
     db: Session = Depends(get_db)
 ):
     """Get seva details"""
-    seva = db.query(Seva).filter(Seva.id == seva_id).first()
+    seva = get_seva_safely(db, seva_id=seva_id)
     if not seva:
         raise HTTPException(status_code=404, detail="Seva not found")
     return seva
@@ -252,14 +442,36 @@ def get_seva(
 def create_seva(
     seva_data: SevaCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = None
 ):
     """Create new seva (admin only)"""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only admins can create sevas")
 
     seva = Seva(**seva_data.dict())
+    seva.temple_id = current_user.temple_id if current_user else None
     db.add(seva)
+    db.flush()  # Get seva.id for audit log
+    
+    # Create audit log
+    try:
+        from app.core.audit import log_action, get_entity_dict
+        log_action(
+            db=db,
+            user=current_user,
+            action="CREATE",
+            entity_type="Seva",
+            entity_id=seva.id,
+            new_values=get_entity_dict(seva),
+            description=f"Created seva: {seva.name_english}",
+            ip_address=request.client.host if request else None,
+            user_agent=request.headers.get("user-agent") if request else None
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create audit log: {e}")
+        # Don't fail seva creation if audit log fails
+    
     db.commit()
     db.refresh(seva)
     return seva
@@ -269,20 +481,47 @@ def update_seva(
     seva_id: int,
     seva_data: SevaUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = None
 ):
     """Update seva (admin only)"""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only admins can update sevas")
 
-    seva = db.query(Seva).filter(Seva.id == seva_id).first()
+    seva = get_seva_safely(db, seva_id=seva_id)
     if not seva:
         raise HTTPException(status_code=404, detail="Seva not found")
 
+    # Get old values for audit log
+    old_values = get_entity_dict(seva) if hasattr(seva, '__table__') else {}
+
+    # Update fields
     for key, value in seva_data.dict(exclude_unset=True).items():
         setattr(seva, key, value)
 
     seva.updated_at = datetime.utcnow()
+    db.flush()
+    
+    # Create audit log
+    try:
+        from app.core.audit import log_action, get_entity_dict
+        new_values = get_entity_dict(seva) if hasattr(seva, '__table__') else {}
+        log_action(
+            db=db,
+            user=current_user,
+            action="UPDATE",
+            entity_type="Seva",
+            entity_id=seva.id,
+            old_values=old_values,
+            new_values=new_values,
+            description=f"Updated seva: {seva.name_english}",
+            ip_address=request.client.host if request else None,
+            user_agent=request.headers.get("user-agent") if request else None
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create audit log: {e}")
+        # Don't fail seva update if audit log fails
+    
     db.commit()
     db.refresh(seva)
     return seva
@@ -290,20 +529,165 @@ def update_seva(
 @router.delete("/{seva_id}")
 def delete_seva(
     seva_id: int,
+    reason: Optional[str] = Query(None, description="Reason for deletion (required)"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = None
 ):
-    """Delete seva (soft delete by marking inactive)"""
+    """Delete seva (soft delete by marking inactive)
+    
+    Requirements:
+    - Admin approval required
+    - Cannot delete if there are future bookings
+    - Reason must be provided
+    """
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only admins can delete sevas")
+    
+    if not reason or not reason.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Reason for deletion is required. Please provide a reason for audit trail."
+        )
 
-    seva = db.query(Seva).filter(Seva.id == seva_id).first()
+    seva = get_seva_safely(db, seva_id=seva_id)
     if not seva:
         raise HTTPException(status_code=404, detail="Seva not found")
 
+    # Check for future bookings
+    future_bookings = db.query(SevaBooking).filter(
+        SevaBooking.seva_id == seva_id,
+        SevaBooking.booking_date >= date.today(),
+        SevaBooking.status.in_([SevaBookingStatus.PENDING, SevaBookingStatus.CONFIRMED])
+    ).count()
+    
+    if future_bookings > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete seva. There are {future_bookings} future booking(s). Please cancel or complete all future bookings first."
+        )
+
+    # Get old values for audit log
+    old_values = get_entity_dict(seva) if hasattr(seva, '__table__') else {}
+
+    # Soft delete by marking inactive
     seva.is_active = False
+    seva.updated_at = datetime.utcnow()
+    db.flush()
+    
+    # Create audit log with reason
+    try:
+        from app.core.audit import log_action, get_entity_dict
+        new_values = get_entity_dict(seva) if hasattr(seva, '__table__') else {}
+        log_action(
+            db=db,
+            user=current_user,
+            action="DELETE",
+            entity_type="Seva",
+            entity_id=seva.id,
+            old_values=old_values,
+            new_values=new_values,
+            description=f"Deleted seva: {seva.name_english}. Reason: {reason}",
+            ip_address=request.client.host if request else None,
+            user_agent=request.headers.get("user-agent") if request else None
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create audit log: {e}")
+        # Don't fail seva deletion if audit log fails
+    
     db.commit()
     return {"message": "Seva deleted successfully"}
+
+# ===== SEVA AVAILABILITY & BOOKING HELPERS =====
+
+@router.get("/{seva_id}/available-dates")
+def get_available_dates(
+    seva_id: int,
+    weeks_ahead: int = Query(12, ge=1, le=52, description="Number of weeks to look ahead"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get available booking dates for a seva
+    
+    Returns list of dates with:
+    - Date
+    - Day of week
+    - Available slots (max_bookings_per_day - current_bookings)
+    - Is available (boolean)
+    """
+    seva = get_seva_safely(db, seva_id=seva_id)
+    if not seva:
+        raise HTTPException(status_code=404, detail="Seva not found")
+    
+    if not seva.is_active:
+        raise HTTPException(status_code=400, detail="Seva is not active")
+    
+    # Normalize availability
+    availability_str = str(seva.availability).lower()
+    if hasattr(seva.availability, 'value'):
+        availability_str = seva.availability.value.lower()
+    
+    # Calculate date range
+    start_date = date.today()
+    end_date = start_date + timedelta(weeks=weeks_ahead)
+    
+    available_dates = []
+    current_date = start_date
+    
+    day_names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    
+    while current_date <= end_date:
+        day_of_week = (current_date.weekday() + 1) % 7  # 0=Sunday, 6=Saturday
+        
+        # Check if seva is available on this day
+        is_available_day = True
+        if availability_str == 'specific_day':
+            is_available_day = (day_of_week == seva.specific_day)
+        elif availability_str == 'except_day':
+            is_available_day = (day_of_week != seva.except_day)
+        elif availability_str == 'weekday':
+            is_available_day = (day_of_week >= 1 and day_of_week <= 5)
+        elif availability_str == 'weekend':
+            is_available_day = (day_of_week == 0 or day_of_week == 6)
+        # 'daily' and 'festival_only' are always available (subject to max bookings)
+        
+        if is_available_day:
+            # Check advance booking limit
+            days_ahead = (current_date - start_date).days
+            if days_ahead <= seva.advance_booking_days:
+                # Count existing bookings for this date
+                existing_bookings = db.query(SevaBooking).filter(
+                    SevaBooking.seva_id == seva_id,
+                    SevaBooking.booking_date == current_date,
+                    SevaBooking.status.in_([SevaBookingStatus.PENDING, SevaBookingStatus.CONFIRMED])
+                ).count()
+                
+                max_bookings = seva.max_bookings_per_day if seva.max_bookings_per_day else 999
+                available_slots = max(0, max_bookings - existing_bookings)
+                is_available = available_slots > 0
+                
+                available_dates.append({
+                    "date": current_date.isoformat(),
+                    "day_of_week": day_names[day_of_week],
+                    "day_number": day_of_week,
+                    "available_slots": available_slots,
+                    "max_slots": max_bookings,
+                    "booked_slots": existing_bookings,
+                    "is_available": is_available,
+                    "time_slot": seva.time_slot
+                })
+        
+        current_date += timedelta(days=1)
+    
+    return {
+        "seva_id": seva_id,
+        "seva_name": seva.name_english,
+        "availability_type": availability_str,
+        "specific_day": seva.specific_day,
+        "max_bookings_per_day": seva.max_bookings_per_day,
+        "advance_booking_days": seva.advance_booking_days,
+        "available_dates": available_dates
+    }
 
 # ===== SEVA BOOKINGS =====
 
@@ -362,7 +746,7 @@ def create_booking(
 ):
     """Create new seva booking"""
     # Validate seva exists and is active
-    seva = db.query(Seva).filter(Seva.id == booking_data.seva_id, Seva.is_active == True).first()
+    seva = get_seva_safely(db, seva_id=booking_data.seva_id, filter_conditions={"is_active": True})
     if not seva:
         raise HTTPException(status_code=404, detail="Seva not found or inactive")
 
@@ -390,7 +774,11 @@ def create_booking(
         ).count()
 
         if existing_bookings >= seva.max_bookings_per_day:
-            raise HTTPException(status_code=400, detail="No slots available for this date")
+            available_slots = seva.max_bookings_per_day - existing_bookings
+            raise HTTPException(
+                status_code=400,
+                detail=f"No slots available for this date. Maximum {seva.max_bookings_per_day} booking(s) allowed per day. Already booked: {existing_bookings}/{seva.max_bookings_per_day}"
+            )
 
     # Generate receipt number
     receipt_number = f"SEV{datetime.now().strftime('%Y%m%d%H%M%S')}{booking_data.seva_id}"
@@ -486,7 +874,23 @@ def create_booking(
     
     # Serialize seva relationship
     if booking.seva:
-        response_data["seva"] = SevaResponse.from_attributes(booking.seva)
+        try:
+            # Try from_orm first (Pydantic v1), then model_validate (Pydantic v2)
+            if hasattr(SevaResponse, 'from_orm'):
+                response_data["seva"] = SevaResponse.from_orm(booking.seva)
+            else:
+                response_data["seva"] = SevaResponse.model_validate(booking.seva)
+        except Exception as e:
+            print(f"Error serializing seva: {e}")
+            # Fallback to manual dict construction
+            response_data["seva"] = {
+                "id": booking.seva.id,
+                "name_english": booking.seva.name_english,
+                "name_kannada": getattr(booking.seva, 'name_kannada', None),
+                "name_sanskrit": getattr(booking.seva, 'name_sanskrit', None),
+                "category": str(booking.seva.category) if hasattr(booking.seva, 'category') else None,
+                "amount": booking.seva.amount
+            }
     else:
         response_data["seva"] = None
     

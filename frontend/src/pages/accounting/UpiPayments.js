@@ -39,7 +39,7 @@ function UpiPayments() {
     amount: '',
     sender_upi_id: '',
     upi_reference_number: '',
-    payment_purpose: 'DONATION',
+    payment_purpose: 'donation',
     notes: '',
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -92,17 +92,36 @@ function UpiPayments() {
 
     try {
       const token = localStorage.getItem('token');
+      
+      // Find devotee by phone number
+      const devotee = devotees.find(d => d.phone === formData.devotee_phone);
+      if (!devotee) {
+        setSnackbar({ 
+          open: true, 
+          message: 'Devotee not found. Please ensure the phone number exists in the system.', 
+          severity: 'error' 
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Prepare payload according to UpiPaymentQuickLog schema
+      const payload = {
+        devotee_id: devotee.id,
+        amount: parseFloat(formData.amount),
+        sender_phone: formData.devotee_phone, // Use devotee phone as sender phone
+        payment_purpose: formData.payment_purpose, // Already lowercase
+        upi_reference_number: formData.upi_reference_number || null,
+        notes: formData.notes || null,
+      };
+
       const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/upi-payments/quick-log`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          ...formData,
-          amount: parseFloat(formData.amount),
-          payment_datetime: new Date().toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
@@ -114,16 +133,36 @@ function UpiPayments() {
           amount: '',
           sender_upi_id: '',
           upi_reference_number: '',
-          payment_purpose: 'DONATION',
+          payment_purpose: 'donation',
           notes: '',
         });
         fetchPayments();
       } else {
         const errorData = await response.json();
-        setSnackbar({ open: true, message: errorData.detail || 'Failed to log payment', severity: 'error' });
+        // Handle validation errors (422) - errorData.detail is an array
+        let errorMessage = 'Failed to log payment';
+        if (errorData.detail) {
+          if (Array.isArray(errorData.detail)) {
+            // Format validation errors
+            errorMessage = errorData.detail.map(err => {
+              const field = err.loc ? err.loc.join('.') : 'field';
+              return `${field}: ${err.msg}`;
+            }).join(', ');
+          } else if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          } else {
+            errorMessage = JSON.stringify(errorData.detail);
+          }
+        }
+        setSnackbar({ open: true, message: errorMessage, severity: 'error' });
       }
     } catch (error) {
-      setSnackbar({ open: true, message: 'Error logging payment', severity: 'error' });
+      console.error('Error logging payment:', error);
+      setSnackbar({ 
+        open: true, 
+        message: error.message || 'Error logging payment. Please try again.', 
+        severity: 'error' 
+      });
     } finally {
       setLoading(false);
     }

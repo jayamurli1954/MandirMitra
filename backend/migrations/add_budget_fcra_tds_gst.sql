@@ -87,3 +87,5 @@ COMMENT ON COLUMN donations.gst_amount IS 'GST amount';
 COMMENT ON COLUMN donations.gst_rate IS 'GST rate percentage';
 COMMENT ON COLUMN donations.hsn_code IS 'HSN code for GST';
 
+
+

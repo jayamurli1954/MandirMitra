@@ -42,6 +42,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import GavelIcon from '@mui/icons-material/Gavel';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import Watermark from './Watermark';
 
 const drawerWidth = 260;
@@ -57,6 +58,7 @@ const baseMenuItems = [
   { text: 'Tender Management', icon: <GavelIcon />, path: '/tenders', module: 'module_tender_enabled' },
   { text: 'HR & Payroll', icon: <PeopleAltIcon />, path: '/hr', module: 'module_hr_enabled' },
   { text: 'Hundi Management', icon: <AccountBalanceWalletIcon />, path: '/hundi', module: 'module_hundi_enabled' },
+  { text: 'Token Seva', icon: <ConfirmationNumberIcon />, path: '/token-seva', module: 'module_token_seva_enabled' },
   { text: 'Reports', icon: <AssessmentIcon />, path: '/reports', module: 'module_reports_enabled' },
   { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', module: 'module_panchang_enabled' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', module: null }, // Always visible
@@ -64,6 +66,7 @@ const baseMenuItems = [
 
 const accountingMenuItems = [
   { text: 'Chart of Accounts', icon: <AccountTreeIcon />, path: '/accounting/chart-of-accounts' },
+  { text: 'Bank Accounts', icon: <AccountBalanceIcon />, path: '/accounting/bank-accounts' },
   { text: 'Quick Expense', icon: <MoneyOffIcon />, path: '/accounting/quick-expense' },
   { text: 'Journal Entries', icon: <ReceiptIcon />, path: '/accounting/journal-entries' },
   { text: 'UPI Payments', icon: <PaymentIcon />, path: '/accounting/upi-payments' },

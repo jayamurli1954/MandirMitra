@@ -156,3 +156,5 @@ class StockWastage(Base):
     approved_by_user = relationship("User", foreign_keys=[approved_by])
     journal_entry = relationship("JournalEntry")
 
+
+

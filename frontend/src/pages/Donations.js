@@ -17,6 +17,9 @@ import {
   TableRow,
   IconButton,
   Chip,
+  Checkbox,
+  FormControlLabel,
+  Collapse,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -37,10 +40,42 @@ import { useNotification } from '../contexts/NotificationContext';
 function Donations() {
   const { showSuccess, showError } = useNotification();
   const [donations, setDonations] = useState([
-    { devotee_name: '', devotee_phone: '', pincode: '', city: '', state: '', country: 'India', amount: '', category: '', payment_mode: 'Cash' }
+    { 
+      name_prefix: '',
+      devotee_first_name: '', 
+      devotee_last_name: '',
+      devotee_phone: '', 
+      country_code: '+91',
+      pincode: '', 
+      city: '', 
+      state: '', 
+      country: 'India', 
+      amount: '', 
+      category: '', 
+      payment_mode: 'Cash',
+      donation_type: 'cash',
+      bank_account_id: '',
+      sender_upi_id: '',
+      upi_reference_number: '',
+      cheque_number: '',
+      cheque_date: '',
+      cheque_bank_name: '',
+      cheque_branch: '',
+      utr_number: '',
+      payer_name: '',
+      is_anonymous: false,
+      // In-kind fields
+      inkind_subtype: '',
+      item_name: '',
+      item_description: '',
+      quantity: '',
+      unit: '',
+      value_assessed: ''
+    }
   ]);
   const [categories, setCategories] = useState([]);
   const [devotees, setDevotees] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -59,7 +94,19 @@ function Donations() {
     fetchCategories();
     fetchDevotees();
     fetchDonations();
+    fetchBankAccounts();
   }, []);
+
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await api.get('/api/v1/donations/bank-accounts');
+      if (response.data) {
+        setBankAccounts(response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching bank accounts:', err);
+    }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -104,7 +151,29 @@ function Donations() {
 
   const handleAddRow = () => {
     if (donations.length < 5) {
-      setDonations([...donations, { devotee_name: '', devotee_phone: '', pincode: '', city: '', state: '', country: 'India', amount: '', category: '', payment_mode: 'Cash' }]);
+      setDonations([...donations, { 
+        name_prefix: '',
+        devotee_first_name: '',
+        devotee_last_name: '',
+        devotee_phone: '', 
+        country_code: '+91',
+        pincode: '', 
+        city: '', 
+        state: '', 
+        country: 'India', 
+        amount: '', 
+        category: '', 
+        payment_mode: 'Cash',
+        donation_type: 'cash',
+        bank_account_id: '',
+        is_anonymous: false,
+        inkind_subtype: '',
+        item_name: '',
+        item_description: '',
+        quantity: '',
+        unit: '',
+        value_assessed: ''
+      }]);
     }
   };
 
@@ -140,23 +209,47 @@ function Donations() {
     updated[index][field] = value;
     
     // Auto-fill devotee details when mobile number is entered
-    if (field === 'devotee_phone' && value && value.length === 10) {
-      setSearchingDevotees({ ...searchingDevotees, [index]: true });
-      try {
-        const response = await api.get(`/api/v1/devotees/search/by-mobile/${value}`);
-        if (response.data) {
-          // Devotee found - auto-fill all details
-          updated[index].devotee_name = response.data.name || '';
-          updated[index].pincode = response.data.pincode || '';
-          updated[index].city = response.data.city || '';
-          updated[index].state = response.data.state || '';
-          updated[index].country = response.data.country || 'India';
+    // Search when phone number is entered (handle different lengths for different countries)
+    if (field === 'devotee_phone' && value) {
+      // For India (+91), search when 10 digits are entered
+      // For other countries, search when reasonable length is reached
+      const countryCode = updated[index].country_code || '+91';
+      const shouldSearch = (countryCode === '+91' && value.length === 10) || 
+                          (countryCode !== '+91' && value.length >= 7);
+      
+      if (shouldSearch) {
+        setSearchingDevotees({ ...searchingDevotees, [index]: true });
+        try {
+          // Search with country code + phone number
+          const fullPhone = `${countryCode}${value}`;
+          // Always search with +91 first (default to India)
+          const searchPhone = countryCode === '+91' ? `+91${value}` : fullPhone;
+          const response = await api.get(`/api/v1/devotees/search/by-mobile/${searchPhone}`);
+          if (response.data && response.data.length > 0) {
+            // If multiple results, use the first one (prioritized by country code match)
+            const devotee = response.data[0];
+            // If multiple results with different country codes, show selection dialog
+            if (response.data.length > 1) {
+              // For now, use the first match (exact country code match is first)
+              // TODO: Could show a dialog to select from multiple matches
+              console.log(`Multiple devotees found for phone ${value}. Using first match.`);
+            }
+            // Devotee found - auto-fill all details
+            updated[index].name_prefix = devotee.name_prefix || '';
+            updated[index].devotee_first_name = devotee.first_name || (devotee.name ? devotee.name.split(' ')[0] : '');
+            updated[index].devotee_last_name = devotee.last_name || (devotee.name && devotee.name.split(' ').length > 1 ? devotee.name.split(' ').slice(1).join(' ') : '');
+            updated[index].country_code = devotee.country_code || countryCode;
+            updated[index].pincode = devotee.pincode || '';
+            updated[index].city = devotee.city || '';
+            updated[index].state = devotee.state || '';
+            updated[index].country = devotee.country || 'India';
+          }
+        } catch (err) {
+          // Devotee not found - that's okay, user will enter manually
+          console.log('Devotee not found for mobile:', value);
+        } finally {
+          setSearchingDevotees({ ...searchingDevotees, [index]: false });
         }
-      } catch (err) {
-        // Devotee not found - that's okay, user will enter manually
-        console.log('Devotee not found for mobile:', value);
-      } finally {
-        setSearchingDevotees({ ...searchingDevotees, [index]: false });
       }
     }
     
@@ -182,7 +275,7 @@ function Donations() {
     try {
       // Validate all entries
       const validDonations = donations.filter(d => 
-        d.devotee_name && d.devotee_phone && d.amount && d.category
+        (d.devotee_first_name || d.devotee_name) && d.devotee_phone && d.amount && d.category
       );
 
       if (validDonations.length === 0) {
@@ -192,24 +285,82 @@ function Donations() {
       }
 
       // Save each donation
-      const promises = validDonations.map(donation => 
-        api.post('/api/v1/donations', {
+      const promises = validDonations.map(donation => {
+        const payload = {
           devotee_name: donation.devotee_name,
           devotee_phone: donation.devotee_phone,
+          name_prefix: donation.name_prefix || undefined,
+          country_code: donation.country_code || '+91',
           amount: parseFloat(donation.amount),
           category: donation.category,
-          payment_mode: donation.payment_mode,
+          donation_type: donation.donation_type || 'cash',
+          is_anonymous: donation.is_anonymous || false,
           pincode: donation.pincode || undefined,
           city: donation.city || undefined,
           state: donation.state || undefined,
           country: donation.country || 'India',
-        })
-      );
+        };
+        
+        // Add payment_mode and bank_account_id only for cash donations
+        if (donation.donation_type === 'cash') {
+          payload.payment_mode = donation.payment_mode;
+          // Add bank_account_id for non-cash payments
+          if (donation.payment_mode !== 'Cash' && donation.bank_account_id) {
+            payload.bank_account_id = parseInt(donation.bank_account_id);
+          }
+          // Add payment-specific fields
+          if (donation.payment_mode === 'UPI') {
+            payload.sender_upi_id = donation.sender_upi_id || undefined;
+            payload.upi_reference_number = donation.upi_reference_number || undefined;
+          } else if (donation.payment_mode === 'Cheque') {
+            payload.cheque_number = donation.cheque_number || undefined;
+            payload.cheque_date = donation.cheque_date || undefined;
+            payload.cheque_bank_name = donation.cheque_bank_name || undefined;
+            payload.cheque_branch = donation.cheque_branch || undefined;
+          } else if (donation.payment_mode === 'Online') {
+            payload.utr_number = donation.utr_number || undefined;
+            payload.payer_name = donation.payer_name || undefined;
+          }
+        }
+        
+        // Add in-kind fields if donation type is in_kind
+        if (donation.donation_type === 'in_kind') {
+          payload.inkind_subtype = donation.inkind_subtype || undefined;
+          payload.item_name = donation.item_name || undefined;
+          payload.item_description = donation.item_description || undefined;
+          payload.quantity = donation.quantity ? parseFloat(donation.quantity) : undefined;
+          payload.unit = donation.unit || undefined;
+          payload.value_assessed = donation.value_assessed ? parseFloat(donation.value_assessed) : parseFloat(donation.amount);
+        }
+        
+        return api.post('/api/v1/donations', payload);
+      });
 
       await Promise.all(promises);
       
       setSuccess(`Successfully recorded ${validDonations.length} donation(s)!`);
-      setDonations([{ devotee_name: '', devotee_phone: '', pincode: '', city: '', state: '', country: 'India', amount: '', category: '', payment_mode: 'Cash' }]);
+      setDonations([{ 
+        name_prefix: '',
+        devotee_name: '', 
+        devotee_phone: '', 
+        country_code: '+91',
+        pincode: '', 
+        city: '', 
+        state: '', 
+        country: 'India', 
+        amount: '', 
+        category: '', 
+        payment_mode: 'Cash',
+        donation_type: 'cash',
+        bank_account_id: '',
+        is_anonymous: false,
+        inkind_subtype: '',
+        item_name: '',
+        item_description: '',
+        quantity: '',
+        unit: '',
+        value_assessed: ''
+      }]);
       fetchDonations();
       
       setTimeout(() => setSuccess(''), 3000);
@@ -287,7 +438,76 @@ function Donations() {
               </Box>
 
               <Grid container spacing={2}>
-                {/* Mobile Number - FIRST FIELD */}
+                {/* Name Prefix */}
+                <Grid item xs={12} sm={6} md={1.5}>
+                  <TextField
+                    fullWidth
+                    select
+                    label="Prefix"
+                    value={donation.name_prefix || ''}
+                    onChange={(e) => handleChange(index, 'name_prefix', e.target.value)}
+                    size="small"
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    <MenuItem value="Mr.">Mr.</MenuItem>
+                    <MenuItem value="Mrs.">Mrs.</MenuItem>
+                    <MenuItem value="Ms.">Ms.</MenuItem>
+                    <MenuItem value="M/s">M/s</MenuItem>
+                    <MenuItem value="Dr.">Dr.</MenuItem>
+                    <MenuItem value="Shri">Shri</MenuItem>
+                    <MenuItem value="Smt.">Smt.</MenuItem>
+                    <MenuItem value="Kum.">Kum.</MenuItem>
+                  </TextField>
+                </Grid>
+                {/* First Name - Auto-filled when mobile found */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <TextField
+                    fullWidth
+                    label="First Name *"
+                    value={donation.devotee_first_name}
+                    onChange={(e) => handleChange(index, 'devotee_first_name', e.target.value)}
+                    required
+                    size="small"
+                    helperText={donation.devotee_first_name ? '✓ Auto-filled' : ''}
+                  />
+                </Grid>
+                {/* Last Name - Auto-filled when mobile found */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <TextField
+                    fullWidth
+                    label="Last Name"
+                    value={donation.devotee_last_name}
+                    onChange={(e) => handleChange(index, 'devotee_last_name', e.target.value)}
+                    size="small"
+                    helperText={donation.devotee_last_name ? '✓ Auto-filled' : ''}
+                  />
+                </Grid>
+                {/* Country Code */}
+                <Grid item xs={12} sm={6} md={1.5}>
+                  <TextField
+                    fullWidth
+                    select
+                    label="Country Code"
+                    value={donation.country_code || '+91'}
+                    onChange={(e) => handleChange(index, 'country_code', e.target.value)}
+                    size="small"
+                  >
+                    <MenuItem value="+91">+91 (India)</MenuItem>
+                    <MenuItem value="+1">+1 (USA/Canada)</MenuItem>
+                    <MenuItem value="+44">+44 (UK)</MenuItem>
+                    <MenuItem value="+971">+971 (UAE)</MenuItem>
+                    <MenuItem value="+65">+65 (Singapore)</MenuItem>
+                    <MenuItem value="+61">+61 (Australia)</MenuItem>
+                    <MenuItem value="+27">+27 (South Africa)</MenuItem>
+                    <MenuItem value="+60">+60 (Malaysia)</MenuItem>
+                    <MenuItem value="+66">+66 (Thailand)</MenuItem>
+                    <MenuItem value="+94">+94 (Sri Lanka)</MenuItem>
+                    <MenuItem value="+880">+880 (Bangladesh)</MenuItem>
+                    <MenuItem value="+977">+977 (Nepal)</MenuItem>
+                    <MenuItem value="+92">+92 (Pakistan)</MenuItem>
+                  </TextField>
+                </Grid>
+                {/* Mobile Number */}
                 <Grid item xs={12} sm={6} md={2}>
                   <TextField
                     fullWidth
@@ -296,23 +516,11 @@ function Donations() {
                     onChange={(e) => handleChange(index, 'devotee_phone', e.target.value)}
                     required
                     size="small"
-                    inputProps={{ maxLength: 10 }}
-                    helperText={searchingDevotees[index] ? 'Searching...' : 'Enter 10-digit mobile'}
+                    inputProps={{ maxLength: 15 }}
+                    helperText={searchingDevotees[index] ? 'Searching...' : 'Enter mobile number'}
                     InputProps={{
                       endAdornment: searchingDevotees[index] ? <CircularProgress size={16} /> : null
                     }}
-                  />
-                </Grid>
-                {/* Devotee Name - Auto-filled when mobile found */}
-                <Grid item xs={12} sm={6} md={2.5}>
-                  <TextField
-                    fullWidth
-                    label="Devotee Name *"
-                    value={donation.devotee_name}
-                    onChange={(e) => handleChange(index, 'devotee_name', e.target.value)}
-                    required
-                    size="small"
-                    helperText={donation.devotee_name ? '✓ Auto-filled' : ''}
                   />
                 </Grid>
                 {/* PIN Code - Early field for auto-fill */}
@@ -349,10 +557,25 @@ function Donations() {
                     helperText={donation.state ? '✓ Auto-filled' : ''}
                   />
                 </Grid>
+                {/* Donation Type */}
                 <Grid item xs={12} sm={6} md={2}>
                   <TextField
                     fullWidth
-                    label="Amount (₹)"
+                    select
+                    label="Donation Type *"
+                    value={donation.donation_type || 'cash'}
+                    onChange={(e) => handleChange(index, 'donation_type', e.target.value)}
+                    required
+                    size="small"
+                  >
+                    <MenuItem value="cash">Cash</MenuItem>
+                    <MenuItem value="in_kind">In-Kind</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} sm={6} md={2}>
+                  <TextField
+                    fullWidth
+                    label={donation.donation_type === 'in_kind' ? "Assessed Value (₹)" : "Amount (₹)"}
                     type="number"
                     value={donation.amount}
                     onChange={(e) => handleChange(index, 'amount', e.target.value)}
@@ -378,24 +601,253 @@ function Donations() {
                     ))}
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.5}>
-                  <TextField
-                    fullWidth
-                    select
-                    label="Payment Mode"
-                    value={donation.payment_mode}
-                    onChange={(e) => handleChange(index, 'payment_mode', e.target.value)}
-                    required
-                    size="small"
-                  >
-                    {paymentModes.map((mode) => (
-                      <MenuItem key={mode} value={mode}>
-                        {mode}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                {/* Payment Mode - only for cash donations */}
+                {donation.donation_type === 'cash' && (
+                  <Grid item xs={12} sm={6} md={2.5}>
+                    <TextField
+                      fullWidth
+                      select
+                      label="Payment Mode *"
+                      value={donation.payment_mode}
+                      onChange={(e) => handleChange(index, 'payment_mode', e.target.value)}
+                      required
+                      size="small"
+                    >
+                      {paymentModes.map((mode) => (
+                        <MenuItem key={mode} value={mode}>
+                          {mode}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                )}
+                {/* Bank Account - for non-cash payments */}
+                {donation.donation_type === 'cash' && 
+                 donation.payment_mode !== 'Cash' && 
+                 bankAccounts.length > 0 && (
+                  <Grid item xs={12} sm={6} md={2.5}>
+                    <TextField
+                      fullWidth
+                      select
+                      label="Bank Account *"
+                      value={donation.bank_account_id || ''}
+                      onChange={(e) => handleChange(index, 'bank_account_id', e.target.value)}
+                      required
+                      size="small"
+                      helperText="Select bank account"
+                    >
+                      {bankAccounts.map((account) => (
+                        <MenuItem key={account.id} value={account.id}>
+                          {account.name} ({account.bank_name}) {account.is_primary ? '(Primary)' : ''}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                )}
+                
+                {/* Payment-specific fields based on payment_mode */}
+                {donation.payment_mode === 'UPI' && (
+                  <>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <TextField
+                        fullWidth
+                        label="Sender UPI ID"
+                        value={donation.sender_upi_id || ''}
+                        onChange={(e) => handleChange(index, 'sender_upi_id', e.target.value)}
+                        size="small"
+                        placeholder="9876543210@paytm"
+                        helperText="From SMS notification"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <TextField
+                        fullWidth
+                        label="UPI Reference Number"
+                        value={donation.upi_reference_number || ''}
+                        onChange={(e) => handleChange(index, 'upi_reference_number', e.target.value)}
+                        size="small"
+                        placeholder="UTR/RRN from SMS"
+                        helperText="Transaction reference"
+                      />
+                    </Grid>
+                  </>
+                )}
+                
+                {donation.payment_mode === 'Cheque' && (
+                  <>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <TextField
+                        fullWidth
+                        label="Cheque Number *"
+                        value={donation.cheque_number || ''}
+                        onChange={(e) => handleChange(index, 'cheque_number', e.target.value)}
+                        required
+                        size="small"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <TextField
+                        fullWidth
+                        label="Cheque Date *"
+                        type="date"
+                        value={donation.cheque_date || ''}
+                        onChange={(e) => handleChange(index, 'cheque_date', e.target.value)}
+                        required
+                        size="small"
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <TextField
+                        fullWidth
+                        label="Bank Name *"
+                        value={donation.cheque_bank_name || ''}
+                        onChange={(e) => handleChange(index, 'cheque_bank_name', e.target.value)}
+                        required
+                        size="small"
+                        placeholder="e.g., SBI, HDFC"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <TextField
+                        fullWidth
+                        label="Branch"
+                        value={donation.cheque_branch || ''}
+                        onChange={(e) => handleChange(index, 'cheque_branch', e.target.value)}
+                        size="small"
+                        placeholder="Branch name"
+                      />
+                    </Grid>
+                  </>
+                )}
+                
+                {donation.payment_mode === 'Online' && (
+                  <>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <TextField
+                        fullWidth
+                        label="UTR Number *"
+                        value={donation.utr_number || ''}
+                        onChange={(e) => handleChange(index, 'utr_number', e.target.value)}
+                        required
+                        size="small"
+                        placeholder="Unique Transfer Reference"
+                        helperText="UTR from bank"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <TextField
+                        fullWidth
+                        label="Payer Name"
+                        value={donation.payer_name || ''}
+                        onChange={(e) => handleChange(index, 'payer_name', e.target.value)}
+                        size="small"
+                        placeholder="Name of person who made transfer"
+                        helperText="May be different from devotee"
+                      />
+                    </Grid>
+                  </>
+                )}
+                
+                {/* Anonymous Checkbox */}
+                <Grid item xs={12} sm={6} md={1.5}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={donation.is_anonymous || false}
+                        onChange={(e) => handleChange(index, 'is_anonymous', e.target.checked)}
+                        size="small"
+                      />
+                    }
+                    label="Anonymous"
+                  />
                 </Grid>
               </Grid>
+              
+              {/* In-Kind Donation Fields - shown only when donation_type is in_kind */}
+              <Collapse in={donation.donation_type === 'in_kind'}>
+                <Box sx={{ mt: 2, p: 2, bgcolor: '#f0f0f0', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
+                    In-Kind Donation Details
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="In-Kind Subtype *"
+                        value={donation.inkind_subtype || ''}
+                        onChange={(e) => handleChange(index, 'inkind_subtype', e.target.value)}
+                        required={donation.donation_type === 'in_kind'}
+                        size="small"
+                      >
+                        <MenuItem value="inventory">Inventory (Rice, Dal, etc.)</MenuItem>
+                        <MenuItem value="event_sponsorship">Event Sponsorship</MenuItem>
+                        <MenuItem value="asset">Asset (Gold, Silver, etc.)</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <TextField
+                        fullWidth
+                        label="Item Name *"
+                        value={donation.item_name || ''}
+                        onChange={(e) => handleChange(index, 'item_name', e.target.value)}
+                        required={donation.donation_type === 'in_kind'}
+                        size="small"
+                        placeholder="e.g., Rice, Gold, Flowers"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <TextField
+                        fullWidth
+                        label="Quantity"
+                        type="number"
+                        value={donation.quantity || ''}
+                        onChange={(e) => handleChange(index, 'quantity', e.target.value)}
+                        size="small"
+                        inputProps={{ min: 0, step: 0.01 }}
+                        required={donation.inkind_subtype === 'inventory'}
+                        helperText={donation.inkind_subtype === 'event_sponsorship' ? 'Optional for sponsorship' : ''}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <TextField
+                        fullWidth
+                        label="Unit"
+                        value={donation.unit || ''}
+                        onChange={(e) => handleChange(index, 'unit', e.target.value)}
+                        size="small"
+                        placeholder="kg, pieces, etc."
+                        required={donation.inkind_subtype === 'inventory'}
+                        helperText={donation.inkind_subtype === 'event_sponsorship' ? 'Optional for sponsorship' : ''}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <TextField
+                        fullWidth
+                        label="Assessed Value (₹)"
+                        type="number"
+                        value={donation.value_assessed || donation.amount || ''}
+                        onChange={(e) => handleChange(index, 'value_assessed', e.target.value)}
+                        size="small"
+                        inputProps={{ min: 0, step: 0.01 }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Item Description"
+                        value={donation.item_description || ''}
+                        onChange={(e) => handleChange(index, 'item_description', e.target.value)}
+                        size="small"
+                        multiline
+                        rows={2}
+                        placeholder="Additional details about the item"
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Collapse>
             </Paper>
           ))}
 
@@ -417,51 +869,56 @@ function Donations() {
             </Button>
           </Box>
         </Box>
-      </Paper>
-
-      <Paper sx={{ p: 3, mt: 3 }}>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-          Recent Donations
-        </Typography>
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
           </Box>
-        ) : donationList.length > 0 ? (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Devotee</TableCell>
-                  <TableCell>Amount</TableCell>
-                  <TableCell>Category</TableCell>
-                  <TableCell>Payment</TableCell>
-                  <TableCell>Receipt</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {donationList.slice(0, 10).map((donation) => (
-                  <TableRow key={donation.id}>
-                    <TableCell>{new Date(donation.donation_date || donation.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell>{donation.devotee?.name || 'N/A'}</TableCell>
-                    <TableCell>{formatCurrency(donation.amount)}</TableCell>
-                    <TableCell>
-                      <Chip label={donation.category?.name || 'General'} size="small" />
-                    </TableCell>
-                    <TableCell>{donation.payment_mode}</TableCell>
-                    <TableCell>{donation.receipt_number || 'N/A'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
-            No donations recorded yet
-          </Typography>
+        )}
+
+        {tabValue === 1 && (
+          <Box sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+              Donation List
+            </Typography>
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                <CircularProgress />
+              </Box>
+            ) : donationList.length > 0 ? (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Devotee</TableCell>
+                      <TableCell>Amount</TableCell>
+                      <TableCell>Category</TableCell>
+                      <TableCell>Payment</TableCell>
+                      <TableCell>Receipt</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {donationList.slice(0, 10).map((donation) => (
+                      <TableRow key={donation.id}>
+                        <TableCell>{new Date(donation.donation_date || donation.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{donation.devotee?.name || 'N/A'}</TableCell>
+                        <TableCell>{formatCurrency(donation.amount)}</TableCell>
+                        <TableCell>
+                          <Chip label={donation.category?.name || 'General'} size="small" />
+                        </TableCell>
+                        <TableCell>{donation.payment_mode}</TableCell>
+                        <TableCell>{donation.receipt_number || 'N/A'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+                No donations recorded yet
+              </Typography>
+            )}
+          </Box>
         )}
       </Paper>
+
     </Layout>
   );
 }

@@ -7,6 +7,7 @@ import ConstructionIcon from '@mui/icons-material/Construction';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import SettingsIcon from '@mui/icons-material/Settings';
 
 const AssetManagement = () => {
   const navigate = useNavigate();
@@ -53,6 +54,13 @@ const AssetManagement = () => {
       icon: <AccountBalanceIcon sx={{ fontSize: 48, color: '#0288d1' }} />,
       path: '/assets/revaluation',
       color: '#0288d1'
+    },
+    {
+      title: 'Advanced Features',
+      description: 'Asset transfers, verification, insurance, and documents',
+      icon: <SettingsIcon sx={{ fontSize: 48, color: '#7b1fa2' }} />,
+      path: '/assets/advanced',
+      color: '#7b1fa2'
     }
   ];
 

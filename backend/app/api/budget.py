@@ -571,3 +571,5 @@ def _enrich_budget_response(budget: Budget, db: Session, temple_id: Optional[int
         budget_items=items_response
     )
 
+
+

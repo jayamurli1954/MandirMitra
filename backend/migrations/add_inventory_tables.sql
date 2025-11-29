@@ -94,3 +94,5 @@ CREATE INDEX IF NOT EXISTS idx_stock_movements_item_id ON stock_movements(item_i
 CREATE INDEX IF NOT EXISTS idx_stock_movements_store_id ON stock_movements(store_id);
 
 
+
+

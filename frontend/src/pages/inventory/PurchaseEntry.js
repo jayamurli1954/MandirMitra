@@ -272,3 +272,5 @@ function PurchaseEntry() {
 export default PurchaseEntry;
 
 
+
+

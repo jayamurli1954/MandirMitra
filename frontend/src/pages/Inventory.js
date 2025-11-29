@@ -87,6 +87,13 @@ function Inventory() {
       icon: <AssessmentIcon sx={{ fontSize: 48 }} />,
       color: '#F44336',
       path: '/inventory/stock-report'
+    },
+    {
+      title: 'Stock Audit & Wastage',
+      description: 'Conduct stock audits and record wastage',
+      icon: <InventoryIcon sx={{ fontSize: 48 }} />,
+      color: '#E91E63',
+      path: '/inventory/audit-wastage'
     }
   ];
 

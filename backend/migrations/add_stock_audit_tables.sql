@@ -85,3 +85,5 @@ COMMENT ON TABLE stock_wastages IS 'Stock wastage/damage records';
 COMMENT ON COLUMN stock_audits.status IS 'Audit status: draft, in_progress, completed, approved, discrepancy';
 COMMENT ON COLUMN stock_wastages.reason IS 'Wastage reason: expired, damaged, spoiled, theft, loss, other';
 
+
+

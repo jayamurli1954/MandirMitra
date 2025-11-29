@@ -207,3 +207,5 @@ class AssetDocument(Base):
     asset = relationship("Asset", back_populates="documents")
     uploaded_by_user = relationship("User")
 
+
+
