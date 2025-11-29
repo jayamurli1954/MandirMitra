@@ -32,6 +32,7 @@ import StoreMaster from './pages/inventory/StoreMaster';
 import PurchaseEntry from './pages/inventory/PurchaseEntry';
 import IssueEntry from './pages/inventory/IssueEntry';
 import StockReport from './pages/inventory/StockReport';
+import StockAuditWastage from './pages/inventory/StockAuditWastage';
 import AssetManagement from './pages/AssetManagement';
 import AssetMaster from './pages/assets/AssetMaster';
 import AssetPurchase from './pages/assets/AssetPurchase';
@@ -39,11 +40,14 @@ import CWIPManagement from './pages/assets/CWIPManagement';
 import DepreciationPage from './pages/assets/DepreciationPage';
 import AssetReportsPage from './pages/assets/AssetReportsPage';
 import RevaluationDisposal from './pages/assets/RevaluationDisposal';
+import AssetManagementAdvanced from './pages/assets/AssetManagementAdvanced';
 import TenderManagement from './pages/tenders/TenderManagement';
 import HRManagement from './pages/hr/HRManagement';
 import HundiManagement from './pages/hundi/HundiManagement';
 import BankReconciliation from './pages/accounting/BankReconciliation';
 import FinancialClosing from './pages/accounting/FinancialClosing';
+import BankAccounts from './pages/accounting/BankAccounts';
+import TokenSeva from './pages/TokenSeva';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const theme = createTheme({
@@ -204,6 +208,14 @@ function App() {
             }
           />
           <Route
+            path="/accounting/bank-accounts"
+            element={
+              <ProtectedRoute>
+                <BankAccounts />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/accounting/quick-expense"
             element={
               <ProtectedRoute>
@@ -340,6 +352,14 @@ function App() {
             }
           />
           <Route
+            path="/assets/advanced"
+            element={
+              <ProtectedRoute>
+                <AssetManagementAdvanced />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/tenders"
             element={
               <ProtectedRoute>
@@ -360,6 +380,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <HundiManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/token-seva"
+            element={
+              <ProtectedRoute>
+                <TokenSeva />
               </ProtectedRoute>
             }
           />

@@ -94,8 +94,23 @@ class SevaBookingBase(BaseModel):
     booking_date: date
     booking_time: Optional[str] = Field(None, max_length=50)
     amount_paid: float = Field(..., gt=0)
-    payment_method: Optional[str] = Field(None, max_length=50)
-    payment_reference: Optional[str] = Field(None, max_length=100)
+    payment_method: Optional[str] = Field(None, max_length=50)  # Cash, Card, UPI, Cheque, Online
+    payment_reference: Optional[str] = Field(None, max_length=100)  # Legacy field
+    
+    # UPI Payment Details (if payment_method = 'UPI')
+    sender_upi_id: Optional[str] = Field(None, max_length=100)  # Sender's UPI ID
+    upi_reference_number: Optional[str] = Field(None, max_length=100)  # UPI transaction reference
+    
+    # Cheque Payment Details (if payment_method = 'Cheque')
+    cheque_number: Optional[str] = Field(None, max_length=50)
+    cheque_date: Optional[date] = None
+    cheque_bank_name: Optional[str] = Field(None, max_length=100)  # Name of bank
+    cheque_branch: Optional[str] = Field(None, max_length=100)  # Branch name
+    
+    # Online Transfer Details (if payment_method = 'Online')
+    utr_number: Optional[str] = Field(None, max_length=100)  # UTR (Unique Transfer Reference)
+    payer_name: Optional[str] = Field(None, max_length=200)  # Payer's name (may be different from devotee/seva kartha)
+    
     devotee_names: Optional[str] = None
     gotra: Optional[str] = Field(None, max_length=100)
     nakshatra: Optional[str] = Field(None, max_length=50)

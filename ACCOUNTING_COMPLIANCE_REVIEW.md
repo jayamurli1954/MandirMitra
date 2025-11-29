@@ -238,3 +238,5 @@ Depreciation = (Cost - Salvage) × (Units Used / Total Units)
 **Status:** Inventory module is **accounting compliant** with minor enhancements recommended. Asset module design follows **standard accounting practices** and **audit requirements**.
 
 
+
+

@@ -140,3 +140,5 @@ COMMENT ON TABLE asset_documents IS 'Asset documents and images storage';
 COMMENT ON COLUMN asset_physical_verifications.status IS 'Verification status: pending, verified, discrepancy, not_found';
 COMMENT ON COLUMN asset_valuation_history.valuation_type IS 'PURCHASE, REVALUATION, MARKET_VALUE, INSURANCE, DISPOSAL';
 
+
+

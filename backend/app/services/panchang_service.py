@@ -318,8 +318,8 @@ class PanchangService:
             jd_midnight = swe.julday(int(dt.year), int(dt.month), int(dt.day), 0.0)
 
             # Calculate sunrise - swe.rise_trans(jd_ut, ipl, rsmi, geopos, height)
-            # geopos must be a tuple/list: [longitude, latitude]
-            geopos = [lon, lat]
+            # geopos must be a tuple/list: [longitude, latitude, height] - 3 elements required
+            geopos = [lon, lat, 0.0]  # longitude, latitude, height in meters
             sunrise_result = swe.rise_trans(
                 jd_midnight,
                 swe.SUN,
@@ -354,14 +354,30 @@ class PanchangService:
                 return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
             # Check if calculations succeeded (return code >= 0 = success)
-            if sunrise_result[0] >= 0:
-                sunrise_time = jd_to_time_string(sunrise_result[1])
+            # swe.rise_trans returns (retval, jd_ut, serr) where retval >= 0 means success
+            # Extract jd_ut properly - it should be a float, not a tuple
+            if len(sunrise_result) >= 2 and sunrise_result[0] >= 0:
+                jd_sunrise = sunrise_result[1]
+                # Ensure jd_sunrise is a number, not a tuple
+                if isinstance(jd_sunrise, (tuple, list)):
+                    jd_sunrise = jd_sunrise[0] if len(jd_sunrise) > 0 else None
+                if jd_sunrise and isinstance(jd_sunrise, (int, float)):
+                    sunrise_time = jd_to_time_string(jd_sunrise)
+                else:
+                    sunrise_time = "06:25:00"  # Fallback
             else:
                 print(f"Sunrise calculation failed: {sunrise_result}")
                 sunrise_time = "06:25:00"  # Fallback for Bangalore
 
-            if sunset_result[0] >= 0:
-                sunset_time = jd_to_time_string(sunset_result[1])
+            if len(sunset_result) >= 2 and sunset_result[0] >= 0:
+                jd_sunset = sunset_result[1]
+                # Ensure jd_sunset is a number, not a tuple
+                if isinstance(jd_sunset, (tuple, list)):
+                    jd_sunset = jd_sunset[0] if len(jd_sunset) > 0 else None
+                if jd_sunset and isinstance(jd_sunset, (int, float)):
+                    sunset_time = jd_to_time_string(jd_sunset)
+                else:
+                    sunset_time = "17:46:00"  # Fallback
             else:
                 print(f"Sunset calculation failed: {sunset_result}")
                 sunset_time = "17:46:00"  # Fallback for Bangalore
@@ -395,8 +411,8 @@ class PanchangService:
         jd_start = swe.julday(int(dt.year), int(dt.month), int(dt.day), 0.0)
 
         try:
-            # geopos must be a tuple/list: [longitude, latitude]
-            geopos = [lon, lat]
+            # geopos must be a tuple/list: [longitude, latitude, height] - 3 elements required
+            geopos = [lon, lat, 0.0]  # longitude, latitude, height in meters
             
             # Moonrise - search from previous day to catch events near midnight
             rise_result = swe.rise_trans(
@@ -444,13 +460,28 @@ class PanchangService:
             moonset = None
 
             # Check if calculations succeeded (return code >= 0)
-            if rise_result[0] >= 0:
-                moonrise = jd_to_ist_time(rise_result[1])
+            # swe.rise_trans returns (retval, jd_ut, serr) where retval >= 0 means success
+            if len(rise_result) >= 2 and rise_result[0] >= 0:
+                jd_moonrise = rise_result[1]
+                # Ensure jd_moonrise is a number, not a tuple
+                if isinstance(jd_moonrise, (tuple, list)):
+                    jd_moonrise = jd_moonrise[0] if len(jd_moonrise) > 0 else None
+                if jd_moonrise and isinstance(jd_moonrise, (int, float)):
+                    moonrise = jd_to_ist_time(jd_moonrise)
+                else:
+                    moonrise = None
             else:
                 print(f"Moonrise calculation failed: return code {rise_result[0]}")
 
-            if set_result[0] >= 0:
-                moonset = jd_to_ist_time(set_result[1])
+            if len(set_result) >= 2 and set_result[0] >= 0:
+                jd_moonset = set_result[1]
+                # Ensure jd_moonset is a number, not a tuple
+                if isinstance(jd_moonset, (tuple, list)):
+                    jd_moonset = jd_moonset[0] if len(jd_moonset) > 0 else None
+                if jd_moonset and isinstance(jd_moonset, (int, float)):
+                    moonset = jd_to_ist_time(jd_moonset)
+                else:
+                    moonset = None
             else:
                 print(f"Moonset calculation failed: return code {set_result[0]}")
 

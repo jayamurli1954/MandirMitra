@@ -153,3 +153,5 @@ COMMENT ON TABLE hundi_masters IS 'Master data for hundis (different hundis in t
 COMMENT ON TABLE hundi_openings IS 'Hundi opening schedule and tracking with multi-person verification';
 COMMENT ON TABLE hundi_denomination_counts IS 'Denomination-wise counting for each hundi opening';
 
+
+

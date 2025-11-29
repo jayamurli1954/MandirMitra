@@ -23,14 +23,26 @@ from app.models.inkind_sponsorship import (
     Sponsorship, SponsorshipPayment
 )
 from app.models.upi_banking import (
-    UpiPayment, BankAccount, BankTransaction, BankReconciliation
+    UpiPayment, BankAccount, BankTransaction
 )
+from app.models.bank_reconciliation import BankReconciliation
 from app.models.financial_period import FinancialYear, FinancialPeriod, PeriodClosing
 from app.models.budget import Budget, BudgetItem, BudgetRevision
-from app.models.asset import Asset, AssetCategory, AssetDisposal, AssetRevaluation
+from app.models.asset import (
+    Asset, AssetCategory, AssetDisposal, AssetRevaluation, Tender, TenderBid,
+    CapitalWorkInProgress, AssetExpense, DepreciationSchedule, AssetMaintenance
+)
 from app.models.asset_history import AssetTransfer, AssetValuationHistory, AssetPhysicalVerification, AssetInsurance, AssetDocument
 from app.models.inventory import Store, Item, StockBalance, StockMovement
 from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem, GRN, GRNItem, GIN, GINItem
+from app.models.hr import (
+    Department, Designation, Employee, SalaryComponent, SalaryStructure,
+    SalaryStructureComponent, Payroll, PayrollComponent, LeaveType, LeaveApplication
+)
+from app.models.hundi import HundiOpening, HundiDenominationCount, HundiMaster
+from app.models.token_seva import TokenInventory, TokenSale, TokenReconciliation
+from app.models.stock_audit import StockAudit, StockAuditItem, StockWastage
+from app.models.audit_log import AuditLog
 
 # Import routers
 from app.api.panchang_display_settings import router as panchang_display_settings_router
@@ -43,6 +55,7 @@ from app.api.accounts import router as accounts_router
 from app.api.journal_entries import router as journal_entries_router
 from app.api.vendors import router as vendors_router
 from app.api.upi_payments import router as upi_payments_router
+from app.api.payment_gateway import router as payment_gateway_router
 from app.api.inkind_donations import router as inkind_donations_router
 from app.api.sponsorships import router as sponsorships_router
 from app.api.financial_closing import router as financial_closing_router
@@ -52,6 +65,20 @@ from app.api.tds_gst import router as tds_gst_router
 from app.api.inventory import router as inventory_router
 from app.api.inventory_alerts import router as inventory_alerts_router
 from app.api.stock_audit import router as stock_audit_router
+from app.api.purchase_orders import router as purchase_orders_router
+from app.api.asset import router as asset_router
+from app.api.asset_management import router as asset_management_router
+from app.api.asset_reports import router as asset_reports_router
+from app.api.tenders import router as tenders_router
+from app.api.bank_reconciliation import router as bank_reconciliation_router
+from app.api.bank_accounts import router as bank_accounts_router
+from app.api.hundi import router as hundi_router
+from app.api.hr import router as hr_router
+from app.api.token_seva import router as token_seva_router
+from app.api.dashboard import router as dashboard_router
+from app.api.reports import router as reports_router
+from app.api.temples import router as temples_router
+from app.api.users import router as users_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -82,6 +109,7 @@ app.include_router(accounts_router)
 app.include_router(journal_entries_router)
 app.include_router(vendors_router)
 app.include_router(upi_payments_router)
+app.include_router(payment_gateway_router)
 app.include_router(inkind_donations_router)
 app.include_router(sponsorships_router)
 app.include_router(financial_closing_router)
@@ -95,6 +123,16 @@ app.include_router(purchase_orders_router)
 app.include_router(asset_router)
 app.include_router(asset_management_router)
 app.include_router(asset_reports_router)
+app.include_router(tenders_router)
+app.include_router(bank_reconciliation_router)
+app.include_router(bank_accounts_router)
+app.include_router(hundi_router)
+app.include_router(hr_router)
+app.include_router(token_seva_router)
+app.include_router(dashboard_router)
+app.include_router(reports_router)
+app.include_router(temples_router)
+app.include_router(users_router)
 
 # Initialize database on startup
 @app.on_event("startup")

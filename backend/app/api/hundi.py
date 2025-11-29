@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.hundi import HundiOpening, HundiDenominationCount, HundiMaster, HundiStatus
-from app.models.accounting import Account, JournalEntry, JournalLine, JournalEntryStatus, AccountType, AccountSubType
+from app.models.accounting import Account, JournalEntry, JournalLine, JournalEntryStatus, AccountType, AccountSubType, TransactionType
 from app.schemas.hundi import (
     HundiMasterCreate, HundiMasterUpdate, HundiMasterResponse,
     HundiOpeningCreate, HundiOpeningUpdate, HundiOpeningResponse, HundiOpeningListResponse,
@@ -23,7 +23,6 @@ from app.schemas.hundi import (
     RecordBankDepositRequest, ReconcileHundiRequest,
     HundiReportResponse
 )
-from app.models.donation import TransactionType
 
 router = APIRouter(prefix="/api/v1/hundi", tags=["hundi"])
 

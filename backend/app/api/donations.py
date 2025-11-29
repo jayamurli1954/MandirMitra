@@ -2,10 +2,10 @@
 Donation API Endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, text
 from typing import List, Optional
 from datetime import datetime, date, timedelta
 import io
@@ -122,21 +122,63 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
                     ).first()
         else:
             # Cash donation - determine debit account (payment method)
-            debit_account_code = None
-            if donation.payment_mode and donation.payment_mode.upper() in ['CASH', 'COUNTER']:
-                debit_account_code = '1101'  # Cash in Hand - Counter
-            elif donation.payment_mode and donation.payment_mode.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
-                debit_account_code = '1110'  # Bank - SBI Current Account
-            elif donation.payment_mode and 'HUNDI' in donation.payment_mode.upper():
-                debit_account_code = '1102'  # Cash in Hand - Hundi
-            else:
-                debit_account_code = '1101'  # Default to cash counter
+            debit_account = None
+            
+            # If bank_account_id is provided, use that account (for Card, UPI, Online, Cheque)
+            if hasattr(donation, 'bank_account_id') and donation.bank_account_id:
+                from app.models.upi_banking import BankAccount
+                bank_account = db.query(BankAccount).filter(
+                    BankAccount.id == donation.bank_account_id,
+                    BankAccount.temple_id == temple_id,
+                    BankAccount.is_active == True
+                ).first()
+                
+                if bank_account:
+                    # Get the linked chart of accounts account
+                    debit_account = db.query(Account).filter(
+                        Account.id == bank_account.chart_account_id,
+                        Account.temple_id == temple_id
+                    ).first()
+                    
+                    if debit_account:
+                        print(f"  Using selected bank account: {debit_account.account_code} - {debit_account.account_name}")
+            
+            # If no bank account selected or not found, fall back to payment mode logic
+            if not debit_account:
+                debit_account_code = None
+                if donation.payment_mode and donation.payment_mode.upper() in ['CASH', 'COUNTER']:
+                    debit_account_code = '1101'  # Cash in Hand - Counter
+                elif donation.payment_mode and donation.payment_mode.upper() in ['UPI', 'ONLINE', 'CARD', 'NETBANKING']:
+                    # Try to find primary bank account first
+                    from app.models.upi_banking import BankAccount
+                    primary_bank = db.query(BankAccount).filter(
+                        BankAccount.temple_id == temple_id,
+                        BankAccount.is_active == True,
+                        BankAccount.is_primary == True
+                    ).first()
+                    
+                    if primary_bank:
+                        debit_account = db.query(Account).filter(
+                            Account.id == primary_bank.chart_account_id,
+                            Account.temple_id == temple_id
+                        ).first()
+                        if debit_account:
+                            print(f"  Using primary bank account: {debit_account.account_code} - {debit_account.account_name}")
+                    
+                    # Fallback to hardcoded account code if no primary bank found
+                    if not debit_account:
+                        debit_account_code = '1110'  # Bank - Default Current Account
+                elif donation.payment_mode and 'HUNDI' in donation.payment_mode.upper():
+                    debit_account_code = '1102'  # Cash in Hand - Hundi
+                else:
+                    debit_account_code = '1101'  # Default to cash counter
 
-            # Get debit account
-            debit_account = db.query(Account).filter(
-                Account.temple_id == temple_id,
-                Account.account_code == debit_account_code
-            ).first()
+                # Get debit account by code if not already found
+                if not debit_account and debit_account_code:
+                    debit_account = db.query(Account).filter(
+                        Account.temple_id == temple_id,
+                        Account.account_code == debit_account_code
+                    ).first()
 
         # Determine credit account - PRIORITY: Category-linked account
         credit_account = None
@@ -178,13 +220,17 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
             return None
 
         # Create narration
+        # Use is_anonymous flag or check if devotee name is missing
+        is_anonymous_donation = donation.is_anonymous if hasattr(donation, 'is_anonymous') else False
+        donor_name = "Anonymous Donor" if is_anonymous_donation else (donation.devotee.name if donation.devotee else 'Anonymous')
+        
         if donation.donation_type == DonationType.IN_KIND:
             item_desc = donation.item_name or "In-kind donation"
-            narration = f"In-kind donation from {donation.devotee.name if donation.devotee else 'Anonymous'}: {item_desc}"
+            narration = f"In-kind donation from {donor_name}: {item_desc}"
             if donation.category:
                 narration += f" - {donation.category.name}"
         else:
-            narration = f"Donation from {donation.devotee.name if donation.devotee else 'Anonymous'}"
+            narration = f"Donation from {donor_name}"
             if donation.category:
                 narration += f" - {donation.category.name}"
 
@@ -278,12 +324,32 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
 
 # Pydantic Schemas
 class DonationBase(BaseModel):
-    devotee_name: str
+    devotee_first_name: str  # First name
+    devotee_last_name: Optional[str] = None  # Last name (optional)
+    devotee_name: Optional[str] = None  # Full name (for backward compatibility, auto-generated if not provided)
     devotee_phone: str
+    name_prefix: Optional[str] = None  # Mr., Mrs., Ms., M/s, Dr., etc.
+    country_code: Optional[str] = "+91"  # Country code for phone (default +91 for India)
     amount: float
     category: str
     donation_type: DonationType = DonationType.CASH  # Default to cash donation
     payment_mode: Optional[str] = "Cash"  # Required for cash donations, optional for in-kind
+    bank_account_id: Optional[int] = None  # Bank account ID for non-cash payments (Card, UPI, Online, Cheque)
+    is_anonymous: Optional[bool] = False  # Anonymous donation flag
+    
+    # UPI Payment Details (if payment_mode = 'UPI')
+    sender_upi_id: Optional[str] = None  # Sender's UPI ID (e.g., 9876543210@paytm)
+    upi_reference_number: Optional[str] = None  # UPI transaction reference (UTR/RRN)
+    
+    # Cheque Payment Details (if payment_mode = 'Cheque')
+    cheque_number: Optional[str] = None
+    cheque_date: Optional[date] = None
+    cheque_bank_name: Optional[str] = None  # Name of bank
+    cheque_branch: Optional[str] = None  # Branch name
+    
+    # Online Transfer Details (if payment_mode = 'Online')
+    utr_number: Optional[str] = None  # UTR (Unique Transfer Reference) or transaction reference
+    payer_name: Optional[str] = None  # Payer's name (may be different from devotee)
     address: Optional[str] = None  # Street address
     pincode: Optional[str] = None
     city: Optional[str] = None
@@ -333,6 +399,7 @@ class DonationResponse(BaseModel):
     donation_date: date
     devotee: Optional[dict] = None
     category: Optional[dict] = None
+    is_anonymous: Optional[bool] = False
     
     # In-Kind Donation Fields
     inkind_subtype: Optional[InKindDonationSubType] = None
@@ -356,39 +423,106 @@ def create_donation(
     request: Request = None
 ):
     """Create a new donation"""
-    # Find or create devotee
-    devotee = db.query(Devotee).filter(Devotee.phone == donation.devotee_phone).first()
-    if not devotee:
-        # Create devotee if doesn't exist
-        devotee = Devotee(
-            name=donation.devotee_name,
-            full_name=donation.devotee_name,
-            phone=donation.devotee_phone,
-            address=donation.address,
-            pincode=donation.pincode,
-            city=donation.city,
-            state=donation.state,
-            country=donation.country or "India",
-            temple_id=current_user.temple_id if current_user else None
-        )
-        db.add(devotee)
-        db.flush()
+    # Handle anonymous donations
+    is_anonymous_donation = donation.is_anonymous if hasattr(donation, 'is_anonymous') else False
+    
+    if is_anonymous_donation:
+        # For anonymous donations, use a generic anonymous devotee
+        # Try to find existing "Anonymous Donor" devotee, or create one
+        devotee = db.query(Devotee).filter(
+            Devotee.name == "Anonymous Donor",
+            Devotee.phone == "0000000000"  # Dummy phone for anonymous
+        ).first()
+        
+        if not devotee:
+            devotee = Devotee(
+                name="Anonymous Donor",
+                full_name="Anonymous Donor",
+                phone="0000000000",  # Dummy phone number
+                temple_id=current_user.temple_id if current_user else None
+            )
+            db.add(devotee)
+            db.flush()
     else:
-        # Update devotee info if provided
-        if donation.address and not devotee.address:
-            devotee.address = donation.address
-        if donation.pincode and not devotee.pincode:
-            devotee.pincode = donation.pincode
-        if donation.city and not devotee.city:
-            devotee.city = donation.city
-        if donation.state and not devotee.state:
-            devotee.state = donation.state
-        if donation.country and not devotee.country:
-            devotee.country = donation.country
-        if donation.devotee_name and devotee.name != donation.devotee_name:
-            devotee.name = donation.devotee_name
-            devotee.full_name = donation.devotee_name
-        db.flush()
+        # Find or create devotee for non-anonymous donations
+        # Clean phone number (remove spaces, dashes, country code)
+        clean_phone = donation.devotee_phone.strip().replace(" ", "").replace("-", "")
+        if clean_phone.startswith("+91") or (clean_phone.startswith("91") and len(clean_phone) > 10):
+            clean_phone = clean_phone[-10:]  # Take last 10 digits
+        elif clean_phone.startswith("0091"):
+            clean_phone = clean_phone[-10:]
+        
+        # Get country code and name prefix from donation
+        country_code = donation.country_code if hasattr(donation, 'country_code') and donation.country_code else "+91"
+        name_prefix = donation.name_prefix if hasattr(donation, 'name_prefix') and donation.name_prefix else None
+        
+        # Get first_name and last_name from donation
+        # Support both new format (first_name, last_name) and old format (devotee_name)
+        if hasattr(donation, 'devotee_first_name') and donation.devotee_first_name:
+            first_name = donation.devotee_first_name
+            last_name = donation.devotee_last_name if hasattr(donation, 'devotee_last_name') and donation.devotee_last_name else None
+            # Generate full name from first_name + last_name
+            full_name = f"{first_name} {last_name}".strip() if last_name else first_name
+            devotee_name = f"{name_prefix} {full_name}".strip() if name_prefix else full_name
+        elif hasattr(donation, 'devotee_name') and donation.devotee_name:
+            # Backward compatibility: split devotee_name into first and last
+            name_parts = donation.devotee_name.strip().split(None, 1)
+            first_name = name_parts[0] if name_parts else donation.devotee_name
+            last_name = name_parts[1] if len(name_parts) > 1 else None
+            full_name = donation.devotee_name
+            devotee_name = f"{name_prefix} {full_name}".strip() if name_prefix else full_name
+        else:
+            raise HTTPException(status_code=400, detail="devotee_first_name or devotee_name is required")
+        
+        # Search devotee by phone and country_code
+        devotee = db.query(Devotee).filter(
+            Devotee.phone == clean_phone,
+            Devotee.country_code == country_code
+        ).first()
+        
+        # If not found with country_code, try without country_code (backward compatibility)
+        if not devotee:
+            devotee = db.query(Devotee).filter(Devotee.phone == clean_phone).first()
+        
+        if not devotee:
+            # Create devotee if doesn't exist
+            devotee = Devotee(
+                name_prefix=name_prefix,
+                first_name=first_name,
+                last_name=last_name,
+                name=devotee_name,  # Full name with prefix
+                full_name=devotee_name,  # For backward compatibility
+                country_code=country_code,
+                phone=clean_phone,
+                address=donation.address,
+                pincode=donation.pincode,
+                city=donation.city,
+                state=donation.state,
+                country=donation.country or "India",
+                temple_id=current_user.temple_id if current_user else None
+            )
+            db.add(devotee)
+            db.flush()
+        else:
+            # Update devotee info if provided
+            if donation.address and not devotee.address:
+                devotee.address = donation.address
+            if donation.pincode and not devotee.pincode:
+                devotee.pincode = donation.pincode
+            if donation.city and not devotee.city:
+                devotee.city = donation.city
+            if donation.state and not devotee.state:
+                devotee.state = donation.state
+            if donation.country and not devotee.country:
+                devotee.country = donation.country
+            if donation.devotee_name and devotee.name != donation.devotee_name:
+                name_prefix = donation.name_prefix if hasattr(donation, 'name_prefix') and donation.name_prefix else devotee.name_prefix
+                devotee.name_prefix = name_prefix
+                devotee.name = donation.devotee_name
+                devotee.full_name = f"{name_prefix} {donation.devotee_name}".strip() if name_prefix else donation.devotee_name
+            if hasattr(donation, 'country_code') and donation.country_code:
+                devotee.country_code = donation.country_code
+            db.flush()
     
     # Find or create category
     category = db.query(DonationCategory).filter(
@@ -404,14 +538,16 @@ def create_donation(
     
     # Generate receipt number
     year = datetime.now().year
-    last_donation = db.query(Donation).filter(
-        func.extract('year', Donation.donation_date) == year
-    ).order_by(Donation.id.desc()).first()
+    # Query using raw SQL to avoid enum conversion issues
+    result = db.execute(
+        text("SELECT receipt_number FROM donations WHERE EXTRACT(YEAR FROM donation_date) = :year ORDER BY id DESC LIMIT 1"),
+        {"year": year}
+    ).fetchone()
     
     seq = 1
-    if last_donation and last_donation.receipt_number:
+    if result and result[0]:
         try:
-            seq = int(last_donation.receipt_number.split('-')[-1]) + 1
+            seq = int(result[0].split('-')[-1]) + 1
         except:
             seq = 1
     
@@ -421,28 +557,63 @@ def create_donation(
     if donation.donation_type == DonationType.IN_KIND:
         if not donation.item_name:
             raise HTTPException(status_code=400, detail="item_name is required for in-kind donations")
-        if not donation.quantity or donation.quantity <= 0:
-            raise HTTPException(status_code=400, detail="quantity must be greater than 0 for in-kind donations")
-        if not donation.unit:
-            raise HTTPException(status_code=400, detail="unit is required for in-kind donations")
         if not donation.inkind_subtype:
             raise HTTPException(status_code=400, detail="inkind_subtype is required for in-kind donations")
+        # Quantity and unit are required only for inventory subtype, optional for event_sponsorship and asset
+        # Handle both enum and string values
+        subtype_str = None
+        if isinstance(donation.inkind_subtype, InKindDonationSubType):
+            subtype_str = donation.inkind_subtype.value
+        elif isinstance(donation.inkind_subtype, str):
+            subtype_str = donation.inkind_subtype.lower()
+        else:
+            subtype_str = str(donation.inkind_subtype).lower() if donation.inkind_subtype else None
+        
+        if subtype_str == 'inventory':
+            if not donation.quantity or donation.quantity <= 0:
+                raise HTTPException(status_code=400, detail="quantity must be greater than 0 for inventory type in-kind donations")
+            if not donation.unit:
+                raise HTTPException(status_code=400, detail="unit is required for inventory type in-kind donations")
         # Use value_assessed if provided, otherwise use amount
         assessed_value = donation.value_assessed if donation.value_assessed is not None else donation.amount
+        payment_mode = None
     else:
         # For cash donations, payment_mode is required
         if not donation.payment_mode:
             raise HTTPException(status_code=400, detail="payment_mode is required for cash donations")
+        # Normalize payment_mode to handle case variations
+        payment_mode = donation.payment_mode.lower() if donation.payment_mode else None
         assessed_value = None
     
     # Duplicate detection: Check for similar donation within last 5 minutes
     duplicate_window = datetime.now() - timedelta(minutes=5)
-    duplicate_check = db.query(Donation).filter(
-        Donation.devotee_id == devotee.id,
-        Donation.amount == donation.amount,
-        Donation.donation_date >= duplicate_window.date() if isinstance(duplicate_window, datetime) else date.today(),
-        Donation.is_cancelled == False
-    ).first()
+    # Use raw SQL to avoid enum conversion issues
+    duplicate_result = db.execute(
+        text("""
+            SELECT id, receipt_number, donation_date 
+            FROM donations 
+            WHERE devotee_id = :devotee_id 
+            AND amount = :amount 
+            AND donation_date >= :check_date 
+            AND is_cancelled = false 
+            LIMIT 1
+        """),
+        {
+            "devotee_id": devotee.id,
+            "amount": donation.amount,
+            "check_date": duplicate_window.date() if isinstance(duplicate_window, datetime) else date.today()
+        }
+    ).fetchone()
+    
+    duplicate_check = None
+    if duplicate_result:
+        # Create a simple object to mimic the donation object
+        class SimpleDonation:
+            def __init__(self, id, receipt_number, donation_date):
+                self.id = id
+                self.receipt_number = receipt_number
+                self.donation_date = donation_date
+        duplicate_check = SimpleDonation(duplicate_result[0], duplicate_result[1], duplicate_result[2])
     
     if duplicate_check:
         # Check if within 5 minutes
@@ -452,21 +623,55 @@ def create_donation(
                 detail=f"Possible duplicate donation detected. Similar donation (₹{donation.amount}) from {devotee.name} was recorded today. Receipt: {duplicate_check.receipt_number}. Please verify before proceeding."
             )
     
+    # Convert inkind_subtype enum to lowercase string value for database (before creating Donation object)
+    inkind_subtype_value = None
+    if donation.donation_type == DonationType.IN_KIND and donation.inkind_subtype:
+        if isinstance(donation.inkind_subtype, InKindDonationSubType):
+            inkind_subtype_value = donation.inkind_subtype.value  # Returns "inventory", "event_sponsorship", or "asset"
+        elif isinstance(donation.inkind_subtype, str):
+            inkind_subtype_value = donation.inkind_subtype.lower()  # Ensure lowercase
+        else:
+            inkind_subtype_value = str(donation.inkind_subtype).lower()
+    
+    # Set current_balance only for inventory type in-kind donations
+    current_balance_value = None
+    if donation.donation_type == DonationType.IN_KIND and donation.inkind_subtype:
+        # Check if subtype is inventory (handle both enum and string)
+        subtype_str = donation.inkind_subtype.value if isinstance(donation.inkind_subtype, InKindDonationSubType) else str(donation.inkind_subtype).lower()
+        if subtype_str == 'inventory':
+            current_balance_value = donation.quantity
+    
     # Create donation
+    # The DonationTypeDecorator will automatically convert the enum to lowercase string value
+    # Prepare payment details based on payment_mode
+    payment_details = {}
+    if payment_mode and payment_mode.lower() == 'upi':
+        payment_details['sender_upi_id'] = donation.sender_upi_id if hasattr(donation, 'sender_upi_id') else None
+        payment_details['upi_reference_number'] = donation.upi_reference_number if hasattr(donation, 'upi_reference_number') else None
+    elif payment_mode and payment_mode.lower() == 'cheque':
+        payment_details['cheque_number'] = donation.cheque_number if hasattr(donation, 'cheque_number') else None
+        payment_details['cheque_date'] = donation.cheque_date if hasattr(donation, 'cheque_date') else None
+        payment_details['cheque_bank_name'] = donation.cheque_bank_name if hasattr(donation, 'cheque_bank_name') else None
+        payment_details['cheque_branch'] = donation.cheque_branch if hasattr(donation, 'cheque_branch') else None
+    elif payment_mode and payment_mode.lower() == 'online':
+        payment_details['utr_number'] = donation.utr_number if hasattr(donation, 'utr_number') else None
+        payment_details['payer_name'] = donation.payer_name if hasattr(donation, 'payer_name') else None
+    
     db_donation = Donation(
         temple_id=current_user.temple_id if current_user else None,
         devotee_id=devotee.id,
         category_id=category.id,
         receipt_number=receipt_number,
-        donation_type=donation.donation_type,
+        donation_type=donation.donation_type,  # TypeDecorator will convert to lowercase "cash" or "in_kind"
         amount=donation.amount,
-        payment_mode=donation.payment_mode if donation.donation_type == DonationType.CASH else None,
+        payment_mode=payment_mode if donation.donation_type == DonationType.CASH else None,
+        is_anonymous=donation.is_anonymous if hasattr(donation, 'is_anonymous') else False,
         donation_date=date.today(),
         financial_year=f"{year}-{str(year+1)[-2:]}",
         notes=donation.notes,
         created_by=current_user.id if current_user else None,
         # In-kind donation fields
-        inkind_subtype=donation.inkind_subtype if donation.donation_type == DonationType.IN_KIND else None,
+        inkind_subtype=inkind_subtype_value,
         item_name=donation.item_name if donation.donation_type == DonationType.IN_KIND else None,
         item_description=donation.item_description if donation.donation_type == DonationType.IN_KIND else None,
         quantity=donation.quantity if donation.donation_type == DonationType.IN_KIND else None,
@@ -485,13 +690,33 @@ def create_donation(
         store_id=donation.store_id if donation.donation_type == DonationType.IN_KIND else None,
         photo_url=donation.photo_url if donation.donation_type == DonationType.IN_KIND else None,
         document_url=donation.document_url if donation.donation_type == DonationType.IN_KIND else None,
-        current_balance=donation.quantity if (donation.donation_type == DonationType.IN_KIND and donation.inkind_subtype == InKindDonationSubType.INVENTORY) else None
+        current_balance=current_balance_value,
+        # Payment details (for cash donations only)
+        sender_upi_id=payment_details.get('sender_upi_id') if donation.donation_type == DonationType.CASH else None,
+        upi_reference_number=payment_details.get('upi_reference_number') if donation.donation_type == DonationType.CASH else None,
+        cheque_number=payment_details.get('cheque_number') if donation.donation_type == DonationType.CASH else None,
+        cheque_date=payment_details.get('cheque_date') if donation.donation_type == DonationType.CASH else None,
+        cheque_bank_name=payment_details.get('cheque_bank_name') if donation.donation_type == DonationType.CASH else None,
+        cheque_branch=payment_details.get('cheque_branch') if donation.donation_type == DonationType.CASH else None,
+        utr_number=payment_details.get('utr_number') if donation.donation_type == DonationType.CASH else None,
+        payer_name=payment_details.get('payer_name') if donation.donation_type == DonationType.CASH else None,
+        bank_account_id=donation.bank_account_id if donation.donation_type == DonationType.CASH and hasattr(donation, 'bank_account_id') else None,
     )
     db.add(db_donation)
     db.flush()  # Flush to get the ID
     
     # If in-kind donation is inventory type, create stock movement
-    if donation.donation_type == DonationType.IN_KIND and donation.inkind_subtype == InKindDonationSubType.INVENTORY:
+    # Check if subtype is inventory (handle both enum and string)
+    is_inventory_subtype = False
+    if donation.donation_type == DonationType.IN_KIND and donation.inkind_subtype:
+        if isinstance(donation.inkind_subtype, InKindDonationSubType):
+            is_inventory_subtype = (donation.inkind_subtype == InKindDonationSubType.INVENTORY)
+        elif isinstance(donation.inkind_subtype, str):
+            is_inventory_subtype = (donation.inkind_subtype.lower() == 'inventory')
+        else:
+            is_inventory_subtype = (str(donation.inkind_subtype).lower() == 'inventory')
+    
+    if donation.donation_type == DonationType.IN_KIND and is_inventory_subtype:
         from app.models.inventory import StockMovement, StockMovementType, StockBalance
         from datetime import datetime as dt
         
@@ -847,6 +1072,41 @@ def _number_to_words(n):
     return result.strip()
 
 
+@router.get("/bank-accounts")
+def get_bank_accounts_for_donations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of active bank accounts for donation form"""
+    from app.models.upi_banking import BankAccount
+    from app.models.accounting import Account
+    
+    temple_id = current_user.temple_id if current_user else None
+    
+    # Get active bank accounts
+    bank_accounts = db.query(BankAccount).filter(
+        BankAccount.temple_id == temple_id,
+        BankAccount.is_active == True
+    ).all()
+    
+    result = []
+    for bank_acc in bank_accounts:
+        # Get the linked chart account
+        chart_account = db.query(Account).filter(Account.id == bank_acc.chart_account_id).first()
+        result.append({
+            "id": bank_acc.id,
+            "name": bank_acc.account_name,
+            "bank_name": bank_acc.bank_name,
+            "account_number": bank_acc.account_number,
+            "ifsc_code": bank_acc.ifsc_code,
+            "is_primary": bank_acc.is_primary,
+            "account_code": chart_account.account_code if chart_account else None,
+            "account_name": chart_account.account_name if chart_account else bank_acc.account_name
+        })
+    
+    return result
+
+
 @router.get("/", response_model=List[DonationResponse])
 def get_donations(
     skip: int = 0,
@@ -875,10 +1135,19 @@ def get_donations(
     # Format response
     result = []
     for d in donations:
+        # Convert donation_type from string/enum to DonationType enum
+        donation_type_value = d.donation_type
+        if isinstance(donation_type_value, str):
+            try:
+                donation_type_value = DonationType(donation_type_value)
+            except ValueError:
+                donation_type_value = DonationType.CASH  # Default fallback
+        
         result.append({
             "id": d.id,
             "receipt_number": d.receipt_number,
             "amount": d.amount,
+            "donation_type": donation_type_value,
             "payment_mode": d.payment_mode,
             "donation_date": d.donation_date,
             "devotee": {
@@ -893,6 +1162,14 @@ def get_donations(
                 "id": d.category.id if d.category else None,
                 "name": d.category.name if d.category else None
             } if d.category else None,
+            "is_anonymous": d.is_anonymous if hasattr(d, 'is_anonymous') else False,
+            # In-kind donation fields
+            "inkind_subtype": d.inkind_subtype if hasattr(d, 'inkind_subtype') else None,
+            "item_name": d.item_name if hasattr(d, 'item_name') else None,
+            "item_description": d.item_description if hasattr(d, 'item_description') else None,
+            "quantity": d.quantity if hasattr(d, 'quantity') else None,
+            "unit": d.unit if hasattr(d, 'unit') else None,
+            "value_assessed": d.value_assessed if hasattr(d, 'value_assessed') else None,
             "created_at": d.created_at
         })
     

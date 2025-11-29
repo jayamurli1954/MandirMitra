@@ -3,7 +3,7 @@ Chart of Accounts API Endpoints
 Manage accounts in the accounting system
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -168,7 +168,8 @@ def get_account(
 def create_account(
     account_data: AccountCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = None
 ):
     """
     Create new account
@@ -208,6 +209,26 @@ def create_account(
     # Create account
     account = Account(**account_data.dict())
     db.add(account)
+    db.flush()  # Get account.id for audit log
+    
+    # Create audit log
+    try:
+        from app.core.audit import log_action, get_entity_dict
+        log_action(
+            db=db,
+            user=current_user,
+            action="CREATE",
+            entity_type="Account",
+            entity_id=account.id,
+            new_values=get_entity_dict(account),
+            description=f"Created account: {account.account_code} - {account.account_name}",
+            ip_address=request.client.host if request else None,
+            user_agent=request.headers.get("user-agent") if request else None
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create audit log: {e}")
+        # Don't fail account creation if audit log fails
+    
     db.commit()
     db.refresh(account)
 
@@ -218,13 +239,18 @@ def create_account(
 def update_account(
     account_id: int,
     account_data: AccountUpdate,
+    reason: Optional[str] = Query(None, description="Reason for change (required for account code/name changes)"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = None
 ):
     """
     Update account
     Only admin users can update accounts
     System accounts cannot be modified
+    Account name cannot be changed if account has transactions
+    Account code can NEVER be changed
+    Reason required for audit trail when making significant changes
     """
     if current_user.role != 'admin':
         raise HTTPException(
@@ -246,8 +272,42 @@ def update_account(
             detail="System accounts cannot be modified"
         )
 
+    # Check if account has transactions (JournalLine entries)
+    from app.models.accounting import JournalEntry
+    has_transactions = db.query(JournalLine).filter(
+        JournalLine.account_id == account_id
+    ).first() is not None
+
+    # Get old values for audit log
+    from app.core.audit import get_entity_dict
+    old_values = get_entity_dict(account) if hasattr(account, '__table__') else {}
+
     # Update fields
     update_data = account_data.dict(exclude_unset=True)
+
+    # Account code can NEVER be changed
+    if 'account_code' in update_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Account code cannot be changed. Account codes are permanent."
+        )
+
+    # Account name cannot be changed if account has transactions
+    if 'account_name' in update_data and has_transactions:
+        raise HTTPException(
+            status_code=400,
+            detail="Account name cannot be changed because this account has transaction history. "
+                   "Please create a new account and transfer the balance using a Journal Voucher."
+        )
+
+    # Require reason for significant changes (account name, parent, active status)
+    significant_changes = ['account_name', 'parent_account_id', 'is_active', 'account_subtype']
+    if any(field in update_data for field in significant_changes):
+        if not reason or not reason.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Reason is required for account changes. Please provide a reason for audit trail."
+            )
 
     # Verify parent account if being changed
     if 'parent_account_id' in update_data and update_data['parent_account_id']:
@@ -266,10 +326,72 @@ def update_account(
         setattr(account, field, value)
 
     account.updated_at = datetime.utcnow()
+    db.flush()
+    
+    # Create audit log with reason
+    try:
+        from app.core.audit import log_action
+        new_values = get_entity_dict(account) if hasattr(account, '__table__') else {}
+        description = f"Updated account: {account.account_code} - {account.account_name}"
+        if reason:
+            description += f". Reason: {reason}"
+        log_action(
+            db=db,
+            user=current_user,
+            action="UPDATE",
+            entity_type="Account",
+            entity_id=account.id,
+            old_values=old_values,
+            new_values=new_values,
+            description=description,
+            ip_address=request.client.host if request else None,
+            user_agent=request.headers.get("user-agent") if request else None
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create audit log: {e}")
+        # Don't fail account update if audit log fails
+    
     db.commit()
     db.refresh(account)
 
     return account
+
+
+@router.get("/{account_id}/has-transactions")
+def check_account_transactions(
+    account_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Check if account has any transactions
+    Used to determine if account name can be edited
+    """
+    account = db.query(Account).filter(
+        Account.id == account_id,
+        Account.temple_id == current_user.temple_id
+    ).first()
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Check if account has transactions
+    has_transactions = db.query(JournalLine).filter(
+        JournalLine.account_id == account_id
+    ).first() is not None
+
+    # Get transaction count
+    transaction_count = db.query(JournalLine).filter(
+        JournalLine.account_id == account_id
+    ).count()
+
+    return {
+        "has_transactions": has_transactions,
+        "transaction_count": transaction_count,
+        "can_edit_name": not has_transactions,
+        "can_delete": False,  # Accounts can never be deleted, only deactivated
+        "message": "Account has transaction history. Name cannot be edited. Create a new account and transfer balance via Journal Voucher." if has_transactions else "Account has no transactions. Name can be edited."
+    }
 
 
 @router.delete("/{account_id}")
@@ -279,47 +401,15 @@ def delete_account(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Delete (deactivate) account
-    Only admin users can delete accounts
-    System accounts cannot be deleted
-    Accounts with transactions cannot be deleted (only deactivated)
+    Delete account - NOT ALLOWED
+    Accounts can NEVER be deleted, only deactivated
+    This is to maintain data integrity and audit trail
     """
-    if current_user.role != 'admin':
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can delete accounts"
-        )
-
-    account = db.query(Account).filter(
-        Account.id == account_id,
-        Account.temple_id == current_user.temple_id
-    ).first()
-
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-
-    if account.is_system_account:
-        raise HTTPException(
-            status_code=400,
-            detail="System accounts cannot be deleted"
-        )
-
-    # Check if account has transactions
-    has_transactions = db.query(JournalLine).filter(
-        JournalLine.account_id == account_id
-    ).first() is not None
-
-    if has_transactions:
-        # Cannot delete, only deactivate
-        account.is_active = False
-        account.updated_at = datetime.utcnow()
-        db.commit()
-        return {"message": "Account deactivated (has transaction history)"}
-    else:
-        # Can safely delete
-        db.delete(account)
-        db.commit()
-        return {"message": "Account deleted successfully"}
+    raise HTTPException(
+        status_code=400,
+        detail="Accounts cannot be deleted. They can only be deactivated by setting is_active=False. "
+               "This ensures data integrity and maintains complete audit trail."
+    )
 
 
 @router.get("/{account_id}/balance", response_model=AccountBalance)

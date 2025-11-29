@@ -11,22 +11,19 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
-  Chip,
-  Divider,
   InputAdornment,
+  Checkbox,
+  FormControlLabel,
+  Collapse,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import DashboardIcon from '@mui/icons-material/Dashboard';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import PeopleIcon from '@mui/icons-material/People';
 import EventIcon from '@mui/icons-material/Event';
 import SaveIcon from '@mui/icons-material/Save';
 import Layout from '../components/Layout';
-import PanchangDisplay from '../components/PanchangDisplay';
+import PanchangRibbon from '../components/PanchangRibbon';
 import api from '../services/api';
 
 function Dashboard() {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -44,11 +41,28 @@ function Dashboard() {
   });
   const [panchangData, setPanchangData] = useState(null);
   const [donationForm, setDonationForm] = useState({
-    devotee_name: '',
+    name_prefix: '',
+    devotee_first_name: '',
+    devotee_last_name: '',
     devotee_phone: '',
+    country_code: '+91',
     amount: '',
     category: '',
+    donation_type: 'cash',
     payment_mode: 'Cash',
+    bank_account_id: '',
+    // UPI Payment Details
+    sender_upi_id: '',
+    upi_reference_number: '',
+    // Cheque Payment Details
+    cheque_number: '',
+    cheque_date: '',
+    cheque_bank_name: '',
+    cheque_branch: '',
+    // Online Transfer Details
+    utr_number: '',
+    payer_name: '',
+    is_anonymous: false,
     address: '',  // Street address
     pincode: '',
     city: '',
@@ -58,11 +72,14 @@ function Dashboard() {
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [searchingDevotee, setSearchingDevotee] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [mobileEntered, setMobileEntered] = useState(false); // Track if mobile number is entered
 
   useEffect(() => {
     fetchDashboardData();
     fetchCategories();
+    fetchBankAccounts();
   }, []);
 
   const fetchDashboardData = async () => {
@@ -138,24 +155,58 @@ function Dashboard() {
     }
   };
 
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await api.get('/api/v1/donations/bank-accounts');
+      if (response.data) {
+        setBankAccounts(response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching bank accounts:', err);
+      // Don't show error, just silently fail
+    }
+  };
+
   const handleDonationChange = async (field, value) => {
     const updatedForm = { ...donationForm, [field]: value };
     setDonationForm(updatedForm);
     
-    // Mobile-first: when 10-digit mobile is entered, auto-fill devotee details if found
-    if (field === 'devotee_phone' && value && value.length === 10) {
-      setSearchingDevotee(true);
-      try {
-        const response = await api.get(`/api/v1/devotees/search/by-mobile/${value}`);
-        if (response.data) {
+    // Mobile-first: Enable other fields only after mobile is entered (10 digits for India)
+    if (field === 'devotee_phone') {
+      const phoneLength = value.length;
+      const countryCode = updatedForm.country_code || '+91';
+      
+      // For India (+91), require 10 digits; for others, require at least 7 digits
+      const isValidLength = (countryCode === '+91' && phoneLength === 10) || 
+                           (countryCode !== '+91' && phoneLength >= 7);
+      
+      setMobileEntered(isValidLength);
+      
+      // Auto-fill devotee details when mobile is entered
+      if (isValidLength) {
+        setSearchingDevotee(true);
+        try {
+          // Search with the selected country code
+          const searchPhone = `${countryCode}${value}`;
+          const response = await api.get(`/api/v1/devotees/search/by-mobile/${searchPhone}`);
+        if (response.data && response.data.length > 0) {
+          // If multiple results, use the first one (prioritized by country code match)
+          const devotee = response.data[0];
+          // If multiple results with different country codes, log it
+          if (response.data.length > 1) {
+            console.log(`Multiple devotees found for phone ${value}. Using first match.`);
+          }
           setDonationForm(prev => ({
             ...prev,
-            devotee_name: response.data.name || prev.devotee_name,
-            address: response.data.address || prev.address,
-            pincode: response.data.pincode || prev.pincode,
-            city: response.data.city || prev.city,
-            state: response.data.state || prev.state,
-            country: response.data.country || prev.country || 'India',
+            name_prefix: devotee.name_prefix || prev.name_prefix,
+            devotee_first_name: devotee.first_name || (devotee.name ? devotee.name.split(' ')[0] : '') || prev.devotee_first_name,
+            devotee_last_name: devotee.last_name || (devotee.name && devotee.name.split(' ').length > 1 ? devotee.name.split(' ').slice(1).join(' ') : '') || prev.devotee_last_name,
+            country_code: devotee.country_code || prev.country_code || '+91',
+            address: devotee.address || prev.address,
+            pincode: devotee.pincode || prev.pincode,
+            city: devotee.city || prev.city,
+            state: devotee.state || prev.state,
+            country: devotee.country || prev.country || 'India',
           }));
         }
       } catch (err) {
@@ -163,6 +214,10 @@ function Dashboard() {
         console.log('Devotee not found for mobile:', value);
       } finally {
         setSearchingDevotee(false);
+      }
+      } else {
+        // If mobile is cleared or incomplete, disable other fields
+        setMobileEntered(false);
       }
     }
     
@@ -207,32 +262,70 @@ function Dashboard() {
     setSuccess('');
 
     try {
-      const response = await api.post('/api/v1/donations/', {
-        devotee_name: donationForm.devotee_name,
+      // Dashboard only supports Cash donations
+      const payload = {
+        devotee_first_name: donationForm.devotee_first_name || '',
+        devotee_last_name: donationForm.devotee_last_name || undefined,
+        devotee_name: `${donationForm.devotee_first_name} ${donationForm.devotee_last_name || ''}`.trim(), // For backward compatibility
         devotee_phone: donationForm.devotee_phone,
+        name_prefix: donationForm.name_prefix || undefined,
+        country_code: donationForm.country_code || '+91',
         amount: parseFloat(donationForm.amount),
         category: donationForm.category,
+        donation_type: 'cash',  // Dashboard only supports cash donations
         payment_mode: donationForm.payment_mode,
+        is_anonymous: donationForm.is_anonymous || false,
+        // Payment-specific fields
+        sender_upi_id: donationForm.sender_upi_id || undefined,
+        upi_reference_number: donationForm.upi_reference_number || undefined,
+        cheque_number: donationForm.cheque_number || undefined,
+        cheque_date: donationForm.cheque_date || undefined,
+        cheque_bank_name: donationForm.cheque_bank_name || undefined,
+        cheque_branch: donationForm.cheque_branch || undefined,
+        utr_number: donationForm.utr_number || undefined,
+        payer_name: donationForm.payer_name || undefined,
         address: donationForm.address || null,
         pincode: donationForm.pincode || null,
         city: donationForm.city || null,
         state: donationForm.state || null,
         country: donationForm.country || 'India',
-      });
+      };
+      
+      // Add bank_account_id for non-cash payments
+      if (donationForm.payment_mode !== 'Cash' && donationForm.bank_account_id) {
+        payload.bank_account_id = parseInt(donationForm.bank_account_id);
+      }
+      
+      const response = await api.post('/api/v1/donations/', payload);
 
       setSuccess(`Donation recorded successfully! Receipt: ${response.data.receipt_number || 'N/A'}`);
       setDonationForm({
-        devotee_name: '',
+        name_prefix: '',
+        devotee_first_name: '',
+        devotee_last_name: '',
         devotee_phone: '',
+        country_code: '+91',
         amount: '',
         category: '',
+        donation_type: 'cash',
         payment_mode: 'Cash',
+        bank_account_id: '',
+        sender_upi_id: '',
+        upi_reference_number: '',
+        cheque_number: '',
+        cheque_date: '',
+        cheque_bank_name: '',
+        cheque_branch: '',
+        utr_number: '',
+        payer_name: '',
+        is_anonymous: false,
         address: '',
         pincode: '',
         city: '',
         state: '',
         country: 'India',
       });
+      setMobileEntered(false); // Reset mobile entered state
       fetchDashboardData();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -269,11 +362,6 @@ function Dashboard() {
     }).format(amount);
   };
 
-  const formatTime = (timeString) => {
-    if (!timeString) return 'N/A';
-    const date = new Date(timeString);
-    return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  };
 
   const paymentModes = ['Cash', 'Card', 'UPI', 'Cheque', 'Online'];
 
@@ -355,125 +443,178 @@ function Dashboard() {
         </Alert>
       )}
 
-      {/* Compact Stats Row: Donations & Sevas */}
-      <Box sx={{ mb: 3 }}>
-        <Grid container spacing={2}>
-          {/* Donations - Compact */}
-          <Grid item xs={12}>
-            <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, color: '#4CAF50' }}>
-              💰 Donations
-            </Typography>
-            <Grid container spacing={2}>
-              {donationCards.map((stat, index) => (
-                <Grid item xs={12} sm={4} key={index}>
-                  <Card sx={{ boxShadow: 1, borderLeft: `4px solid ${stat.color}` }}>
-                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-                            {stat.value}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
-                            {stat.title}
-                          </Typography>
-                          {stat.subtitle && (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                              {stat.subtitle}
-                            </Typography>
-                          )}
-                        </Box>
-                        <Box sx={{ color: stat.color, fontSize: 32 }}>
-                          {stat.icon}
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Grid>
+      {/* Panchang Ribbon at Top */}
+      <PanchangRibbon data={panchangData} settings={panchangData} />
 
-          {/* Sevas - Compact */}
-          <Grid item xs={12} sx={{ mt: 2 }}>
-            <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, color: '#FF9800' }}>
-              🕉️ Sevas
-            </Typography>
-            <Grid container spacing={2}>
-              {sevaCards.map((stat, index) => (
-                <Grid item xs={12} sm={4} key={index}>
-                  <Card sx={{ boxShadow: 1, borderLeft: `4px solid ${stat.color}` }}>
-                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-                            {stat.value}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
-                            {stat.title}
-                          </Typography>
-                          {stat.subtitle && (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                              {stat.subtitle}
-                            </Typography>
-                          )}
-                        </Box>
-                        <Box sx={{ color: stat.color, fontSize: 32 }}>
-                          {stat.icon}
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
+      {/* Compact Stats Row: Donations & Sevas - Single Row */}
+      <Box sx={{ mb: 3 }}>
+        <Grid container spacing={1.5}>
+          {/* Donations - More Compact */}
+          {donationCards.map((stat, index) => (
+            <Grid item xs={6} sm={2} key={index}>
+              <Card sx={{ boxShadow: 1, borderLeft: `3px solid ${stat.color}`, height: '100%' }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="h6" component="div" sx={{ fontWeight: 'bold', mb: 0.3, fontSize: '1rem' }}>
+                        {stat.value}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block' }}>
+                        {stat.title}
+                      </Typography>
+                      {stat.subtitle && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.3, fontSize: '0.65rem' }}>
+                          {stat.subtitle}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Box sx={{ color: stat.color, fontSize: 24, ml: 1 }}>
+                      {stat.icon}
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
             </Grid>
-          </Grid>
+          ))}
+          {/* Sevas - More Compact */}
+          {sevaCards.map((stat, index) => (
+            <Grid item xs={6} sm={2} key={index}>
+              <Card sx={{ boxShadow: 1, borderLeft: `3px solid ${stat.color}`, height: '100%' }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="h6" component="div" sx={{ fontWeight: 'bold', mb: 0.3, fontSize: '1rem' }}>
+                        {stat.value}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block' }}>
+                        {stat.title}
+                      </Typography>
+                      {stat.subtitle && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.3, fontSize: '0.65rem' }}>
+                          {stat.subtitle}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Box sx={{ color: stat.color, fontSize: 24, ml: 1 }}>
+                      {stat.icon}
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
         </Grid>
       </Box>
 
-      <Grid container spacing={3} sx={{ mt: 2 }}>
-        {/* Donation Entry Form */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, boxShadow: 2 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
-              Quick Donation Entry
-            </Typography>
-            <Box component="form" onSubmit={handleDonationSubmit}>
-              <Grid container spacing={2}>
-                {/* Mobile Number - FIRST FIELD */}
-                <Grid item xs={12} sm={6}>
+      {/* Quick Donation Entry - Full Width */}
+      <Paper sx={{ p: 3, boxShadow: 2, mt: 2 }}>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
+          Quick Donation Entry
+        </Typography>
+        <Box component="form" onSubmit={handleDonationSubmit}>
+          <Grid container spacing={2}>
+            {/* Mobile Number - Must be entered first */}
+            <Grid item xs={12} sm={2}>
+              <TextField
+                fullWidth
+                select
+                label="Country Code"
+                value={donationForm.country_code || '+91'}
+                onChange={(e) => handleDonationChange('country_code', e.target.value)}
+                size="small"
+                disabled={mobileEntered}
+              >
+                <MenuItem value="+91">+91</MenuItem>
+                <MenuItem value="+1">+1</MenuItem>
+                <MenuItem value="+44">+44</MenuItem>
+                <MenuItem value="+971">+971</MenuItem>
+                <MenuItem value="+65">+65</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Mobile Number *"
+                value={donationForm.devotee_phone}
+                onChange={(e) => handleDonationChange('devotee_phone', e.target.value)}
+                required
+                size="small"
+                inputProps={{ maxLength: 15 }}
+                helperText={
+                  mobileEntered
+                    ? (donationForm.devotee_first_name ? '✓ Devotee found' : 'New devotee - enter details')
+                    : 'Enter mobile number first to continue'
+                }
+                InputProps={{
+                  endAdornment: searchingDevotee && (
+                    <InputAdornment position="end">
+                      <CircularProgress size={18} />
+                    </InputAdornment>
+                  )
+                }}
+                sx={{
+                  '& .MuiInputBase-root': {
+                    bgcolor: mobileEntered ? 'transparent' : '#f5f5f5',
+                  }
+                }}
+              />
+            </Grid>
+            
+            {/* Divider and Info */}
+            {!mobileEntered && (
+              <Grid item xs={12}>
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  Please enter mobile number first to enable other fields
+                </Alert>
+              </Grid>
+            )}
+
+            {/* Devotee Details - Only enabled after mobile is entered */}
+            {mobileEntered && (
+              <>
+                {/* Name Prefix */}
+                <Grid item xs={12} sm={2}>
                   <TextField
                     fullWidth
-                    label="Mobile Number *"
-                    value={donationForm.devotee_phone}
-                    onChange={(e) => handleDonationChange('devotee_phone', e.target.value)}
-                    required
+                    select
+                    label="Prefix"
+                    value={donationForm.name_prefix || ''}
+                    onChange={(e) => handleDonationChange('name_prefix', e.target.value)}
                     size="small"
-                    inputProps={{ maxLength: 10 }}
-                    helperText={
-                      donationForm.devotee_phone.length === 10
-                        ? (donationForm.devotee_name ? '✓ Existing devotee auto-filled' : 'New devotee – enter details')
-                        : 'Enter 10-digit mobile'
-                    }
-                    InputProps={{
-                      endAdornment: searchingDevotee && (
-                        <InputAdornment position="end">
-                          <CircularProgress size={18} />
-                        </InputAdornment>
-                      )
-                    }}
-                  />
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    <MenuItem value="Mr.">Mr.</MenuItem>
+                    <MenuItem value="Mrs.">Mrs.</MenuItem>
+                    <MenuItem value="Ms.">Ms.</MenuItem>
+                    <MenuItem value="M/s">M/s</MenuItem>
+                    <MenuItem value="Dr.">Dr.</MenuItem>
+                    <MenuItem value="Shri">Shri</MenuItem>
+                    <MenuItem value="Smt.">Smt.</MenuItem>
+                    <MenuItem value="Kum.">Kum.</MenuItem>
+                  </TextField>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={2.5}>
                   <TextField
                     fullWidth
-                    label="Devotee Name *"
-                    value={donationForm.devotee_name}
-                    onChange={(e) => handleDonationChange('devotee_name', e.target.value)}
+                    label="First Name *"
+                    value={donationForm.devotee_first_name}
+                    onChange={(e) => handleDonationChange('devotee_first_name', e.target.value)}
                     required
                     size="small"
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={3}>
+                  <TextField
+                    fullWidth
+                    label="Last Name"
+                    value={donationForm.devotee_last_name}
+                    onChange={(e) => handleDonationChange('devotee_last_name', e.target.value)}
+                    size="small"
+                  />
+                </Grid>
+                
+                {/* Amount and Category */}
+                <Grid item xs={12} sm={4}>
                   <TextField
                     fullWidth
                     label="Amount (₹)"
@@ -485,73 +626,7 @@ function Dashboard() {
                     inputProps={{ min: 1, step: 0.01 }}
                   />
                 </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Street Address (Optional)"
-                    placeholder="House/Flat No., Building, Street, Area"
-                    value={donationForm.address}
-                    onChange={(e) => handleDonationChange('address', e.target.value)}
-                    size="small"
-                    multiline
-                    rows={2}
-                  />
-                </Grid>
                 <Grid item xs={12} sm={4}>
-                  <TextField
-                    fullWidth
-                    label="PIN Code"
-                    placeholder="6 digit PIN code"
-                    value={donationForm.pincode}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                      handleDonationChange('pincode', value);
-                    }}
-                    size="small"
-                    inputProps={{ maxLength: 6 }}
-                    InputProps={{
-                      endAdornment: pincodeLoading && (
-                        <InputAdornment position="end">
-                          <CircularProgress size={20} />
-                        </InputAdornment>
-                      )
-                    }}
-                    helperText={donationForm.pincode.length === 6 ? "City & State will auto-fill" : ""}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <TextField
-                    fullWidth
-                    label="City"
-                    placeholder="City"
-                    value={donationForm.city}
-                    onChange={(e) => handleDonationChange('city', e.target.value)}
-                    size="small"
-                    disabled={pincodeLoading}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <TextField
-                    fullWidth
-                    label="State"
-                    placeholder="State"
-                    value={donationForm.state}
-                    onChange={(e) => handleDonationChange('state', e.target.value)}
-                    size="small"
-                    disabled={pincodeLoading}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Country"
-                    placeholder="Country"
-                    value={donationForm.country}
-                    onChange={(e) => handleDonationChange('country', e.target.value)}
-                    size="small"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     select
@@ -568,11 +643,12 @@ function Dashboard() {
                     ))}
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                {/* Payment Mode */}
+                <Grid item xs={12} sm={4}>
                   <TextField
                     fullWidth
                     select
-                    label="Payment Mode"
+                    label="Payment Mode *"
                     value={donationForm.payment_mode}
                     onChange={(e) => handleDonationChange('payment_mode', e.target.value)}
                     required
@@ -585,51 +661,244 @@ function Dashboard() {
                     ))}
                   </TextField>
                 </Grid>
+                {/* Bank Account - for non-cash payments */}
+                {donationForm.payment_mode !== 'Cash' && (
+                  <Grid item xs={12} sm={6}>
+                    {bankAccounts.length > 0 ? (
+                      <TextField
+                        fullWidth
+                        select
+                        label="Bank Account *"
+                        value={donationForm.bank_account_id || ''}
+                        onChange={(e) => handleDonationChange('bank_account_id', e.target.value)}
+                        required
+                        size="small"
+                        helperText={`Select which bank account received this ${donationForm.payment_mode} payment`}
+                      >
+                        {bankAccounts.map((account) => {
+                          const accountName = account.name || account.account_name || 'Account';
+                          const bankName = account.bank_name || 'Bank';
+                          const accountNumber = account.account_number ? ` (****${account.account_number.slice(-4)})` : '';
+                          return (
+                            <MenuItem key={account.id} value={account.id}>
+                              {accountName} - {bankName}{accountNumber} {account.is_primary ? '(Primary)' : ''}
+                            </MenuItem>
+                          );
+                        })}
+                      </TextField>
+                    ) : (
+                      <Alert severity="warning" sx={{ mt: 1 }}>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          No bank accounts configured. To record {donationForm.payment_mode} payments, please add bank accounts.
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Go to: Accounting → UPI Payments → Bank Accounts (or Settings → Banking)
+                        </Typography>
+                      </Alert>
+                    )}
+                  </Grid>
+                )}
+                
+                {/* Payment-specific fields based on payment_mode */}
+                {donationForm.payment_mode === 'UPI' && (
+                  <>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Sender UPI ID"
+                        value={donationForm.sender_upi_id || ''}
+                        onChange={(e) => handleDonationChange('sender_upi_id', e.target.value)}
+                        size="small"
+                        placeholder="9876543210@paytm"
+                        helperText="From SMS notification (e.g., VPA)"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="UPI Reference Number"
+                        value={donationForm.upi_reference_number || ''}
+                        onChange={(e) => handleDonationChange('upi_reference_number', e.target.value)}
+                        size="small"
+                        placeholder="UTR/RRN from SMS"
+                        helperText="Transaction reference from SMS"
+                      />
+                    </Grid>
+                  </>
+                )}
+                
+                {donationForm.payment_mode === 'Cheque' && (
+                  <>
+                    <Grid item xs={12} sm={3}>
+                      <TextField
+                        fullWidth
+                        label="Cheque Number *"
+                        value={donationForm.cheque_number || ''}
+                        onChange={(e) => handleDonationChange('cheque_number', e.target.value)}
+                        required
+                        size="small"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={3}>
+                      <TextField
+                        fullWidth
+                        label="Cheque Date *"
+                        type="date"
+                        value={donationForm.cheque_date || ''}
+                        onChange={(e) => handleDonationChange('cheque_date', e.target.value)}
+                        required
+                        size="small"
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={3}>
+                      <TextField
+                        fullWidth
+                        label="Bank Name *"
+                        value={donationForm.cheque_bank_name || ''}
+                        onChange={(e) => handleDonationChange('cheque_bank_name', e.target.value)}
+                        required
+                        size="small"
+                        placeholder="e.g., SBI, HDFC"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={3}>
+                      <TextField
+                        fullWidth
+                        label="Branch"
+                        value={donationForm.cheque_branch || ''}
+                        onChange={(e) => handleDonationChange('cheque_branch', e.target.value)}
+                        size="small"
+                        placeholder="Branch name"
+                      />
+                    </Grid>
+                  </>
+                )}
+                
+                {donationForm.payment_mode === 'Online' && (
+                  <>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="UTR Number *"
+                        value={donationForm.utr_number || ''}
+                        onChange={(e) => handleDonationChange('utr_number', e.target.value)}
+                        required
+                        size="small"
+                        placeholder="Unique Transfer Reference"
+                        helperText="UTR or transaction reference from bank"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Payer Name"
+                        value={donationForm.payer_name || ''}
+                        onChange={(e) => handleDonationChange('payer_name', e.target.value)}
+                        size="small"
+                        placeholder="Name of person who made the transfer"
+                        helperText="May be different from devotee name"
+                      />
+                    </Grid>
+                  </>
+                )}
+                
+                {/* Anonymous Checkbox */}
+                <Grid item xs={12} sm={4}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={donationForm.is_anonymous || false}
+                        onChange={(e) => handleDonationChange('is_anonymous', e.target.checked)}
+                        size="small"
+                      />
+                    }
+                    label="Anonymous Donation"
+                  />
+                </Grid>
+                
+                {/* Address Fields - Collapsible */}
+                <Grid item xs={12}>
+                  <Collapse in={!donationForm.is_anonymous}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          label="Street Address (Optional)"
+                          placeholder="House/Flat No., Building, Street, Area"
+                          value={donationForm.address}
+                          onChange={(e) => handleDonationChange('address', e.target.value)}
+                          size="small"
+                          multiline
+                          rows={2}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          label="PIN Code"
+                          placeholder="6 digit PIN code"
+                          value={donationForm.pincode}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                            handleDonationChange('pincode', value);
+                          }}
+                          size="small"
+                          inputProps={{ maxLength: 6 }}
+                          InputProps={{
+                            endAdornment: pincodeLoading && (
+                              <InputAdornment position="end">
+                                <CircularProgress size={20} />
+                              </InputAdornment>
+                            )
+                          }}
+                          helperText={donationForm.pincode.length === 6 ? "City & State will auto-fill" : ""}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          label="City"
+                          placeholder="City"
+                          value={donationForm.city}
+                          onChange={(e) => handleDonationChange('city', e.target.value)}
+                          size="small"
+                          disabled={pincodeLoading}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          label="State"
+                          placeholder="State"
+                          value={donationForm.state}
+                          onChange={(e) => handleDonationChange('state', e.target.value)}
+                          size="small"
+                          disabled={pincodeLoading}
+                        />
+                      </Grid>
+                    </Grid>
+                  </Collapse>
+                </Grid>
+                
                 <Grid item xs={12}>
                   <Button
                     type="submit"
                     variant="contained"
                     fullWidth
                     startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
-                    disabled={saving}
+                    disabled={saving || !mobileEntered}
                     size="large"
+                    sx={{ mt: 2 }}
                   >
                     {saving ? 'Saving...' : 'Record Donation'}
                   </Button>
                 </Grid>
-              </Grid>
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Panchang Display - Side by side with donation form */}
-        <Grid item xs={12} md={6}>
-          {panchangData ? (
-            <>
-              <PanchangDisplay 
-                data={panchangData} 
-                settings={panchangData}
-                compact={true}
-              />
-              <Button
-                variant="outlined"
-                fullWidth
-                size="small"
-                sx={{ mt: 2 }}
-                onClick={() => navigate('/panchang')}
-              >
-                View Full Panchang →
-              </Button>
-            </>
-          ) : (
-            <Paper sx={{ p: 3, boxShadow: 2, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                Panchang data will be displayed here once connected to panchang service API.
-              </Typography>
-            </Paper>
-          )}
-        </Grid>
-      </Grid>
+              </>
+            )}
+          </Grid>
+        </Box>
+      </Paper>
     </Layout>
   );
 }

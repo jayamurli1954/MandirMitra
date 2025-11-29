@@ -78,3 +78,5 @@ WHERE donation_type = 'cash' AND payment_mode IS NULL;
 -- Migration complete
 -- Note: This migration is backward compatible - all existing donations remain as cash donations
 
+
+

@@ -3,7 +3,7 @@ Financial Period Closing API
 Handles month-end and year-end closing processes
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from typing import Optional, List

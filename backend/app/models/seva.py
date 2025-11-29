@@ -73,7 +73,8 @@ class Seva(Base):
     benefits = Column(Text, nullable=True)
     instructions = Column(Text, nullable=True)
     duration_minutes = Column(Integer, nullable=True)
-    materials_required = Column(Text, nullable=True)  # JSON array or comma-separated list of materials
+    # materials_required column may not exist in database - handle gracefully
+    # materials_required = Column(Text, nullable=True)  # JSON array or comma-separated list of materials
 
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -99,8 +100,23 @@ class SevaBooking(Base):
 
     # Payment
     amount_paid = Column(Float, nullable=False)
-    payment_method = Column(String(50), nullable=True)
-    payment_reference = Column(String(100), nullable=True)
+    payment_method = Column(String(50), nullable=True)  # Cash, Card, UPI, Cheque, Online
+    payment_reference = Column(String(100), nullable=True)  # Legacy field
+    
+    # UPI Payment Details (if payment_method = 'UPI')
+    sender_upi_id = Column(String(100), nullable=True)  # Sender's UPI ID (e.g., 9876543210@paytm)
+    upi_reference_number = Column(String(100), nullable=True)  # UPI transaction reference (UTR/RRN)
+    
+    # Cheque Details (if payment_method = 'Cheque')
+    cheque_number = Column(String(50), nullable=True)
+    cheque_date = Column(Date, nullable=True)
+    cheque_bank_name = Column(String(100), nullable=True)  # Name of bank
+    cheque_branch = Column(String(100), nullable=True)  # Branch name
+    
+    # Online Transfer Details (if payment_method = 'Online')
+    utr_number = Column(String(100), nullable=True)  # UTR (Unique Transfer Reference) or transaction reference
+    payer_name = Column(String(200), nullable=True)  # Payer's name (may be different from devotee/seva kartha)
+    
     receipt_number = Column(String(100), nullable=True, unique=True)
 
     # Additional details

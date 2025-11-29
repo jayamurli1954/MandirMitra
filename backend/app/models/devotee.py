@@ -21,11 +21,15 @@ class Devotee(Base):
     temple_id = Column(Integer, ForeignKey("temples.id"), nullable=True, index=True)
     
     # Basic Information
-    name = Column(String(200), nullable=False)
+    name_prefix = Column(String(10), nullable=True)  # Mr., Mrs., Ms., M/s, Dr., etc.
+    first_name = Column(String(100), nullable=True)  # First name (will be NOT NULL after migration)
+    last_name = Column(String(100), nullable=True)  # Last name (optional)
+    name = Column(String(200), nullable=False)  # Full name (for backward compatibility, auto-generated from first_name + last_name)
     full_name = Column(String(200))  # For backward compatibility
     
     # Contact
-    phone = Column(String(20), unique=True, index=True, nullable=False)
+    country_code = Column(String(5), default="+91")  # Country code for phone (e.g., +91, +1, +44)
+    phone = Column(String(20), unique=True, index=True, nullable=False)  # Phone number without country code
     email = Column(String(100))
     
     # Address

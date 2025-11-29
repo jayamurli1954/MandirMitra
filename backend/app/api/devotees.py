@@ -23,7 +23,11 @@ router = APIRouter(prefix="/api/v1/devotees", tags=["devotees"])
 
 # Pydantic Schemas
 class DevoteeBase(BaseModel):
-    name: str
+    first_name: Optional[str] = None  # First name
+    last_name: Optional[str] = None  # Last name (optional)
+    name: Optional[str] = None  # Full name (for backward compatibility, auto-generated from first_name + last_name if not provided)
+    name_prefix: Optional[str] = None  # Mr., Mrs., Ms., M/s, Dr., etc.
+    country_code: Optional[str] = "+91"  # Country code for phone
     phone: str
     email: Optional[str] = None
     address: Optional[str] = None
@@ -66,6 +70,8 @@ class DevoteeUpdate(BaseModel):
 
 class DevoteeResponse(DevoteeBase):
     id: int
+    name_prefix: Optional[str] = None
+    country_code: Optional[str] = "+91"
     full_name: Optional[str] = None
     created_at: str
     updated_at: str
@@ -120,8 +126,21 @@ class DevoteeResponse(DevoteeBase):
         # Check if VIP (has VIP tag)
         is_vip = "VIP" in tags or "Patron" in tags if tags else False
         
+        # Get first_name and last_name, or split from name if not available
+        first_name = getattr(devotee, 'first_name', None)
+        last_name = getattr(devotee, 'last_name', None)
+        if not first_name and devotee.name:
+            # Split name into first and last (take first word as first_name, rest as last_name)
+            name_parts = devotee.name.strip().split(None, 1)
+            first_name = name_parts[0] if name_parts else devotee.name
+            last_name = name_parts[1] if len(name_parts) > 1 else None
+        
         return cls(
             id=devotee.id,
+            name_prefix=getattr(devotee, 'name_prefix', None),
+            first_name=first_name or devotee.name,
+            last_name=last_name,
+            country_code=getattr(devotee, 'country_code', '+91'),
             name=devotee.name,
             phone=mask_phone_for_user(devotee.phone, user),
             email=mask_email_for_user(devotee.email, user),
@@ -197,24 +216,129 @@ def get_devotees(
     return [DevoteeResponse.from_orm_with_masking(d, current_user, db) for d in devotees]
 
 
-@router.get("/search/by-mobile/{mobile}", response_model=Optional[DevoteeResponse])
+@router.get("/search/by-mobile/{mobile}", response_model=List[DevoteeResponse])
 def search_devotee_by_mobile(
     mobile: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Search for a devotee by mobile number"""
-    # Clean up mobile number (remove spaces, dashes, etc.)
-    clean_mobile = mobile.replace(" ", "").replace("-", "").replace("+91", "")
+    """Search for devotees by mobile number (with or without country code)
+    Returns list of matching devotees - may have multiple results if same phone exists with different country codes
+    Defaults to searching with +91 (India) if no country code provided
+    """
+    from typing import List as ListType
+    
+    temple_id = current_user.temple_id if current_user else None
+    
+    # Clean up mobile number (remove spaces, dashes)
+    clean_mobile = mobile.strip().replace(" ", "").replace("-", "")
+    
+    # Extract country code and phone number
+    country_code = None
+    phone_number = clean_mobile
+    
+    # Check for country code prefix
+    if clean_mobile.startswith("+"):
+        # Extract country code (e.g., +91, +1, +44)
+        # Country codes are typically 1-4 digits after the +
+        # For Indian numbers (+91), we know it's exactly 2 digits
+        # For others, we need to be smart - common codes: +1 (US/Canada), +44 (UK), +91 (India), etc.
+        
+        # Special handling for common country codes
+        if clean_mobile.startswith("+91") and len(clean_mobile) > 3:
+            # Indian number: +91XXXXXXXXXX
+            country_code = "+91"
+            phone_number = clean_mobile[3:]  # Everything after +91
+        elif clean_mobile.startswith("+1") and len(clean_mobile) > 2:
+            # US/Canada: +1XXXXXXXXXX
+            country_code = "+1"
+            phone_number = clean_mobile[2:]
+        elif clean_mobile.startswith("+44") and len(clean_mobile) > 3:
+            # UK: +44XXXXXXXXXX
+            country_code = "+44"
+            phone_number = clean_mobile[3:]
+        else:
+            # For other countries, extract up to 4 digits after +
+            # But stop at reasonable boundaries (most country codes are 1-3 digits)
+            i = 1
+            max_digits = 4  # Maximum digits in country code
+            while i < len(clean_mobile) and i <= max_digits and clean_mobile[i].isdigit():
+                i += 1
+            country_code = clean_mobile[:i]
+            phone_number = clean_mobile[i:]
+    elif clean_mobile.startswith("0091"):
+        country_code = "+91"
+        phone_number = clean_mobile[4:]
+    elif clean_mobile.startswith("91") and len(clean_mobile) > 10:
+        country_code = "+91"
+        phone_number = clean_mobile[2:]
+    
+    # For Indian numbers, take last 10 digits
+    if country_code == "+91" or (not country_code and len(phone_number) > 10):
+        phone_number = phone_number[-10:]
+        if not country_code:
+            country_code = "+91"  # Default to India
+    
+    # Validate phone number is not empty
+    if not phone_number or len(phone_number) < 7:
+        return []
+    
+    # Search for devotees with this phone number - MUST filter by temple_id
+    query = db.query(Devotee).filter(
+        Devotee.phone == phone_number,
+        Devotee.temple_id == temple_id
+    )
+    
+    # If country code was provided, also filter by country code for exact match
+    if country_code:
+        # First try exact match with country code
+        exact_match = query.filter(Devotee.country_code == country_code).all()
+        if exact_match:
+            devotees = exact_match
+        else:
+            # If no exact match, get all matches for this phone in this temple
+            devotees = query.all()
+    else:
+        # No country code provided, get all matches
+        devotees = query.all()
+    
+    # If no exact match found, try with LIKE for partial matches (backward compatibility)
+    # BUT STILL FILTER BY TEMPLE_ID
+    if not devotees:
+        devotees = db.query(Devotee).filter(
+            Devotee.phone.like(f"%{phone_number}%"),
+            Devotee.temple_id == temple_id
+        ).all()
+    
+    # Also try searching with the full input (in case phone was stored with country code)
+    if not devotees and len(phone_number) >= 7:
+        # Try searching with last 7+ digits (more flexible)
+        short_phone = phone_number[-7:] if len(phone_number) >= 7 else phone_number
+        devotees = db.query(Devotee).filter(
+            Devotee.phone.like(f"%{short_phone}%"),
+            Devotee.temple_id == temple_id
+        ).all()
 
-    # Search for devotee
-    devotee = db.query(Devotee).filter(
-        Devotee.phone.like(f"%{clean_mobile}%")
-    ).first()
-
-    if devotee:
-        return DevoteeResponse.from_orm_with_masking(devotee, current_user, db)
-    return None
+    if devotees:
+        # Sort: exact country code match first (if country code was provided)
+        if country_code:
+            devotees.sort(key=lambda d: 0 if d.country_code == country_code else 1)
+        return [DevoteeResponse.from_orm_with_masking(dev, current_user, db) for dev in devotees]
+    
+    # Debug: Log search parameters if no results found
+    # Also check what phones exist in DB for this temple
+    all_phones = db.query(Devotee.phone, Devotee.country_code, Devotee.name).filter(
+        Devotee.temple_id == temple_id
+    ).limit(10).all()
+    print(f"DEBUG: No devotees found for phone search:")
+    print(f"  Input: {mobile}")
+    print(f"  Cleaned: {clean_mobile}")
+    print(f"  Country code: {country_code}")
+    print(f"  Phone number: {phone_number}")
+    print(f"  Temple ID: {temple_id}")
+    print(f"  Sample phones in DB for this temple: {[(p[0], p[1], p[2]) for p in all_phones]}")
+    
+    return []
 
 
 @router.get("/{devotee_id}", response_model=DevoteeResponse)
@@ -237,18 +361,121 @@ def create_devotee(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new devotee"""
-    # Check if phone already exists
-    existing = db.query(Devotee).filter(Devotee.phone == devotee.phone).first()
+    temple_id = current_user.temple_id if current_user else None
+    
+    # Normalize phone number (same logic as search)
+    clean_phone = devotee.phone.strip().replace(" ", "").replace("-", "")
+    
+    # Extract country code and phone number
+    country_code_input = devotee.country_code or "+91"
+    phone_number = clean_phone
+    country_code = country_code_input
+    
+    # If phone includes country code, extract it (use same logic as search)
+    if clean_phone.startswith("+"):
+        # Special handling for common country codes (same as search function)
+        if clean_phone.startswith("+91") and len(clean_phone) > 3:
+            # Indian number: +91XXXXXXXXXX
+            country_code = "+91"
+            phone_number = clean_phone[3:]  # Everything after +91
+        elif clean_phone.startswith("+1") and len(clean_phone) > 2:
+            # US/Canada: +1XXXXXXXXXX
+            country_code = "+1"
+            phone_number = clean_phone[2:]
+        elif clean_phone.startswith("+44") and len(clean_phone) > 3:
+            # UK: +44XXXXXXXXXX
+            country_code = "+44"
+            phone_number = clean_phone[3:]
+        else:
+            # For other countries, extract up to 4 digits after +
+            i = 1
+            max_digits = 4  # Maximum digits in country code
+            while i < len(clean_phone) and i <= max_digits and clean_phone[i].isdigit():
+                i += 1
+            country_code = clean_phone[:i]
+            phone_number = clean_phone[i:]
+    elif clean_phone.startswith("0091"):
+        country_code = "+91"
+        phone_number = clean_phone[4:]
+    elif clean_phone.startswith("91") and len(clean_phone) > 10:
+        country_code = "+91"
+        phone_number = clean_phone[2:]
+    
+    # For Indian numbers, take last 10 digits
+    if country_code == "+91" or (not country_code.startswith("+") and len(phone_number) > 10):
+        phone_number = phone_number[-10:]
+        if not country_code.startswith("+"):
+            country_code = "+91"
+    
+    # Ensure country_code is max 5 characters (database constraint: VARCHAR(5))
+    if len(country_code) > 5:
+        # If country code is too long, it might be the full phone number
+        # Default to +91 and use the input as phone number
+        country_code = "+91"
+        phone_number = clean_phone[-10:] if len(clean_phone) >= 10 else clean_phone
+    
+    # Validate phone number is not empty
+    if not phone_number or len(phone_number) < 7:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid phone number. Please provide a valid phone number (minimum 7 digits)."
+        )
+    
+    # Final validation: ensure country_code is exactly 5 chars or less
+    country_code = country_code[:5] if len(country_code) > 5 else country_code
+    
+    # Check if phone already exists IN THIS TEMPLE (phone should be unique per temple)
+    # Also check with LIKE for partial matches (in case of formatting differences)
+    existing = db.query(Devotee).filter(
+        Devotee.phone == phone_number,
+        Devotee.temple_id == temple_id
+    ).first()
+    
+    # If exact match not found, try LIKE search (for backward compatibility)
+    if not existing:
+        existing = db.query(Devotee).filter(
+            Devotee.phone.like(f"%{phone_number}%"),
+            Devotee.temple_id == temple_id
+        ).first()
+    
     if existing:
-        raise HTTPException(status_code=400, detail="Phone number already exists")
+        # Provide helpful error message with devotee details
+        existing_name = existing.name or f"{existing.first_name or ''} {existing.last_name or ''}".strip()
+        existing_phone = existing.phone
+        existing_country_code = getattr(existing, 'country_code', '+91')
+        raise HTTPException(
+            status_code=400,
+            detail=f"Phone number already exists for devotee: {existing_name or 'Unknown'} (Phone: {existing_country_code}{existing_phone}). Please search for this devotee instead of creating a new one. Devotee ID: {existing.id}"
+        )
     
     # Convert tags list to JSON string
     tags_json = json.dumps(devotee.tags) if devotee.tags else None
     
+    # Handle first_name and last_name from devotee input
+    # Support both new format (first_name, last_name) and old format (name)
+    if devotee.first_name:
+        first_name = devotee.first_name
+        last_name = devotee.last_name if devotee.last_name else None
+        full_name = f"{first_name} {last_name}".strip() if last_name else first_name
+        devotee_name = devotee.name if devotee.name else full_name
+    elif devotee.name:
+        # Backward compatibility: split name into first and last
+        name_parts = devotee.name.strip().split(None, 1)
+        first_name = name_parts[0] if name_parts else devotee.name
+        last_name = name_parts[1] if len(name_parts) > 1 else None
+        full_name = devotee.name
+        devotee_name = devotee.name
+    else:
+        raise HTTPException(status_code=400, detail="first_name or name is required")
+    
     db_devotee = Devotee(
-        name=devotee.name,
-        full_name=devotee.name,  # For backward compatibility
-        phone=devotee.phone,
+        name_prefix=getattr(devotee, 'name_prefix', None),
+        first_name=first_name,
+        last_name=last_name,
+        name=devotee_name,
+        full_name=full_name,  # For backward compatibility
+        country_code=country_code,  # Use normalized country code
+        phone=phone_number,  # Use normalized phone number
         email=devotee.email,
         address=devotee.address,
         city=devotee.city,

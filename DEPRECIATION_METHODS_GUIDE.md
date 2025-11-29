@@ -266,3 +266,5 @@ Depreciation = Annuity - (i × Book Value at Start)
 **Status:** All depreciation methods implemented and ready for use. Temple admins can choose based on auditor advice.
 
 
+
+

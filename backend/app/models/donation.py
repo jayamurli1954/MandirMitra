@@ -2,7 +2,7 @@
 Donation Models - Donations and Categories
 """
 
-from sqlalchemy import Column, Integer, String, Float, Boolean, Text, Date, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Float, Boolean, Text, Date, ForeignKey, Enum as SQLEnum, TypeDecorator
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -23,6 +23,31 @@ class InKindDonationSubType(str, enum.Enum):
     INVENTORY = "inventory"  # Consumables: Rice, Dal, Oil, Sugar, etc.
     EVENT_SPONSORSHIP = "event_sponsorship"  # Flower decoration, Lighting, etc.
     ASSET = "asset"  # Gold, Silver, Jewellery, Idols, Movable/Immovable assets
+
+
+class DonationTypeDecorator(TypeDecorator):
+    """Custom type decorator to ensure lowercase enum values are stored"""
+    impl = String
+    cache_ok = True
+    
+    def process_bind_param(self, value, dialect):
+        """Convert enum to lowercase string value before storing"""
+        if value is None:
+            return None
+        if isinstance(value, DonationType):
+            return value.value  # Returns "cash" or "in_kind"
+        if isinstance(value, str):
+            return value.lower()  # Ensure lowercase
+        return str(value).lower()
+    
+    def process_result_value(self, value, dialect):
+        """Convert string back to enum when reading"""
+        if value is None:
+            return None
+        try:
+            return DonationType(value)
+        except ValueError:
+            return DonationType.CASH  # Default fallback
 
 
 class DonationCategory(Base):
@@ -82,7 +107,8 @@ class Donation(Base):
     receipt_number = Column(String(50), unique=True, nullable=False, index=True)
     
     # Donation Type
-    donation_type = Column(SQLEnum(DonationType), nullable=False, default=DonationType.CASH, index=True)
+    # Use custom decorator to ensure lowercase values are stored correctly
+    donation_type = Column(DonationTypeDecorator(20), nullable=False, default=DonationType.CASH, index=True)
     
     # Amount (for cash donations) or Assessed Value (for in-kind donations)
     amount = Column(Float, nullable=False)
@@ -91,19 +117,29 @@ class Donation(Base):
     payment_mode = Column(String(20), nullable=True)  # Made nullable for in-kind donations
     # Options: cash, card, upi, cheque, online
     
-    transaction_id = Column(String(100))  # For online payments
+    transaction_id = Column(String(100))  # For online payments (legacy, use utr_number for online)
     
-    # Cheque Details (if payment_mode = 'cheque')
+    # UPI Payment Details (if payment_mode = 'UPI')
+    sender_upi_id = Column(String(100))  # Sender's UPI ID (e.g., 9876543210@paytm)
+    upi_reference_number = Column(String(100))  # UPI transaction reference (UTR/RRN)
+    
+    # Cheque Details (if payment_mode = 'Cheque')
     cheque_number = Column(String(50))
     cheque_date = Column(Date)
-    bank_name = Column(String(100))
+    cheque_bank_name = Column(String(100))  # Name of bank
+    cheque_branch = Column(String(100))  # Branch name
+    
+    # Online Transfer Details (if payment_mode = 'Online')
+    utr_number = Column(String(100))  # UTR (Unique Transfer Reference) or transaction reference
+    payer_name = Column(String(200))  # Payer's name (may be different from devotee)
     
     # Donation Details
     is_anonymous = Column(Boolean, default=False)
     notes = Column(Text)
     
     # In-Kind Donation Details (only for donation_type = IN_KIND)
-    inkind_subtype = Column(SQLEnum(InKindDonationSubType), nullable=True, index=True)
+    # Use native_enum=False to store as VARCHAR instead of PostgreSQL enum to avoid conversion issues
+    inkind_subtype = Column(SQLEnum(InKindDonationSubType, native_enum=False), nullable=True, index=True)
     item_name = Column(String(200))  # Name of donated item
     item_description = Column(Text)  # Detailed description
     quantity = Column(Float)  # Quantity donated

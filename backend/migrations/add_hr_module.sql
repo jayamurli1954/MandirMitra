@@ -259,3 +259,5 @@ COMMENT ON TABLE payroll_components IS 'Salary components in a payroll';
 COMMENT ON TABLE leave_types IS 'Leave type master';
 COMMENT ON TABLE leave_applications IS 'Employee leave applications';
 
+
+

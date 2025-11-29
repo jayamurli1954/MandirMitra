@@ -120,3 +120,5 @@
 **Status:** Core functionality complete. Asset procurement, CWIP, and depreciation are working with proper accounting. Ready for frontend development or advanced features.
 
 
+
+
