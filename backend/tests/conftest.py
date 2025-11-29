@@ -1,88 +1,78 @@
 """
-Pytest Configuration and Fixtures for MandirSync Testing
+Pytest configuration and shared fixtures for MandirSync tests
 
-This file provides reusable test fixtures for FastAPI testing.
-
-PERFORMANCE OPTIMIZATIONS:
-- SQLite in-memory database for 10x faster tests
-- Session-scoped database for reusable connections
-- Automatic cleanup after tests
-- Foreign key constraints enabled
+This file contains database fixtures and common test utilities that are
+automatically discovered by pytest and made available to all tests.
 """
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
+from typing import Generator
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
-import os
 
+from app.core.database import Base, get_db
 from app.main import app
-from app.database import Base, get_db
-
-# Test database URL (using SQLite in-memory for FAST tests)
-# Override with: TEST_DATABASE_URL=postgresql://... pytest
-TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite:///:memory:")
-
-# OPTIMIZATION: Create engine with optimized settings
-engine = create_engine(
-    TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in TEST_DATABASE_URL else {},
-    poolclass=StaticPool,
-    echo=False,  # Disable SQL logging for faster tests
-)
-
-# Enable foreign keys for SQLite (important for referential integrity)
-if "sqlite" in TEST_DATABASE_URL:
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_conn, connection_record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.execute("PRAGMA synchronous=OFF")  # Faster writes (safe for tests)
-        cursor.execute("PRAGMA journal_mode=MEMORY")  # Keep journal in memory
-        cursor.close()
-
-# Create test session factory
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-# OPTIMIZATION: Create tables once per test session instead of per test
-@pytest.fixture(scope="session", autouse=True)
-def setup_test_database():
+# Use in-memory SQLite for fast testing
+SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
+
+
+@pytest.fixture(scope="session")
+def engine():
     """
-    Create database tables once at the start of test session.
-    This is much faster than creating/dropping per test.
+    Create a test database engine (session scope).
+    Uses in-memory SQLite for maximum speed.
     """
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
+    engine = create_engine(
+        SQLALCHEMY_TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,  # Reuse connection for in-memory DB
+    )
 
-
-@pytest.fixture(scope="function")
-def db_session():
-    """
-    Provides a clean database session for each test.
-    Automatically creates tables before test and drops after.
-    """
     # Create all tables
     Base.metadata.create_all(bind=engine)
 
-    # Create session
-    session = TestingSessionLocal()
+    yield engine
 
-    try:
-        yield session
-    finally:
-        session.close()
-        # Drop all tables after test
-        Base.metadata.drop_all(bind=engine)
+    # Cleanup
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def db_session(engine) -> Generator[Session, None, None]:
+    """
+    Create a new database session for each test (function scope).
+
+    This ensures test isolation - each test gets a clean database state.
+    Uses transactions that are rolled back after each test.
+    """
+    connection = engine.connect()
+    transaction = connection.begin()
+
+    # Create session bound to this connection
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=connection)
+    session = SessionLocal()
+
+    yield session
+
+    # Rollback transaction and close
+    session.close()
+    transaction.rollback()
+    connection.close()
 
 
 @pytest.fixture(scope="function")
 def client(db_session):
     """
-    Provides a FastAPI TestClient with overridden database dependency.
+    Create a test client with database session override.
+
+    This fixture provides a FastAPI TestClient that uses the test database.
     """
+    from fastapi.testclient import TestClient
+
     def override_get_db():
         try:
             yield db_session
@@ -94,96 +84,48 @@ def client(db_session):
     with TestClient(app) as test_client:
         yield test_client
 
+    # Clear overrides
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def test_user_data():
+def authenticated_client(client, test_user):
     """
-    Provides sample user data for testing.
-    """
-    return {
-        "username": "test_admin",
-        "email": "admin@mandirsync.test",
-        "password": "Test@1234",
-        "full_name": "Test Administrator",
-        "role": "super_admin"
-    }
+    Create an authenticated test client.
 
-
-@pytest.fixture
-def test_donation_data():
+    Returns a client with authentication headers for the test user.
     """
-    Provides sample donation data for testing.
-    """
-    return {
-        "donor_name": "Ram Kumar",
-        "amount": 1000.00,
-        "payment_method": "cash",
-        "category": "general",
-        "purpose": "Temple development",
-        "pan_number": "ABCDE1234F"
-    }
-
-
-@pytest.fixture
-def test_seva_data():
-    """
-    Provides sample seva booking data for testing.
-    """
-    return {
-        "devotee_name": "Krishna Sharma",
-        "seva_name": "Abhishekam",
-        "seva_date": "2025-12-01",
-        "amount": 500.00,
-        "payment_method": "upi"
-    }
-
-
-@pytest.fixture
-def authenticated_client(client, test_user_data):
-    """
-    Provides a TestClient with authenticated session.
-    Creates a test user and returns client with auth token.
-    """
-    # Register user
-    response = client.post("/api/auth/register", json=test_user_data)
-
     # Login to get token
-    login_response = client.post(
+    response = client.post(
         "/api/auth/login",
-        data={
-            "username": test_user_data["username"],
-            "password": test_user_data["password"]
-        }
+        data={"username": test_user.email, "password": "testpass123"}
     )
 
-    if login_response.status_code == 200:
-        token = login_response.json().get("access_token")
-        client.headers.update({"Authorization": f"Bearer {token}"})
+    if response.status_code == 200:
+        token = response.json().get("access_token")
+        client.headers["Authorization"] = f"Bearer {token}"
 
     return client
 
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def assert_success_response(response, expected_status=200):
-    """
-    Assert that API response is successful.
-    """
-    assert response.status_code == expected_status, (
-        f"Expected status {expected_status}, got {response.status_code}. "
-        f"Response: {response.text}"
+# Performance optimization: Mark slow tests
+def pytest_configure(config):
+    """Configure custom markers"""
+    config.addinivalue_line(
+        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-
-
-def assert_error_response(response, expected_status=400):
-    """
-    Assert that API response is an error.
-    """
-    assert response.status_code == expected_status, (
-        f"Expected error status {expected_status}, got {response.status_code}. "
-        f"Response: {response.text}"
+    config.addinivalue_line(
+        "markers", "integration: marks tests as integration tests"
+    )
+    config.addinivalue_line(
+        "markers", "unit: marks tests as unit tests"
+    )
+    config.addinivalue_line(
+        "markers", "panchang: marks tests related to panchang calculations"
+    )
+    config.addinivalue_line(
+        "markers", "api: marks tests for API endpoints"
+    )
+    config.addinivalue_line(
+        "markers", "database: marks tests that require database"
     )

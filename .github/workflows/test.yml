@@ -1,0 +1,172 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ main, develop, claude/** ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  backend-tests:
+    name: Backend Tests (Python)
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-test.txt
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+
+      - name: Run tests with coverage
+        run: |
+          cd backend
+          pytest --cov=app \
+                 --cov-report=xml \
+                 --cov-report=term-missing \
+                 --cov-report=html \
+                 --maxfail=5 \
+                 -n auto \
+                 -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage-report
+          path: backend/htmlcov/
+          retention-days: 7
+
+  frontend-tests:
+    name: Frontend Tests (React)
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: ["18.x"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run tests with coverage
+        run: |
+          cd frontend
+          npm run test:ci
+        env:
+          CI: true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./frontend/coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-coverage-report
+          path: frontend/coverage/
+          retention-days: 7
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          pip install -r requirements-test.txt
+
+      - name: Run Black (formatter check)
+        run: |
+          cd backend
+          black --check app tests
+        continue-on-error: true
+
+      - name: Run isort (import sorting check)
+        run: |
+          cd backend
+          isort --check-only app tests
+        continue-on-error: true
+
+      - name: Run Flake8 (linter)
+        run: |
+          cd backend
+          flake8 app tests --max-line-length=100 --extend-ignore=E203,W503
+        continue-on-error: true
+
+      - name: Run Bandit (security check)
+        run: |
+          cd backend
+          bandit -r app -ll
+        continue-on-error: true
+
+  test-summary:
+    name: Test Summary
+    needs: [backend-tests, frontend-tests]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check test results
+        run: |
+          echo "Backend Tests: ${{ needs.backend-tests.result }}"
+          echo "Frontend Tests: ${{ needs.frontend-tests.result }}"
+
+          if [[ "${{ needs.backend-tests.result }}" == "failure" ]] || [[ "${{ needs.frontend-tests.result }}" == "failure" ]]; then
+            echo "❌ Some tests failed"
+            exit 1
+          else
+            echo "✅ All tests passed"
+          fi

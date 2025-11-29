@@ -1,0 +1,42 @@
+[run]
+source = app
+omit =
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */migrations/*
+    */alembic/*
+    */scripts/*
+    */venv/*
+    */virtualenv/*
+    */.venv/*
+
+branch = True
+parallel = True
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+skip_empty = True
+
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    @abc.abstractmethod
+    if self.debug:
+    if settings.DEBUG
+    raise NotImplementedError
+    pass
+
+[html]
+directory = htmlcov
+
+[xml]
+output = coverage.xml
