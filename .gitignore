@@ -86,3 +86,79 @@ backups/
 *~
 .tmp/
 temp/
+
+# Fix scripts and temporary debugging files
+fix_*.py
+check_*.py
+verify_*.py
+test_*.py
+debug_*.py
+*_debug.*
+*_fix.*
+*cleanup*.py
+*cleanup*.sql
+reset_*.py
+cleanup_*.py
+cleanup_*.sql
+
+# Test results and coverage
+test-results/
+playwright-report/
+coverage.xml
+*.cover
+htmlcov/
+.pytest_cache/
+.coverage
+
+# PDF files (except documentation)
+*.pdf
+!**/docs/**/*.pdf
+
+# Temporary text files
+*.txt
+!requirements.txt
+!README.txt
+
+# Copy files
+* - Copy.*
+* - Copy.py
+* - Copy.js
+
+# Debug and log files
+debug.log
+*.log
+!error.log
+
+# Temporary markdown files (keep only important ones)
+~$*.md
+*_review.md
+*_results.txt
+*_fixes.txt
+*_Review.txt
+*_test_rsults.txt
+*_Bug_fixes.txt
+
+# E2E test artifacts
+e2e-tests/test-results/
+e2e-tests/playwright-report/
+e2e-tests/tests/storageState.json
+e2e-tests/tests/*.html
+e2e-tests/tests/*.png
+
+# Backend temporary scripts
+backend/scripts/fix_*.py
+backend/scripts/check_*.py
+backend/scripts/debug_*.py
+backend/scripts/verify_*.py
+backend/scripts/force_*.py
+backend/scripts/*_raw.py
+backend/scripts/*.sql
+backend/coverage.xml
+backend/test-results/
+backend/verify_exports/
+backend/tools/
+
+# Frontend temporary files
+frontend/.env
+frontend/build/
+frontend/dist/

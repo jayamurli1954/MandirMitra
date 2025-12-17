@@ -175,7 +175,9 @@ def create_account(
     Create new account
     Only admin users can create accounts
     """
-    if current_user.role != 'admin':
+    # Check if user is admin or has superuser privileges
+    is_admin = current_user.role == 'admin' or current_user.role == 'temple_manager' or current_user.is_superuser
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admin users can create accounts"
@@ -252,7 +254,9 @@ def update_account(
     Account code can NEVER be changed
     Reason required for audit trail when making significant changes
     """
-    if current_user.role != 'admin':
+    # Check if user is admin or has superuser privileges
+    is_admin = current_user.role == 'admin' or current_user.role == 'temple_manager' or current_user.is_superuser
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admin users can update accounts"
@@ -292,13 +296,9 @@ def update_account(
             detail="Account code cannot be changed. Account codes are permanent."
         )
 
-    # Account name cannot be changed if account has transactions
-    if 'account_name' in update_data and has_transactions:
-        raise HTTPException(
-            status_code=400,
-            detail="Account name cannot be changed because this account has transaction history. "
-                   "Please create a new account and transfer the balance using a Journal Voucher."
-        )
+    # Account name CAN be changed even with transactions (for nomenclature updates)
+    # Account code is immutable, but name can be updated for clarity
+    # This allows renaming accounts like "Advance from Devotees" to "Advance booking for Seva"
 
     # Require reason for significant changes (account name, parent, active status)
     significant_changes = ['account_name', 'parent_account_id', 'is_active', 'account_subtype']

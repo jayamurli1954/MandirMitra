@@ -33,6 +33,7 @@ from app.models.devotee import Devotee
 from app.models.temple import Temple
 from app.models.user import User
 from app.models.accounting import Account, JournalEntry, JournalLine, JournalEntryStatus, TransactionType
+from app.services.printer.print_queue import get_print_queue
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/donations", tags=["donations"])
@@ -190,34 +191,26 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
                 print(f"  Using category-linked account: {credit_account.account_code} - {credit_account.account_name}")
 
         # Fallback:
-        # Use 4100 - Donation Income (Main) as default when category is not linked.
-        # DO NOT use payment-mode accounts (4102, 4103) - all should go to income accounts.
+        # Use 3001 - Donation Income (General) as default when category is not linked.
         if not credit_account:
-            credit_account_code = '4100'  # Donation Income - Main (parent)
+            credit_account_code = '3001'  # Donation Income - General (sub-head)
             credit_account = db.query(Account).filter(
                 Account.temple_id == temple_id,
                 Account.account_code == credit_account_code
             ).first()
 
             if credit_account:
-                print(f"  INFO: Category '{donation.category.name if donation.category else 'Unknown'}' not linked to account. Using main donation income account: {credit_account_code}")
+                print(f"  INFO: Category '{donation.category.name if donation.category else 'Unknown'}' not linked to account. Using default donation income account: {credit_account_code}")
             else:
-                print(f"  ERROR: Main donation income account {credit_account_code} not found. Please ensure it exists in Chart of Accounts or link category to a specific account.")
+                print(f"  ERROR: Default donation income account {credit_account_code} not found. Please ensure '3001 - Donation Income (General)' exists in Chart of Accounts.")
 
         if not debit_account:
             error_msg = f"Debit account ({debit_account_code}) not found for temple {temple_id}. Please create the account in Chart of Accounts."
-            print(f"ERROR: {error_msg}")
-            print(f"  - Donation: {donation.receipt_number}")
-            print(f"  - Payment mode: {donation.payment_mode}")
-            return None
+            raise ValueError(error_msg)
         
         if not credit_account:
             error_msg = f"Credit account not found for donation category '{donation.category.name if donation.category else 'Unknown'}'. Please link an account to the donation category or create default income accounts."
-            print(f"ERROR: {error_msg}")
-            print(f"  - Donation: {donation.receipt_number}")
-            print(f"  - Category: {donation.category.name if donation.category else 'None'}")
-            print(f"  - Category account_id: {donation.category.account_id if donation.category and hasattr(donation.category, 'account_id') else 'NO'}")
-            return None
+            raise ValueError(error_msg)
 
         # Create narration
         # Use is_anonymous flag or check if devotee name is missing
@@ -318,8 +311,9 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
         return journal_entry
 
     except Exception as e:
+        # Re-raise exceptions to ensure transaction failure in caller
         print(f"Error posting donation to accounting: {str(e)}")
-        return None
+        raise e
 
 
 # Pydantic Schemas
@@ -330,6 +324,7 @@ class DonationBase(BaseModel):
     devotee_phone: str
     name_prefix: Optional[str] = None  # Mr., Mrs., Ms., M/s, Dr., etc.
     country_code: Optional[str] = "+91"  # Country code for phone (default +91 for India)
+    email: Optional[str] = None  # Email address (optional, validated if provided)
     amount: float
     category: str
     donation_type: DonationType = DonationType.CASH  # Default to cash donation
@@ -384,6 +379,9 @@ class DonationBase(BaseModel):
     # Photo/Document URLs
     photo_url: Optional[str] = None
     document_url: Optional[str] = None
+    
+    # Devotee Tags (for new devotee creation)
+    tags: Optional[List[str]] = None  # Tags like VIP, Regular, Patron, etc.
 
 
 class DonationCreate(DonationBase):
@@ -423,6 +421,23 @@ def create_donation(
     request: Request = None
 ):
     """Create a new donation"""
+    # Validate amount
+    if donation.amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Donation amount must be greater than zero"
+        )
+    
+    # Validate email format if provided
+    if hasattr(donation, 'email') and donation.email and donation.email.strip():
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, donation.email.strip()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid email format"
+            )
+    
     # Handle anonymous donations
     is_anonymous_donation = donation.is_anonymous if hasattr(donation, 'is_anonymous') else False
     
@@ -485,6 +500,12 @@ def create_donation(
             devotee = db.query(Devotee).filter(Devotee.phone == clean_phone).first()
         
         if not devotee:
+            # Convert tags list to JSON string if provided
+            tags_json = None
+            if hasattr(donation, 'tags') and donation.tags:
+                import json
+                tags_json = json.dumps(donation.tags) if isinstance(donation.tags, list) else donation.tags
+            
             # Create devotee if doesn't exist
             devotee = Devotee(
                 name_prefix=name_prefix,
@@ -494,17 +515,21 @@ def create_donation(
                 full_name=devotee_name,  # For backward compatibility
                 country_code=country_code,
                 phone=clean_phone,
+                email=donation.email if hasattr(donation, 'email') and donation.email else None,
                 address=donation.address,
                 pincode=donation.pincode,
                 city=donation.city,
                 state=donation.state,
                 country=donation.country or "India",
+                tags=tags_json,
                 temple_id=current_user.temple_id if current_user else None
             )
             db.add(devotee)
             db.flush()
         else:
             # Update devotee info if provided
+            if hasattr(donation, 'email') and donation.email and not devotee.email:
+                devotee.email = donation.email
             if donation.address and not devotee.address:
                 devotee.address = donation.address
             if donation.pincode and not devotee.pincode:
@@ -513,6 +538,11 @@ def create_donation(
                 devotee.city = donation.city
             if donation.state and not devotee.state:
                 devotee.state = donation.state
+            # Update tags if provided
+            if hasattr(donation, 'tags') and donation.tags:
+                import json
+                tags_json = json.dumps(donation.tags) if isinstance(donation.tags, list) else donation.tags
+                devotee.tags = tags_json
             if donation.country and not devotee.country:
                 devotee.country = donation.country
             if donation.devotee_name and devotee.name != donation.devotee_name:
@@ -538,11 +568,18 @@ def create_donation(
     
     # Generate receipt number
     year = datetime.now().year
-    # Query using raw SQL to avoid enum conversion issues
-    result = db.execute(
-        text("SELECT receipt_number FROM donations WHERE EXTRACT(YEAR FROM donation_date) = :year ORDER BY id DESC LIMIT 1"),
-        {"year": year}
-    ).fetchone()
+    # Query using date range for database-agnostic compatibility
+    # Filter donations from Jan 1 to Dec 31 of current year
+    year_start = date(year, 1, 1)
+    year_end = date(year, 12, 31)
+    last_donation = db.query(Donation).filter(
+        and_(
+            Donation.donation_date >= year_start,
+            Donation.donation_date <= year_end
+        )
+    ).order_by(Donation.id.desc()).first()
+    
+    result = (last_donation.receipt_number,) if last_donation else None
     
     seq = 1
     if result and result[0]:
@@ -700,7 +737,7 @@ def create_donation(
         cheque_branch=payment_details.get('cheque_branch') if donation.donation_type == DonationType.CASH else None,
         utr_number=payment_details.get('utr_number') if donation.donation_type == DonationType.CASH else None,
         payer_name=payment_details.get('payer_name') if donation.donation_type == DonationType.CASH else None,
-        bank_account_id=donation.bank_account_id if donation.donation_type == DonationType.CASH and hasattr(donation, 'bank_account_id') else None,
+        # Note: bank_account_id is not stored in Donation model - it's only used for account selection during creation
     )
     db.add(db_donation)
     db.flush()  # Flush to get the ID
@@ -816,16 +853,28 @@ def create_donation(
         db_donation.inventory_item_id = item_id
         db_donation.store_id = store_id
     
+    
+    # Post to accounting system BEFORE final commit
+    # This ensures strict double-entry accounting - if accounting fails, donation fails
+    try:
+        journal_entry = post_donation_to_accounting(db, db_donation, current_user.temple_id if current_user else None)
+        message = "Donation recorded successfully and posted to accounting"
+    except Exception as e:
+        # Accounting failed, so we must rollback the entire transaction
+        # db.rollback() is handled by FastAPI dependency or middleware generally, 
+        # but here we raise HTTPException to ensure 400/500 response
+        raise HTTPException(
+            status_code=400,
+            detail=f"Accounting Entry Failed: {str(e)}. Please correct the Chart of Accounts."
+        )
+
     db.commit()
     db.refresh(db_donation)
 
-    # Post to accounting system
-    journal_entry = post_donation_to_accounting(db, db_donation, current_user.temple_id if current_user else None)
-    if journal_entry:
-        db.commit()  # Commit the journal entry
-        message = "Donation recorded successfully and posted to accounting"
-    else:
-        message = "Donation recorded but accounting entry failed. Please check chart of accounts."
+    # Auto-print is DISABLED in this setup because no physical printer is attached.
+    # We always treat printer as not configured so that the frontend only downloads PDFs
+    # and never tries to invoke any OS-level printing (which was triggering Foxit errors).
+    printer_configured = False
 
     # Audit log
     log_action(
@@ -854,13 +903,235 @@ def create_donation(
         # Don't fail donation creation if SMS/Email fails
         print(f"Failed to send receipt notification: {str(e)}")
 
+    # Format response similar to get_donations endpoint
+    donation_type_value = db_donation.donation_type
+    if isinstance(donation_type_value, str):
+        try:
+            donation_type_value = DonationType(donation_type_value)
+        except ValueError:
+            donation_type_value = DonationType.CASH
+    
     return {
         "id": db_donation.id,
         "receipt_number": db_donation.receipt_number,
         "amount": db_donation.amount,
+        "donation_type": donation_type_value,
+        "payment_mode": db_donation.payment_mode,
+        "donation_date": db_donation.donation_date,
+        "printer_configured": printer_configured,  # Indicate if printer is available
+        "devotee": {
+            "id": devotee.id if devotee else None,
+            "name": devotee.name if devotee else None,
+            "phone": devotee.phone if devotee else None,
+            "email": devotee.email if devotee else None,
+        } if devotee else None,
+        "category": {
+            "id": category.id if category else None,
+            "name": category.name if category else None
+        } if category else None,
+        "is_anonymous": db_donation.is_anonymous if hasattr(db_donation, 'is_anonymous') else False,
+        "inkind_subtype": db_donation.inkind_subtype if hasattr(db_donation, 'inkind_subtype') else None,
+        "item_name": db_donation.item_name if hasattr(db_donation, 'item_name') else None,
+        "item_description": db_donation.item_description if hasattr(db_donation, 'item_description') else None,
+        "quantity": db_donation.quantity if hasattr(db_donation, 'quantity') else None,
+        "unit": db_donation.unit if hasattr(db_donation, 'unit') else None,
+        "value_assessed": db_donation.value_assessed if hasattr(db_donation, 'value_assessed') else None,
+        "estimated_value": db_donation.value_assessed if hasattr(db_donation, 'value_assessed') else None,  # Alias for backward compatibility
+        "purity": db_donation.purity if hasattr(db_donation, 'purity') else None,
+        "weight_gross": db_donation.weight_gross if hasattr(db_donation, 'weight_gross') else None,
+        "weight_net": db_donation.weight_net if hasattr(db_donation, 'weight_net') else None,
         "journal_entry": journal_entry.entry_number if journal_entry else "NOT_POSTED",
         "message": message,
         "accounting_posted": journal_entry is not None
+    }
+
+
+def _generate_receipt_pdf(donation: Donation, db: Session):
+    """
+    Helper function to generate PDF receipt buffer for a donation
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    import requests
+    import os
+
+    # Get temple info
+    temple = None
+    temple_logo_path = None
+    if donation.temple_id:
+        temple = db.query(Temple).filter(Temple.id == donation.temple_id).first()
+        if temple and temple.logo_url:
+            try:
+                if temple.logo_url.startswith('http'):
+                    response = requests.get(temple.logo_url, timeout=5)
+                    if response.status_code == 200:
+                        temple_logo_path = io.BytesIO(response.content)
+                elif os.path.exists(temple.logo_url):
+                    temple_logo_path = temple.logo_url
+            except:
+                temple_logo_path = None
+
+    # Get devotee info
+    devotee = donation.devotee
+    category = donation.category
+
+    # Create PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements = []
+
+    styles = getSampleStyleSheet()
+
+    # Title style
+    title_style = ParagraphStyle(
+        'ReceiptTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        textColor=colors.HexColor('#FF9933'),
+        spaceAfter=12,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+
+    # Header style
+    header_style = ParagraphStyle(
+        'ReceiptHeader',
+        parent=styles['Normal'],
+        fontSize=14,
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        spaceAfter=6
+    )
+
+    # Temple header
+    if temple:
+        if temple_logo_path:
+            try:
+                logo = Image(temple_logo_path, width=1.2*inch, height=1.2*inch)
+                logo.hAlign = 'CENTER'
+                elements.append(logo)
+                elements.append(Spacer(1, 0.1*inch))
+            except:
+                pass
+
+        if temple.name:
+            elements.append(Paragraph(temple.name, title_style))
+
+        if temple.address:
+            elements.append(Paragraph(temple.address, header_style))
+
+        if temple.phone:
+            elements.append(Paragraph(f"Phone: {temple.phone}", styles['Normal']))
+
+        if temple.email:
+            elements.append(Paragraph(f"Email: {temple.email}", styles['Normal']))
+
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph("_" * 80, styles['Normal']))
+        elements.append(Spacer(1, 0.2*inch))
+
+    # Receipt title
+    elements.append(Paragraph("DONATION RECEIPT", title_style))
+    elements.append(Spacer(1, 0.2*inch))
+
+    # Receipt details table
+    receipt_data = [
+        ["Receipt Number:", donation.receipt_number],
+        ["Date:", donation.donation_date.strftime('%d-%m-%Y') if donation.donation_date else ""],
+        ["Devotee Name:", devotee.name if devotee else "Anonymous"],
+        ["Phone:", devotee.phone if devotee else "N/A"],
+        ["Address:", devotee.address if devotee and devotee.address else "N/A"],
+        ["Category:", category.name if category else "N/A"],
+        ["Payment Mode:", donation.payment_mode.upper()],
+        ["Amount:", f"₹ {donation.amount:,.2f}"]
+    ]
+
+    # Add 80G information if applicable
+    if category and category.is_80g_eligible and temple and temple.certificate_80g_number:
+        receipt_data.append(["80G Certificate:", f"Yes - {temple.certificate_80g_number}"])
+        receipt_data.append(["80G Valid From:", temple.certificate_80g_valid_from or "N/A"])
+        receipt_data.append(["80G Valid To:", temple.certificate_80g_valid_to or "N/A"])
+
+    receipt_table = Table(receipt_data, colWidths=[2.5*inch, 4*inch])
+    receipt_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+
+    elements.append(receipt_table)
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Amount in words (simple conversion)
+    amount_words = f"Rupees {_number_to_words(int(donation.amount))} Only"
+    elements.append(Paragraph(f"<b>Amount in Words:</b> {amount_words}", styles['Normal']))
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Footer
+    footer_style = ParagraphStyle(
+        'ReceiptFooter',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.grey,
+        alignment=TA_CENTER
+    )
+
+    elements.append(Spacer(1, 0.5*inch))
+    elements.append(Paragraph("_" * 80, styles['Normal']))
+    elements.append(Spacer(1, 0.1*inch))
+
+    if temple and temple.authorized_signatory_name:
+        elements.append(Paragraph(f"Authorized Signatory: {temple.authorized_signatory_name}", styles['Normal']))
+        if temple.authorized_signatory_designation:
+            elements.append(Paragraph(temple.authorized_signatory_designation, styles['Normal']))
+
+    elements.append(Spacer(1, 0.2*inch))
+    elements.append(Paragraph(f"Generated on {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}", footer_style))
+    elements.append(Paragraph("MandirSync Temple Management System", footer_style))
+
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+
+    return buffer
+
+
+@router.get("/{donation_id}/receipt/pdf-base64")
+def get_donation_receipt_pdf_base64(
+    donation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate PDF receipt as base64 encoded string (for direct download without browser PDF handler)
+    """
+    import base64
+
+    # Get donation
+    donation = db.query(Donation).filter(Donation.id == donation_id).first()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
+
+    # Generate PDF using the same logic
+    pdf_buffer = _generate_receipt_pdf(donation, db)
+
+    # Convert to base64
+    pdf_base64 = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
+
+    return {
+        "filename": f"receipt_{donation.receipt_number}.pdf",
+        "content": pdf_base64,
+        "receipt_number": donation.receipt_number
     }
 
 
@@ -878,152 +1149,91 @@ def get_donation_receipt_pdf(
     donation = db.query(Donation).filter(Donation.id == donation_id).first()
     if not donation:
         raise HTTPException(status_code=404, detail="Donation not found")
+
+    # Generate PDF using helper function
+    buffer = _generate_receipt_pdf(donation, db)
+
+    filename = f"receipt_{donation.receipt_number}.pdf"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/{donation_id}/80g-certificate")
+def get_80g_certificate(
+    donation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate 80G tax exemption certificate for a donation"""
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
     
-    # Get temple info
-    temple = None
-    temple_logo_path = None
-    if donation.temple_id:
-        temple = db.query(Temple).filter(Temple.id == donation.temple_id).first()
-        if temple and temple.logo_url:
-            try:
-                if temple.logo_url.startswith('http'):
-                    response = requests.get(temple.logo_url, timeout=5)
-                    if response.status_code == 200:
-                        temple_logo_path = io.BytesIO(response.content)
-                elif os.path.exists(temple.logo_url):
-                    temple_logo_path = temple.logo_url
-            except:
-                temple_logo_path = None
+    donation = db.query(Donation).filter(Donation.id == donation_id).first()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
     
-    # Get devotee info
-    devotee = donation.devotee
-    category = donation.category
+    # Check temple access
+    if current_user.temple_id and donation.temple_id != current_user.temple_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Check if 80G eligible
+    if not donation.category or not donation.category.is_80g_eligible:
+        raise HTTPException(status_code=400, detail="Donation is not eligible for 80G certificate")
+    
+    temple = donation.temple
+    if not temple or not temple.certificate_80g_number:
+        raise HTTPException(status_code=400, detail="Temple does not have 80G certificate")
     
     # Create PDF
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
     elements = []
-    
     styles = getSampleStyleSheet()
     
-    # Title style
+    # Title
     title_style = ParagraphStyle(
-        'ReceiptTitle',
+        'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=20,
-        textColor=colors.HexColor('#FF9933'),
-        spaceAfter=12,
-        alignment=TA_CENTER,
-        fontName='Helvetica-Bold'
+        fontSize=18,
+        textColor='#1a1a1a',
+        spaceAfter=30,
+        alignment=1  # Center
     )
-    
-    # Header style
-    header_style = ParagraphStyle(
-        'ReceiptHeader',
-        parent=styles['Normal'],
-        fontSize=14,
-        textColor=colors.black,
-        alignment=TA_CENTER,
-        spaceAfter=6
-    )
-    
-    # Temple header
-    if temple:
-        if temple_logo_path:
-            try:
-                logo = Image(temple_logo_path, width=1.2*inch, height=1.2*inch)
-                logo.hAlign = 'CENTER'
-                elements.append(logo)
-                elements.append(Spacer(1, 0.1*inch))
-            except:
-                pass
-        
-        if temple.name:
-            elements.append(Paragraph(temple.name, title_style))
-        
-        if temple.address:
-            elements.append(Paragraph(temple.address, header_style))
-        
-        if temple.phone:
-            elements.append(Paragraph(f"Phone: {temple.phone}", styles['Normal']))
-        
-        if temple.email:
-            elements.append(Paragraph(f"Email: {temple.email}", styles['Normal']))
-        
-        elements.append(Spacer(1, 0.2*inch))
-        elements.append(Paragraph("_" * 80, styles['Normal']))
-        elements.append(Spacer(1, 0.2*inch))
-    
-    # Receipt title
-    elements.append(Paragraph("DONATION RECEIPT", title_style))
-    elements.append(Spacer(1, 0.2*inch))
-    
-    # Receipt details table
-    receipt_data = [
-        ["Receipt Number:", donation.receipt_number],
-        ["Date:", donation.donation_date.strftime('%d-%m-%Y') if donation.donation_date else ""],
-        ["Devotee Name:", devotee.name if devotee else "Anonymous"],
-        ["Phone:", devotee.phone if devotee else "N/A"],
-        ["Address:", devotee.address if devotee and devotee.address else "N/A"],
-        ["Category:", category.name if category else "N/A"],
-        ["Payment Mode:", donation.payment_mode.upper()],
-        ["Amount:", f"₹ {donation.amount:,.2f}"]
-    ]
-    
-    # Add 80G information if applicable
-    if category and category.is_80g_eligible and temple and temple.certificate_80g_number:
-        receipt_data.append(["80G Certificate:", f"Yes - {temple.certificate_80g_number}"])
-        receipt_data.append(["80G Valid From:", temple.certificate_80g_valid_from or "N/A"])
-        receipt_data.append(["80G Valid To:", temple.certificate_80g_valid_to or "N/A"])
-    
-    receipt_table = Table(receipt_data, colWidths=[2.5*inch, 4*inch])
-    receipt_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 11),
-        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    
-    elements.append(receipt_table)
+    elements.append(Paragraph("80G Tax Exemption Certificate", title_style))
     elements.append(Spacer(1, 0.3*inch))
     
-    # Amount in words (simple conversion)
-    amount_words = f"Rupees {_number_to_words(int(donation.amount))} Only"
-    elements.append(Paragraph(f"<b>Amount in Words:</b> {amount_words}", styles['Normal']))
-    elements.append(Spacer(1, 0.3*inch))
-    
-    # Footer
-    footer_style = ParagraphStyle(
-        'ReceiptFooter',
-        parent=styles['Normal'],
-        fontSize=9,
-        textColor=colors.grey,
-        alignment=TA_CENTER
-    )
-    
-    elements.append(Spacer(1, 0.5*inch))
-    elements.append(Paragraph("_" * 80, styles['Normal']))
-    elements.append(Spacer(1, 0.1*inch))
-    
-    if temple and temple.authorized_signatory_name:
-        elements.append(Paragraph(f"Authorized Signatory: {temple.authorized_signatory_name}", styles['Normal']))
-        if temple.authorized_signatory_designation:
-            elements.append(Paragraph(temple.authorized_signatory_designation, styles['Normal']))
-    
+    # Certificate content
+    normal_style = styles['Normal']
+    elements.append(Paragraph(f"<b>Certificate of Donation</b>", normal_style))
     elements.append(Spacer(1, 0.2*inch))
-    elements.append(Paragraph(f"Generated on {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}", footer_style))
-    elements.append(Paragraph("MandirSync Temple Management System", footer_style))
+    elements.append(Paragraph(f"Donation Receipt Number: {donation.receipt_number}", normal_style))
+    elements.append(Paragraph(f"Date: {donation.donation_date}", normal_style))
+    elements.append(Paragraph(f"Amount: ₹{donation.amount:,.2f}", normal_style))
+    elements.append(Spacer(1, 0.2*inch))
+    elements.append(Paragraph(f"<b>80G Registration:</b> {temple.certificate_80g_number}", normal_style))
+    if temple.certificate_80g_valid_from:
+        elements.append(Paragraph(f"Valid From: {temple.certificate_80g_valid_from}", normal_style))
+    if temple.certificate_80g_valid_to:
+        elements.append(Paragraph(f"Valid To: {temple.certificate_80g_valid_to}", normal_style))
+    elements.append(Spacer(1, 0.3*inch))
+    elements.append(Paragraph(
+        "This donation is eligible for tax deduction under Section 80G of the Income Tax Act, 1961.",
+        normal_style
+    ))
     
     # Build PDF
     doc.build(elements)
     buffer.seek(0)
     
-    filename = f"receipt_{donation.receipt_number}.pdf"
+    filename = f"80g_certificate_{donation.receipt_number}.pdf"
     
     return StreamingResponse(
         buffer,
@@ -1174,6 +1384,60 @@ def get_donations(
         })
     
     return result
+
+
+@router.get("/{donation_id}", response_model=dict)
+def get_donation(
+    donation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a single donation by ID"""
+    donation = db.query(Donation).filter(Donation.id == donation_id).first()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
+    
+    # Check temple access
+    if current_user.temple_id and donation.temple_id != current_user.temple_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Format response
+    donation_type_value = donation.donation_type
+    if isinstance(donation_type_value, str):
+        try:
+            donation_type_value = DonationType(donation_type_value)
+        except ValueError:
+            donation_type_value = DonationType.CASH
+    
+    return {
+        "id": donation.id,
+        "receipt_number": donation.receipt_number,
+        "amount": donation.amount,
+        "donation_type": donation_type_value,
+        "payment_mode": donation.payment_mode,
+        "donation_date": donation.donation_date,
+        "devotee": {
+            "id": donation.devotee.id if donation.devotee else None,
+            "name": donation.devotee.name if donation.devotee else None,
+            "phone": donation.devotee.phone if donation.devotee else None,
+            "email": donation.devotee.email if donation.devotee else None,
+        } if donation.devotee else None,
+        "category": {
+            "id": donation.category.id if donation.category else None,
+            "name": donation.category.name if donation.category else None
+        } if donation.category else None,
+        "is_anonymous": donation.is_anonymous if hasattr(donation, 'is_anonymous') else False,
+        "inkind_subtype": donation.inkind_subtype if hasattr(donation, 'inkind_subtype') else None,
+        "item_name": donation.item_name if hasattr(donation, 'item_name') else None,
+        "item_description": donation.item_description if hasattr(donation, 'item_description') else None,
+        "quantity": donation.quantity if hasattr(donation, 'quantity') else None,
+        "unit": donation.unit if hasattr(donation, 'unit') else None,
+        "value_assessed": donation.value_assessed if hasattr(donation, 'value_assessed') else None,
+        "estimated_value": donation.value_assessed if hasattr(donation, 'value_assessed') else None,  # Alias for backward compatibility
+        "purity": donation.purity if hasattr(donation, 'purity') else None,
+        "weight_gross": donation.weight_gross if hasattr(donation, 'weight_gross') else None,
+        "weight_net": donation.weight_net if hasattr(donation, 'weight_net') else None,
+    }
 
 
 @router.get("/report/daily")

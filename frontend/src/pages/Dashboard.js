@@ -15,6 +15,8 @@ import {
   Checkbox,
   FormControlLabel,
   Collapse,
+  Autocomplete,
+  Chip,
 } from '@mui/material';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import EventIcon from '@mui/icons-material/Event';
@@ -37,6 +39,10 @@ function Dashboard() {
       today: { amount: 0, count: 0 },
       month: { amount: 0, count: 0 },
       year: { amount: 0, count: 0 }
+    },
+    advance_seva_booking: {
+      amount: 0,
+      count: 0
     }
   });
   const [panchangData, setPanchangData] = useState(null);
@@ -68,6 +74,7 @@ function Dashboard() {
     city: '',
     state: '',
     country: 'India',
+    tags: [],  // Tags for devotee (VIP, Regular, Patron, etc.)
   });
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [searchingDevotee, setSearchingDevotee] = useState(false);
@@ -98,18 +105,19 @@ function Dashboard() {
         // Fallback to empty stats
         setStats({
           donations: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } },
-          sevas: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } }
+          sevas: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } },
+          advance_seva_booking: { amount: 0, count: 0 }
         });
       }
 
       // Fetch panchang settings and data
       let panchangSettings = null;
       let panchangData = null;
-      
+
       if (panchangSettingsRes.status === 'fulfilled' && panchangSettingsRes.value.data) {
         panchangSettings = panchangSettingsRes.value.data;
       }
-      
+
       if (panchangDataRes.status === 'fulfilled' && panchangDataRes.value.data) {
         panchangData = panchangDataRes.value.data;
       } else if (panchangDataRes.status === 'rejected') {
@@ -120,7 +128,7 @@ function Dashboard() {
           console.log('Panchang data API failed:', error);
         }
       }
-      
+
       // Set panchang data (merge settings if available)
       if (panchangData) {
         setPanchangData({
@@ -170,18 +178,18 @@ function Dashboard() {
   const handleDonationChange = async (field, value) => {
     const updatedForm = { ...donationForm, [field]: value };
     setDonationForm(updatedForm);
-    
+
     // Mobile-first: Enable other fields only after mobile is entered (10 digits for India)
     if (field === 'devotee_phone') {
       const phoneLength = value.length;
       const countryCode = updatedForm.country_code || '+91';
-      
+
       // For India (+91), require 10 digits; for others, require at least 7 digits
-      const isValidLength = (countryCode === '+91' && phoneLength === 10) || 
-                           (countryCode !== '+91' && phoneLength >= 7);
-      
+      const isValidLength = (countryCode === '+91' && phoneLength === 10) ||
+        (countryCode !== '+91' && phoneLength >= 7);
+
       setMobileEntered(isValidLength);
-      
+
       // Auto-fill devotee details when mobile is entered
       if (isValidLength) {
         setSearchingDevotee(true);
@@ -189,38 +197,69 @@ function Dashboard() {
           // Search with the selected country code
           const searchPhone = `${countryCode}${value}`;
           const response = await api.get(`/api/v1/devotees/search/by-mobile/${searchPhone}`);
-        if (response.data && response.data.length > 0) {
-          // If multiple results, use the first one (prioritized by country code match)
-          const devotee = response.data[0];
-          // If multiple results with different country codes, log it
-          if (response.data.length > 1) {
-            console.log(`Multiple devotees found for phone ${value}. Using first match.`);
+          if (response.data && response.data.length > 0) {
+            // If multiple results, use the first one (prioritized by country code match and most recent)
+            // The backend returns results ordered by ID DESC (most recent first)
+            const devotee = response.data[0];
+
+            // If multiple results, log it for debugging
+            if (response.data.length > 1) {
+              console.log(`Multiple devotees found for phone ${value}:`, response.data.map(d => ({ id: d.id, name: d.name, created_at: d.created_at })));
+              console.log(`Using first match: ID ${devotee.id}, Name: ${devotee.name}`);
+            }
+
+            // Extract first and last name properly
+            let firstName = devotee.first_name || '';
+            let lastName = devotee.last_name || '';
+
+            // If first_name/last_name not available, parse from name
+            if (!firstName && devotee.name) {
+              const nameParts = devotee.name.trim().split(/\s+/);
+              firstName = nameParts[0] || '';
+              lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+            }
+
+            // If we have first_name but no last_name, try to extract from name field
+            if (firstName && !lastName && devotee.name) {
+              const nameParts = devotee.name.trim().split(/\s+/);
+              if (nameParts.length > 1) {
+                // Find where firstName appears in name and get the rest as lastName
+                const firstNameIndex = nameParts.findIndex(part => part.toLowerCase() === firstName.toLowerCase());
+                if (firstNameIndex >= 0 && firstNameIndex < nameParts.length - 1) {
+                  lastName = nameParts.slice(firstNameIndex + 1).join(' ');
+                } else {
+                  // If firstName not found in name, take everything after first word as lastName
+                  lastName = nameParts.slice(1).join(' ');
+                }
+              }
+            }
+
+            setDonationForm(prev => ({
+              ...prev,
+              name_prefix: devotee.name_prefix || prev.name_prefix || '',
+              devotee_first_name: firstName || prev.devotee_first_name,
+              devotee_last_name: lastName || prev.devotee_last_name || '',
+              country_code: devotee.country_code || prev.country_code || '+91',
+              address: devotee.address || prev.address || '',
+              pincode: devotee.pincode || prev.pincode || '',
+              city: devotee.city || prev.city || '',
+              state: devotee.state || prev.state || '',
+              country: devotee.country || prev.country || 'India',
+              tags: devotee.tags || prev.tags || [],
+            }));
           }
-          setDonationForm(prev => ({
-            ...prev,
-            name_prefix: devotee.name_prefix || prev.name_prefix,
-            devotee_first_name: devotee.first_name || (devotee.name ? devotee.name.split(' ')[0] : '') || prev.devotee_first_name,
-            devotee_last_name: devotee.last_name || (devotee.name && devotee.name.split(' ').length > 1 ? devotee.name.split(' ').slice(1).join(' ') : '') || prev.devotee_last_name,
-            country_code: devotee.country_code || prev.country_code || '+91',
-            address: devotee.address || prev.address,
-            pincode: devotee.pincode || prev.pincode,
-            city: devotee.city || prev.city,
-            state: devotee.state || prev.state,
-            country: devotee.country || prev.country || 'India',
-          }));
+        } catch (err) {
+          // Devotee not found is ok; user will enter details manually
+          console.log('Devotee not found for mobile:', value);
+        } finally {
+          setSearchingDevotee(false);
         }
-      } catch (err) {
-        // Devotee not found is ok; user will enter details manually
-        console.log('Devotee not found for mobile:', value);
-      } finally {
-        setSearchingDevotee(false);
-      }
       } else {
         // If mobile is cleared or incomplete, disable other fields
         setMobileEntered(false);
       }
     }
-    
+
     // Auto-fill City and State when PIN code is entered (6 digits)
     if (field === 'pincode' && value.length === 6) {
       fetchPincodeDetails(value);
@@ -232,13 +271,13 @@ function Dashboard() {
 
   const fetchPincodeDetails = async (pincode) => {
     if (!pincode || pincode.length !== 6) return;
-    
+
     try {
       setPincodeLoading(true);
       // Using Indian Postal PIN code API
       const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
       const data = await response.json();
-      
+
       if (data && data[0] && data[0].Status === 'Success' && data[0].PostOffice && data[0].PostOffice.length > 0) {
         const postOffice = data[0].PostOffice[0];
         setDonationForm(prev => ({
@@ -275,6 +314,7 @@ function Dashboard() {
         donation_type: 'cash',  // Dashboard only supports cash donations
         payment_mode: donationForm.payment_mode,
         is_anonymous: donationForm.is_anonymous || false,
+        tags: donationForm.tags && donationForm.tags.length > 0 ? donationForm.tags : undefined,
         // Payment-specific fields
         sender_upi_id: donationForm.sender_upi_id || undefined,
         upi_reference_number: donationForm.upi_reference_number || undefined,
@@ -290,12 +330,12 @@ function Dashboard() {
         state: donationForm.state || null,
         country: donationForm.country || 'India',
       };
-      
+
       // Add bank_account_id for non-cash payments
       if (donationForm.payment_mode !== 'Cash' && donationForm.bank_account_id) {
         payload.bank_account_id = parseInt(donationForm.bank_account_id);
       }
-      
+
       const response = await api.post('/api/v1/donations/', payload);
 
       setSuccess(`Donation recorded successfully! Receipt: ${response.data.receipt_number || 'N/A'}`);
@@ -331,7 +371,7 @@ function Dashboard() {
     } catch (err) {
       console.error('Donation error:', err);
       console.error('Error details:', err.response?.data);
-      
+
       if (err.response?.status === 404) {
         setError('API endpoint not found. Please ensure the backend server is running on http://localhost:8000 and the endpoint /api/v1/donations/ exists.');
       } else if (err.response?.status === 500) {
@@ -367,51 +407,58 @@ function Dashboard() {
 
   // First row: Donations
   const donationCards = [
-    { 
-      title: 'Today\'s Donation', 
+    {
+      title: 'Today\'s Donation',
       value: formatCurrency(stats.donations.today.amount),
       subtitle: `${stats.donations.today.count} donations`,
-      icon: <AccountBalanceIcon />, 
-      color: '#4CAF50' 
+      icon: <AccountBalanceIcon />,
+      color: '#4CAF50'
     },
-    { 
-      title: 'Cumulative for Month', 
+    {
+      title: 'Cumulative for Month',
       value: formatCurrency(stats.donations.month.amount),
       subtitle: `${stats.donations.month.count} donations`,
-      icon: <AccountBalanceIcon />, 
-      color: '#2196F3' 
+      icon: <AccountBalanceIcon />,
+      color: '#2196F3'
     },
-    { 
-      title: 'Cumulative for Year', 
+    {
+      title: 'Cumulative for Year',
       value: formatCurrency(stats.donations.year.amount),
       subtitle: `${stats.donations.year.count} donations`,
-      icon: <AccountBalanceIcon />, 
-      color: '#9C27B0' 
+      icon: <AccountBalanceIcon />,
+      color: '#9C27B0'
     },
   ];
 
   // Second row: Sevas
   const sevaCards = [
-    { 
-      title: 'Today\'s Seva', 
+    {
+      title: 'Today\'s Seva',
       value: formatCurrency(stats.sevas.today.amount),
       subtitle: `${stats.sevas.today.count} bookings`,
-      icon: <EventIcon />, 
-      color: '#FF9800' 
+      icon: <EventIcon />,
+      color: '#FF9800'
     },
-    { 
-      title: 'Cumulative for Month', 
+    {
+      title: 'Cumulative for Month',
       value: formatCurrency(stats.sevas.month.amount),
       subtitle: `${stats.sevas.month.count} bookings`,
-      icon: <EventIcon />, 
-      color: '#FF6B35' 
+      icon: <EventIcon />,
+      color: '#FF6B35'
     },
-    { 
-      title: 'Cumulative for Year', 
+    {
+      title: 'Cumulative for Year',
       value: formatCurrency(stats.sevas.year.amount),
       subtitle: `${stats.sevas.year.count} bookings`,
-      icon: <EventIcon />, 
-      color: '#E91E63' 
+      icon: <EventIcon />,
+      color: '#E91E63'
+    },
+    {
+      title: 'Advance Seva Booking',
+      value: formatCurrency(stats.advance_seva_booking?.amount || 0),
+      subtitle: `${stats.advance_seva_booking?.count || 0} booking${stats.advance_seva_booking?.count !== 1 ? 's' : ''}`,
+      icon: <EventIcon />,
+      color: '#9C27B0'
     },
   ];
 
@@ -559,7 +606,7 @@ function Dashboard() {
                 }}
               />
             </Grid>
-            
+
             {/* Divider and Info */}
             {!mobileEntered && (
               <Grid item xs={12}>
@@ -612,7 +659,7 @@ function Dashboard() {
                     size="small"
                   />
                 </Grid>
-                
+
                 {/* Amount and Category */}
                 <Grid item xs={12} sm={4}>
                   <TextField
@@ -698,7 +745,7 @@ function Dashboard() {
                     )}
                   </Grid>
                 )}
-                
+
                 {/* Payment-specific fields based on payment_mode */}
                 {donationForm.payment_mode === 'UPI' && (
                   <>
@@ -726,7 +773,7 @@ function Dashboard() {
                     </Grid>
                   </>
                 )}
-                
+
                 {donationForm.payment_mode === 'Cheque' && (
                   <>
                     <Grid item xs={12} sm={3}>
@@ -774,7 +821,7 @@ function Dashboard() {
                     </Grid>
                   </>
                 )}
-                
+
                 {donationForm.payment_mode === 'Online' && (
                   <>
                     <Grid item xs={12} sm={6}>
@@ -802,7 +849,7 @@ function Dashboard() {
                     </Grid>
                   </>
                 )}
-                
+
                 {/* Anonymous Checkbox */}
                 <Grid item xs={12} sm={4}>
                   <FormControlLabel
@@ -816,7 +863,39 @@ function Dashboard() {
                     label="Anonymous Donation"
                   />
                 </Grid>
-                
+
+                {/* Tags Selection */}
+                {!donationForm.is_anonymous && (
+                  <Grid item xs={12} sm={6}>
+                    <Autocomplete
+                      multiple
+                      options={['VIP', 'Patron', 'Regular', 'NRI', 'Local', 'Festival Donor', 'Monthly Donor']}
+                      value={donationForm.tags || []}
+                      onChange={(e, newValue) => handleDonationChange('tags', newValue)}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Tags (Optional)"
+                          size="small"
+                          placeholder="Select tags (VIP, Regular, Patron, etc.)"
+                          helperText="Tag this devotee (VIP, Regular, Patron, etc.)"
+                        />
+                      )}
+                      renderTags={(value, getTagProps) =>
+                        value.map((option, index) => (
+                          <Chip
+                            variant="outlined"
+                            label={option}
+                            size="small"
+                            {...getTagProps({ index })}
+                            key={option}
+                          />
+                        ))
+                      }
+                    />
+                  </Grid>
+                )}
+
                 {/* Address Fields - Collapsible */}
                 <Grid item xs={12}>
                   <Collapse in={!donationForm.is_anonymous}>
@@ -880,7 +959,7 @@ function Dashboard() {
                     </Grid>
                   </Collapse>
                 </Grid>
-                
+
                 <Grid item xs={12}>
                   <Button
                     type="submit"

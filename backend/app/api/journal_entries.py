@@ -4,6 +4,17 @@ Manage double-entry bookkeeping transactions
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
+import io
+import csv
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, Border, Side
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from typing import List, Optional
@@ -373,7 +384,13 @@ def get_trial_balance(
 ):
     """
     Generate Trial Balance
-    Shows all accounts with their debit and credit balances
+    Shows accounts with their debit and credit balances
+    
+    IMPORTANT: Aggregates child accounts under parent accounts for cleaner reporting:
+    - Donation Income: Shows 4100 (parent) with sum of all child accounts (4101, 4102, etc.)
+    - Seva Income: Shows 4200 (parent) with sum of all child accounts
+    - In-Kind: Shows 4400 (parent) with sum of all child accounts
+    - Other parent accounts similarly aggregated
     """
     # For standalone mode, handle temple_id = None
     temple_id = current_user.temple_id
@@ -383,14 +400,14 @@ def get_trial_balance(
     if temple_id is not None:
         account_filter.append(Account.temple_id == temple_id)
     
-    accounts = db.query(Account).filter(*account_filter).order_by(Account.account_code).all()
-
-    trial_balance_items = []
-    total_debits = 0.0
-    total_credits = 0.0
-
-    for account in accounts:
-        # Calculate balance for each account
+    all_accounts = db.query(Account).filter(*account_filter).order_by(Account.account_code).all()
+    
+    # Build account map for quick lookup
+    account_map = {acc.id: acc for acc in all_accounts}
+    
+    # Calculate balances for all accounts
+    account_balances = {}
+    for account in all_accounts:
         balance_filter = [
             JournalLine.account_id == account.id,
             JournalEntry.status == JournalEntryStatus.POSTED,
@@ -416,19 +433,94 @@ def get_trial_balance(
         else:
             debit_balance = 0.0
             credit_balance = abs(net_balance)
-
-        # Only include accounts with non-zero balance
-        if debit_balance > 0 or credit_balance > 0:
+        
+        account_balances[account.id] = {
+            'debit': debit_balance,
+            'credit': credit_balance,
+            'account': account
+        }
+    
+    # Define parent accounts that should aggregate their children
+    # Format: parent_code: [list of child code patterns or ranges]
+    parent_accounts_to_aggregate = {
+        '4100': ['4101', '4102', '4103', '4104', '4110', '4111', '4112', '4113', '4114', '4115'],  # Donation Income
+        '4200': ['4201', '4202', '4203', '4204', '4205', '4206', '4207', '4208', '4209'],  # Seva Income
+        '4400': ['4401', '4402', '4403'],  # In-Kind Donation Income
+        '4300': ['4301', '4302'],  # Sponsorship Income
+    }
+    
+    # Build list of accounts to show (parent accounts with aggregated children)
+    trial_balance_items = []
+    total_debits = 0.0
+    total_credits = 0.0
+    processed_account_ids = set()
+    
+    # Process parent accounts first (aggregate children)
+    for parent_code, child_patterns in parent_accounts_to_aggregate.items():
+        parent_account = next((acc for acc in all_accounts if acc.account_code == parent_code), None)
+        if not parent_account:
+            continue
+        
+        # Get all child accounts by matching patterns
+        child_accounts = []
+        for pattern in child_patterns:
+            # Find accounts that match the pattern (exact code match)
+            matching_accounts = [acc for acc in all_accounts 
+                                if acc.account_code == pattern and acc.account_code != parent_code]
+            child_accounts.extend(matching_accounts)
+        
+        # Also find accounts by parent relationship (if parent_account_id is set)
+        direct_children = [acc for acc in all_accounts 
+                          if acc.parent_account_id == parent_account.id]
+        child_accounts.extend(direct_children)
+        
+        # Remove duplicates
+        child_accounts = list({acc.id: acc for acc in child_accounts}.values())
+        
+        # Aggregate balances: parent + all children
+        parent_balance = account_balances.get(parent_account.id, {'debit': 0, 'credit': 0})
+        aggregated_debit = parent_balance['debit']
+        aggregated_credit = parent_balance['credit']
+        
+        for child_account in child_accounts:
+            if child_account.id in account_balances:
+                child_balance = account_balances[child_account.id]
+                aggregated_debit += child_balance['debit']
+                aggregated_credit += child_balance['credit']
+                processed_account_ids.add(child_account.id)
+        
+        # Only show parent if it has balance (including children)
+        if aggregated_debit > 0 or aggregated_credit > 0:
+            trial_balance_items.append(TrialBalanceItem(
+                account_code=parent_account.account_code,
+                account_name=parent_account.account_name,
+                account_type=parent_account.account_type,
+                debit_balance=aggregated_debit,
+                credit_balance=aggregated_credit
+            ))
+            total_debits += aggregated_debit
+            total_credits += aggregated_credit
+            processed_account_ids.add(parent_account.id)
+    
+    # Add all other accounts (not part of aggregated parents)
+    for account in all_accounts:
+        if account.id in processed_account_ids:
+            continue  # Skip already processed accounts
+        
+        balance = account_balances.get(account.id, {'debit': 0, 'credit': 0})
+        if balance['debit'] > 0 or balance['credit'] > 0:
             trial_balance_items.append(TrialBalanceItem(
                 account_code=account.account_code,
                 account_name=account.account_name,
                 account_type=account.account_type,
-                debit_balance=debit_balance,
-                credit_balance=credit_balance
+                debit_balance=balance['debit'],
+                credit_balance=balance['credit']
             ))
+            total_debits += balance['debit']
+            total_credits += balance['credit']
 
-            total_debits += debit_balance
-            total_credits += credit_balance
+    # Sort by account code
+    trial_balance_items.sort(key=lambda x: x.account_code)
 
     # Check if balanced
     difference = abs(total_debits - total_credits)
@@ -1584,5 +1676,478 @@ def get_bank_book(
         total_deposits=total_deposits,
         total_withdrawals=total_withdrawals,
         outstanding_cheques=outstanding_cheques
+    )
+
+
+# ==========================================
+# EXPORT ENDPOINTS
+# ==========================================
+
+@router.get("/reports/day-book/export/excel")
+def export_day_book_excel(
+    date: date = Query(default_factory=date.today),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Export Day Book to Excel"""
+    # Get data using existing logic
+    data = get_day_book(date, db, current_user)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Day Book - {date}"
+    
+    # Headers
+    ws.merge_cells('A1:F1')
+    ws['A1'] = "MANDIRSYNC DAY BOOK REPORT"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = Alignment(horizontal='center')
+    
+    ws.merge_cells('A2:F2')
+    ws['A2'] = f"Date: {date.strftime('%d-%m-%Y')}"
+    ws['A2'].alignment = Alignment(horizontal='center')
+    
+    # Opening Balance
+    ws.merge_cells('A4:E4')
+    ws['A4'] = "Opening Balance"
+    ws['A4'].font = Font(bold=True)
+    ws['F4'] = data.opening_balance
+    ws['F4'].font = Font(bold=True)
+    
+    # Receipts Section
+    row = 6
+    ws.merge_cells(f'A{row}:F{row}')
+    ws[f'A{row}'] = "RECEIPTS"
+    ws[f'A{row}'].font = Font(bold=True)
+    ws[f'A{row}'].alignment = Alignment(horizontal='center')
+    row += 1
+    
+    headers = ["Entry No", "Account", "Narration", "Voucher Type", "Amount"]
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=col)
+        cell.value = header
+        cell.font = Font(bold=True)
+        cell.border = Border(bottom=Side(style='thin'))
+    row += 1
+    
+    for entry in data.receipts:
+        ws.cell(row=row, column=1, value=entry.entry_number)
+        ws.cell(row=row, column=2, value=entry.account_name)
+        ws.cell(row=row, column=3, value=entry.narration)
+        ws.cell(row=row, column=4, value=entry.voucher_type)
+        amount = entry.debit_amount if entry.debit_amount > 0 else entry.credit_amount
+        ws.cell(row=row, column=5, value=amount)
+        row += 1
+        
+    ws.merge_cells(f'A{row}:D{row}')
+    ws[f'A{row}'] = "Total Receipts"
+    ws[f'A{row}'].font = Font(bold=True)
+    ws[f'A{row}'].alignment = Alignment(horizontal='right')
+    ws[f'E{row}'] = data.total_receipts
+    ws[f'E{row}'].font = Font(bold=True)
+    row += 2
+    
+    # Payments Section
+    ws.merge_cells(f'A{row}:F{row}')
+    ws[f'A{row}'] = "PAYMENTS"
+    ws[f'A{row}'].font = Font(bold=True)
+    ws[f'A{row}'].alignment = Alignment(horizontal='center')
+    row += 1
+    
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=col)
+        cell.value = header
+        cell.font = Font(bold=True)
+        cell.border = Border(bottom=Side(style='thin'))
+    row += 1
+    
+    for entry in data.payments:
+        ws.cell(row=row, column=1, value=entry.entry_number)
+        ws.cell(row=row, column=2, value=entry.account_name)
+        ws.cell(row=row, column=3, value=entry.narration)
+        ws.cell(row=row, column=4, value=entry.voucher_type)
+        amount = entry.credit_amount if entry.credit_amount > 0 else entry.debit_amount
+        ws.cell(row=row, column=5, value=amount)
+        row += 1
+        
+    ws.merge_cells(f'A{row}:D{row}')
+    ws[f'A{row}'] = "Total Payments"
+    ws[f'A{row}'].font = Font(bold=True)
+    ws[f'A{row}'].alignment = Alignment(horizontal='right')
+    ws[f'E{row}'] = data.total_payments
+    ws[f'E{row}'].font = Font(bold=True)
+    row += 2
+    
+    # Closing Balance
+    ws.merge_cells(f'A{row}:E{row}')
+    ws[f'A{row}'] = "Closing Balance"
+    ws[f'A{row}'].font = Font(bold=True)
+    ws[f'F{row}'] = data.closing_balance
+    ws[f'F{row}'].font = Font(bold=True)
+    
+    # Adjust column widths
+    for col in range(1, 7):
+        ws.column_dimensions[chr(64+col)].width = 15
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 35
+    
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=DayBook_{date}.xlsx"}
+    )
+
+@router.get("/reports/day-book/export/pdf")
+def export_day_book_pdf(
+    date: date = Query(default_factory=date.today),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Export Day Book to PDF"""
+    data = get_day_book(date, db, current_user)
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Title
+    title = Paragraph(f"Day Book Report - {date.strftime('%d-%m-%Y')}", styles['Title'])
+    elements.append(title)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Opening Balance
+    elements.append(Paragraph(f"<b>Opening Balance:</b> ₹{data.opening_balance:,.2f}", styles['Normal']))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Receipts Table
+    elements.append(Paragraph("<b>RECEIPTS</b>", styles['Heading3']))
+    receipt_data = [['Entry No', 'Account', 'Narration', 'Amount']]
+    for entry in data.receipts:
+        amount = entry.debit_amount if entry.debit_amount > 0 else entry.credit_amount
+        receipt_data.append([
+            entry.entry_number,
+            entry.account_name,
+            Paragraph(entry.narration[:50], styles['Normal']),
+            f"₹{amount:,.2f}"
+        ])
+    
+    # Add total receipt row
+    receipt_data.append(['', '', 'Total Receipts', f"₹{data.total_receipts:,.2f}"])
+    
+    r_table = Table(receipt_data, colWidths=[1.2*inch, 2*inch, 2.5*inch, 1*inch])
+    r_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'), # Total row bold
+    ]))
+    elements.append(r_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Payments Table
+    elements.append(Paragraph("<b>PAYMENTS</b>", styles['Heading3']))
+    payment_data = [['Entry No', 'Account', 'Narration', 'Amount']]
+    for entry in data.payments:
+        amount = entry.credit_amount if entry.credit_amount > 0 else entry.debit_amount
+        payment_data.append([
+            entry.entry_number,
+            entry.account_name,
+            Paragraph(entry.narration[:50], styles['Normal']),
+            f"₹{amount:,.2f}"
+        ])
+    
+    # Add total payment row
+    payment_data.append(['', '', 'Total Payments', f"₹{data.total_payments:,.2f}"])
+    
+    p_table = Table(payment_data, colWidths=[1.2*inch, 2*inch, 2.5*inch, 1*inch])
+    p_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]))
+    elements.append(p_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Closing Balance
+    elements.append(Paragraph(f"<b>Closing Balance:</b> ₹{data.closing_balance:,.2f}", styles['Normal']))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=DayBook_{date}.pdf"}
+    )
+
+@router.get("/reports/cash-book/export/excel")
+def export_cash_book_excel(
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    counter_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Export Cash Book to Excel"""
+    data = get_cash_book(from_date, to_date, counter_id, db, current_user)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Cash Book"
+    
+    ws.merge_cells('A1:G1')
+    ws['A1'] = f"CASH BOOK REPORT ({from_date} to {to_date})"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = Alignment(horizontal='center')
+    
+    ws['A3'] = f"Opening Balance: {data.opening_balance}"
+    ws['A3'].font = Font(bold=True)
+    
+    headers = ["Date", "Entry No", "Narration", "Receipt", "Payment", "Balance", "Voucher Type"]
+    row = 5
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=col)
+        cell.value = header
+        cell.font = Font(bold=True)
+        cell.border = Border(bottom=Side(style='thin'))
+    row += 1
+    
+    for entry in data.entries:
+        ws.cell(row=row, column=1, value=entry.date)
+        ws.cell(row=row, column=2, value=entry.entry_number)
+        ws.cell(row=row, column=3, value=entry.narration)
+        ws.cell(row=row, column=4, value=entry.receipt_amount)
+        ws.cell(row=row, column=5, value=entry.payment_amount)
+        ws.cell(row=row, column=6, value=entry.running_balance)
+        ws.cell(row=row, column=7, value=entry.voucher_type)
+        row += 1
+        
+    ws.merge_cells(f'A{row}:C{row}')
+    ws[f'A{row}'] = "Totals"
+    ws[f'A{row}'].font = Font(bold=True)
+    ws[f'A{row}'].alignment = Alignment(horizontal='right')
+    ws[f'D{row}'] = data.total_receipts
+    ws[f'D{row}'].font = Font(bold=True)
+    ws[f'E{row}'] = data.total_payments
+    ws[f'E{row}'].font = Font(bold=True)
+    row += 1
+    
+    ws.merge_cells(f'A{row}:E{row}')
+    ws[f'A{row}'] = f"Closing Balance: {data.closing_balance}"
+    ws[f'A{row}'].font = Font(bold=True)
+    
+    # Columns width
+    ws.column_dimensions['A'].width = 12
+    ws.column_dimensions['C'].width = 40
+    
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=CashBook_{from_date}_{to_date}.xlsx"}
+    )
+
+@router.get("/reports/cash-book/export/pdf")
+def export_cash_book_pdf(
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    counter_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Export Cash Book to PDF"""
+    data = get_cash_book(from_date, to_date, counter_id, db, current_user)
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4))
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    title = Paragraph(f"Cash Book Report ({from_date} to {to_date})", styles['Title'])
+    elements.append(title)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    elements.append(Paragraph(f"<b>Opening Balance:</b> ₹{data.opening_balance:,.2f}", styles['Normal']))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    table_data = [['Date', 'Entry No', 'Narration', 'Receipt', 'Payment', 'Balance']]
+    for entry in data.entries:
+        table_data.append([
+            str(entry.date),
+            entry.entry_number,
+            Paragraph(entry.narration[:40], styles['Normal']),
+            f"{entry.receipt_amount:,.2f}",
+            f"{entry.payment_amount:,.2f}",
+            f"{entry.running_balance:,.2f}"
+        ])
+        
+    # Total Row
+    table_data.append([
+        '', '', 'Totals', 
+        f"{data.total_receipts:,.2f}", 
+        f"{data.total_payments:,.2f}", 
+        f"{data.closing_balance:,.2f}"
+    ])
+    
+    t = Table(table_data, colWidths=[1.2*inch, 1.2*inch, 3*inch, 1.2*inch, 1.2*inch, 1.5*inch])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (3, 0), (-1, -1), 'RIGHT'), # Amounts right aligned
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]))
+    elements.append(t)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=CashBook_{from_date}_{to_date}.pdf"}
+    )
+
+@router.get("/reports/bank-book/export/excel")
+def export_bank_book_excel(
+    account_id: int = Query(...),
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Export Bank Book to Excel"""
+    data = get_bank_book(account_id, from_date, to_date, db, current_user)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Bank Book"
+    
+    ws.merge_cells('A1:G1')
+    ws['A1'] = f"BANK BOOK: {data.account_name} ({data.bank_name or 'Bank'})"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = Alignment(horizontal='center')
+    
+    ws['A2'] = f"Period: {from_date} to {to_date}"
+    ws['A3'] = f"Account No: {data.account_number or 'N/A'}"
+    ws['A4'] = f"Opening Balance: {data.opening_balance}"
+    ws['A4'].font = Font(bold=True)
+    
+    headers = ["Date", "Entry No", "Narration", "Cheque No", "Deposit", "Withdrawal", "Balance"]
+    row = 6
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=col)
+        cell.value = header
+        cell.font = Font(bold=True)
+        cell.border = Border(bottom=Side(style='thin'))
+    row += 1
+    
+    for entry in data.entries:
+        ws.cell(row=row, column=1, value=entry.date)
+        ws.cell(row=row, column=2, value=entry.entry_number)
+        ws.cell(row=row, column=3, value=entry.narration)
+        ws.cell(row=row, column=4, value=entry.cheque_number or "-")
+        ws.cell(row=row, column=5, value=entry.deposit_amount)
+        ws.cell(row=row, column=6, value=entry.withdrawal_amount)
+        ws.cell(row=row, column=7, value=entry.running_balance)
+        row += 1
+    
+    ws.merge_cells(f'A{row}:D{row}')
+    ws[f'A{row}'] = "Totals"
+    ws[f'A{row}'].font = Font(bold=True)
+    ws[f'A{row}'].alignment = Alignment(horizontal='right')
+    ws[f'E{row}'] = data.total_deposits
+    ws[f'E{row}'].font = Font(bold=True)
+    ws[f'F{row}'] = data.total_withdrawals
+    ws[f'F{row}'].font = Font(bold=True)
+    row += 1
+    
+    ws.merge_cells(f'A{row}:F{row}')
+    ws[f'A{row}'] = f"Closing Balance: {data.closing_balance}"
+    ws[f'A{row}'].font = Font(bold=True)
+    
+    # Columns width
+    ws.column_dimensions['A'].width = 12
+    ws.column_dimensions['C'].width = 40
+    
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=BankBook_{from_date}_{to_date}.xlsx"}
+    )
+
+@router.get("/reports/bank-book/export/pdf")
+def export_bank_book_pdf(
+    account_id: int = Query(...),
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Export Bank Book to PDF"""
+    data = get_bank_book(account_id, from_date, to_date, db, current_user)
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4))
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    title = Paragraph(f"Bank Book: {data.account_name} ({from_date} to {to_date})", styles['Title'])
+    elements.append(title)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    elements.append(Paragraph(f"<b>Opening Balance:</b> ₹{data.opening_balance:,.2f}", styles['Normal']))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    table_data = [['Date', 'Narration', 'Cheque', 'Deposit', 'Withdrawal', 'Balance']]
+    for entry in data.entries:
+        table_data.append([
+            str(entry.date),
+            Paragraph(entry.narration[:30], styles['Normal']),
+            entry.cheque_number or '-',
+            f"{entry.deposit_amount:,.2f}",
+            f"{entry.withdrawal_amount:,.2f}",
+            f"{entry.running_balance:,.2f}"
+        ])
+        
+    table_data.append([
+        '', 'Totals', '',
+        f"{data.total_deposits:,.2f}",
+        f"{data.total_withdrawals:,.2f}",
+        f"{data.closing_balance:,.2f}"
+    ])
+    
+    t = Table(table_data, colWidths=[1.2*inch, 3.5*inch, 1*inch, 1.2*inch, 1.2*inch, 1.5*inch])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]))
+    elements.append(t)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=BankBook_{from_date}_{to_date}.pdf"}
     )
 
