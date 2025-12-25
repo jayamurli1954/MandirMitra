@@ -138,6 +138,10 @@ debug.log
 *_test_rsults.txt
 *_Bug_fixes.txt
 
+# Cursor IDE files (not needed in repository)
+Cursor*.md
+CURSOR*.md
+
 # E2E test artifacts
 e2e-tests/test-results/
 e2e-tests/playwright-report/
