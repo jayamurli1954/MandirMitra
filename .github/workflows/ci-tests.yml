@@ -1,4 +1,4 @@
-name: MandirSync CI/CD - Automated Testing
+name: MandirMitra CI/CD - Automated Testing
 
 # When to run this workflow
 on:
@@ -27,7 +27,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: mandirsync_test
+          POSTGRES_DB: MandirMitra_test
         ports:
           - 5432:5432
         options: >-
@@ -68,7 +68,7 @@ jobs:
       # Step 5: Set up environment variables for testing
       - name: ⚙️ Configure Test Environment
         run: |
-          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mandirsync_test" >> $GITHUB_ENV
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/MandirMitra_test" >> $GITHUB_ENV
           echo "SECRET_KEY=test-secret-key-for-github-actions-only" >> $GITHUB_ENV
           echo "ENVIRONMENT=testing" >> $GITHUB_ENV
 
@@ -83,7 +83,7 @@ jobs:
             echo "No migrations directory found, skipping..."
           fi
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mandirsync_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/MandirMitra_test
 
       # Step 7: Run pytest with parallel execution (OPTIMIZED)
       - name: 🧪 Run Backend Tests with Pytest
@@ -97,7 +97,7 @@ jobs:
             echo "✅ Backend structure validated successfully!"
           fi
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mandirsync_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/MandirMitra_test
 
       # Step 8: Upload coverage report (when tests exist)
       - name: 📊 Upload Coverage Report
@@ -118,7 +118,7 @@ jobs:
             exit 1
           }
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mandirsync_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/MandirMitra_test
 
   # ============================================================================
   # JOB 2: CODE QUALITY & LINTING
@@ -243,7 +243,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: mandirsync_test
+          POSTGRES_DB: MandirMitra_test
         ports:
           - 5432:5432
         options: >-
@@ -271,7 +271,7 @@ jobs:
       - name: 🚀 Start Backend Server (Background)
         working-directory: ./backend
         run: |
-          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mandirsync_test
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/MandirMitra_test
           export SECRET_KEY=test-secret-key
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
           echo $! > uvicorn.pid
