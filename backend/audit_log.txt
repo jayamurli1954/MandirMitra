@@ -1,0 +1,13 @@
+# Audit Log - Immutable Transaction Record
+# Format: DATE|USER|ACTION|ENTRY_ID|ENTRY_NUMBER|AMOUNT|NARRATION|STATUS|HASH
+# This file is append-only. Do not modify or delete entries.
+# ======================================================================
+2025-12-21 22:33:25|admin@temple.com|CREATED|44|JE/2025/0042|18000.0|Staff Salary - Salary paid to counter clerk for Nov 25  Mr. Anandram Gowda (Ref: Staff Salary - Anandram Gowda Nov 25)|draft|
+2025-12-21 22:33:31|admin@temple.com|POSTED|42|JE/2025/0041|3200.0|Electricity Bill - electricity charges  for the month of Nov -25  for temple paid (Ref: Bill No Bescom 234598723)|posted|
+2025-12-21 22:33:34|admin@temple.com|POSTED|44|JE/2025/0042|18000.0|Staff Salary - Salary paid to counter clerk for Nov 25  Mr. Anandram Gowda (Ref: Staff Salary - Anandram Gowda Nov 25)|posted|
+2025-12-25 12:57:38|admin@temple.com|CREATED|73|JE/2025/0070|13000.0|wrong entry reversed|draft|
+2025-12-25 15:58:29|admin@temple.com|POSTED|73|JE/2025/0070|13000.0|wrong entry reversed|posted|
+2025-12-25 16:10:34|admin@temple.com|CREATED|74|JE/2025/0071|13000.0| Rice issued for kitchen for annadana  purpose  on 22/12/2025  vide	ISS/2025/0001|draft|
+2025-12-25 16:10:45|admin@temple.com|POSTED|74|JE/2025/0071|13000.0| Rice issued for kitchen for annadana  purpose  on 22/12/2025  vide	ISS/2025/0001|posted|
+2025-12-25 16:48:57|admin@temple.com|CREATED|75|JE/2025/0072|8000.0|Cleaning & House Keeping - Monthly temple cleaning and house keeping charges paid for the month of Nov 25|draft|
+2025-12-25 16:49:11|admin@temple.com|POSTED|75|JE/2025/0072|8000.0|Cleaning & House Keeping - Monthly temple cleaning and house keeping charges paid for the month of Nov 25|posted|

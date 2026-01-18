@@ -1,0 +1,181 @@
+{
+  "timestamp": "2025-12-21T19:48:46.891274",
+  "migrations": [
+    {
+      "id": 1,
+      "old_code": "1001",
+      "new_code": "01001",
+      "name": "Cash in Hand",
+      "temple_id": 1
+    },
+    {
+      "id": 5,
+      "old_code": "1000",
+      "new_code": "01000",
+      "name": "Assets",
+      "temple_id": 1
+    },
+    {
+      "id": 6,
+      "old_code": "4000",
+      "new_code": "04000",
+      "name": "Income",
+      "temple_id": 1
+    },
+    {
+      "id": 11,
+      "old_code": "4100",
+      "new_code": "04100",
+      "name": "Donation Income (General)",
+      "temple_id": 1
+    },
+    {
+      "id": 2,
+      "old_code": "1002",
+      "new_code": "01002",
+      "name": "SBI Current account",
+      "temple_id": 1
+    },
+    {
+      "id": 130,
+      "old_code": "5101",
+      "new_code": "05101",
+      "name": "Priest Salary",
+      "temple_id": 1
+    },
+    {
+      "id": 131,
+      "old_code": "5102",
+      "new_code": "05102",
+      "name": "Staff Salary",
+      "temple_id": 1
+    },
+    {
+      "id": 132,
+      "old_code": "5110",
+      "new_code": "05110",
+      "name": "Electricity Bill",
+      "temple_id": 1
+    },
+    {
+      "id": 133,
+      "old_code": "5111",
+      "new_code": "05111",
+      "name": "Water Bill",
+      "temple_id": 1
+    },
+    {
+      "id": 134,
+      "old_code": "5120",
+      "new_code": "05120",
+      "name": "Maintenance & Repairs",
+      "temple_id": 1
+    },
+    {
+      "id": 135,
+      "old_code": "5201",
+      "new_code": "05201",
+      "name": "Flower Decoration",
+      "temple_id": 1
+    },
+    {
+      "id": 136,
+      "old_code": "5202",
+      "new_code": "05202",
+      "name": "Pooja Materials",
+      "temple_id": 1
+    },
+    {
+      "id": 137,
+      "old_code": "5203",
+      "new_code": "05203",
+      "name": "Prasadam Expense",
+      "temple_id": 1
+    },
+    {
+      "id": 138,
+      "old_code": "5301",
+      "new_code": "05301",
+      "name": "Vegetables & Groceries",
+      "temple_id": 1
+    },
+    {
+      "id": 139,
+      "old_code": "5302",
+      "new_code": "05302",
+      "name": "Cooking Gas",
+      "temple_id": 1
+    },
+    {
+      "id": 140,
+      "old_code": "5401",
+      "new_code": "05401",
+      "name": "Tent Hiring",
+      "temple_id": 1
+    },
+    {
+      "id": 141,
+      "old_code": "5402",
+      "new_code": "05402",
+      "name": "Sound System",
+      "temple_id": 1
+    },
+    {
+      "id": 142,
+      "old_code": "5403",
+      "new_code": "05403",
+      "name": "Lighting Expense",
+      "temple_id": 1
+    },
+    {
+      "id": 143,
+      "old_code": "5501",
+      "new_code": "05501",
+      "name": "Audit Fees",
+      "temple_id": 1
+    },
+    {
+      "id": 144,
+      "old_code": "5502",
+      "new_code": "05502",
+      "name": "Bank Charges",
+      "temple_id": 1
+    },
+    {
+      "id": 145,
+      "old_code": "5503",
+      "new_code": "05503",
+      "name": "Printing & Stationery",
+      "temple_id": 1
+    },
+    {
+      "id": 146,
+      "old_code": "1101",
+      "new_code": "01101",
+      "name": "Cash - Counter",
+      "temple_id": 1
+    },
+    {
+      "id": 147,
+      "old_code": "1102",
+      "new_code": "01102",
+      "name": "Cash - Hundi",
+      "temple_id": 1
+    },
+    {
+      "id": 148,
+      "old_code": "1110",
+      "new_code": "01110",
+      "name": "Bank - SBI Current Account",
+      "temple_id": 1
+    },
+    {
+      "id": 149,
+      "old_code": "1111",
+      "new_code": "01111",
+      "name": "Bank - HDFC Savings Account",
+      "temple_id": 1
+    }
+  ],
+  "description": "Account code standardization migration - old_code to new_code mapping"
+}

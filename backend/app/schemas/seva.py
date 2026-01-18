@@ -1,0 +1,285 @@
+"""
+Seva API Schemas
+"""
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, List, Union
+from datetime import date, datetime
+from enum import Enum
+import json
+
+
+class SevaCategory(str, Enum):
+    seva = "seva"
+    abhisheka = "abhisheka"
+    alankara = "alankara"
+    pooja = "pooja"
+    archana = "archana"
+    vahana_seva = "vahana_seva"
+    special = "special"
+    festival = "festival"
+
+
+class SevaAvailability(str, Enum):
+    daily = "daily"
+    weekday = "weekday"
+    weekend = "weekend"
+    specific_day = "specific_day"
+    except_day = "except_day"
+    festival_only = "festival_only"
+
+
+class SevaBookingStatus(str, Enum):
+    pending = "pending"
+    confirmed = "confirmed"
+    completed = "completed"
+    cancelled = "cancelled"
+
+
+# Seva Schemas
+class SevaBase(BaseModel):
+    name_english: str = Field(..., max_length=200)
+    name_kannada: Optional[str] = Field(None, max_length=200)
+    name_sanskrit: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = None
+    category: SevaCategory
+    amount: float = Field(..., gt=0)
+    min_amount: Optional[float] = Field(None, gt=0)
+    max_amount: Optional[float] = Field(None, gt=0)
+    availability: SevaAvailability = SevaAvailability.daily
+    specific_day: Optional[int] = Field(None, ge=0, le=6)  # 0=Sunday, 6=Saturday
+    except_day: Optional[int] = Field(
+        None, ge=0, le=6
+    )  # Single excluded day (legacy, for backward compatibility)
+    except_days: Optional[List[int]] = Field(
+        None,
+        description="List of excluded days: [1, 3, 6] for Monday, Wednesday, Saturday (0=Sunday, 1=Monday, etc.)",
+    )
+    time_slot: Optional[str] = Field(None, max_length=50)
+    max_bookings_per_day: Optional[int] = Field(None, ge=0)  # Allow 0 for unlimited, or None
+    advance_booking_days: Optional[int] = Field(default=30, ge=0)
+    requires_approval: bool = False
+    is_active: bool = True
+    benefits: Optional[str] = None
+    instructions: Optional[str] = None
+    duration_minutes: Optional[int] = Field(None, gt=0)
+    materials_required: Optional[str] = None
+
+    @field_validator("advance_booking_days", mode="before")
+    @classmethod
+    def validate_advance_booking_days(cls, v):
+        """Convert None/empty to default value of 30, handle string conversions"""
+        # Handle None
+        if v is None:
+            return 30
+        # Handle empty string or whitespace-only strings
+        if isinstance(v, str) and (v.strip() == "" or v == ""):
+            return 30
+        # Try to convert string numbers to int
+        if isinstance(v, str):
+            try:
+                return int(v.strip())
+            except (ValueError, AttributeError):
+                return 30
+        # If it's already a number, return as-is (Pydantic will validate)
+        return v
+
+
+class SevaCreate(SevaBase):
+    pass
+
+
+class SevaUpdate(BaseModel):
+    name_english: Optional[str] = Field(None, max_length=200)
+    name_kannada: Optional[str] = Field(None, max_length=200)
+    name_sanskrit: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = None
+    category: Optional[SevaCategory] = None
+    amount: Optional[float] = Field(None, gt=0)
+    min_amount: Optional[float] = Field(None, gt=0)
+    max_amount: Optional[float] = Field(None, gt=0)
+    availability: Optional[SevaAvailability] = None
+    specific_day: Optional[int] = Field(None, ge=0, le=6)
+    except_day: Optional[int] = Field(None, ge=0, le=6)  # Single excluded day (legacy)
+    except_days: Optional[List[int]] = Field(
+        None, description="List of excluded days: [1, 3, 6] for Monday, Wednesday, Saturday"
+    )
+
+    @field_validator("except_days", mode="before")
+    @classmethod
+    def parse_except_days_input(cls, v):
+        """Parse except_days from JSON string to list if needed (for input validation)"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+                return None
+            except (json.JSONDecodeError, ValueError):
+                return None
+        # If it's already a list, keep it as is
+        return v
+
+    time_slot: Optional[str] = Field(None, max_length=50)
+    max_bookings_per_day: Optional[int] = Field(None, ge=0)  # Allow 0 for unlimited, or None
+    advance_booking_days: Optional[int] = Field(None, ge=0)
+    requires_approval: Optional[bool] = None
+    is_active: Optional[bool] = None
+    benefits: Optional[str] = None
+    instructions: Optional[str] = None
+    duration_minutes: Optional[int] = Field(None, gt=0)
+    materials_required: Optional[str] = None
+    account_id: Optional[int] = Field(None, description="Link to accounting account")
+
+    @field_validator("advance_booking_days", mode="before")
+    @classmethod
+    def validate_advance_booking_days(cls, v):
+        """Convert None/empty to None (allow None for updates), handle string conversions"""
+        # Handle None - for updates, we allow None (field won't be updated)
+        if v is None:
+            return None
+        # Handle empty string - for updates, convert to None (don't update the field)
+        if isinstance(v, str) and (v.strip() == "" or v == ""):
+            return None
+        # Try to convert string numbers to int
+        if isinstance(v, str):
+            try:
+                return int(v.strip())
+            except (ValueError, AttributeError):
+                return None  # Return None for updates if invalid
+        # If it's already a number, return as-is (Pydantic will validate)
+        return v
+
+
+class SevaResponse(SevaBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("except_days", mode="before")
+    @classmethod
+    def parse_except_days(cls, v):
+        """Parse except_days from JSON string to list if needed"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return None
+        # If it's already a list, keep it as is
+        return v
+
+    class Config:
+        from_attributes = True
+
+
+# Seva Booking Schemas
+class SevaBookingBase(BaseModel):
+    seva_id: int
+    devotee_id: int
+    booking_date: date
+    booking_time: Optional[str] = Field(None, max_length=50)
+    amount_paid: float = Field(..., gt=0)
+    payment_method: Optional[str] = Field(None, max_length=50)  # Cash, Card, UPI, Cheque, Online
+    payment_reference: Optional[str] = Field(None, max_length=100)  # Legacy field
+
+    # UPI Payment Details (if payment_method = 'UPI')
+    sender_upi_id: Optional[str] = Field(None, max_length=100)  # Sender's UPI ID
+    upi_reference_number: Optional[str] = Field(None, max_length=100)  # UPI transaction reference
+
+    # Cheque Payment Details (if payment_method = 'Cheque')
+    cheque_number: Optional[str] = Field(None, max_length=50)
+    cheque_date: Optional[date] = None
+    cheque_bank_name: Optional[str] = Field(None, max_length=100)  # Name of bank
+    cheque_branch: Optional[str] = Field(None, max_length=100)  # Branch name
+
+    # Online Transfer Details (if payment_method = 'Online')
+    utr_number: Optional[str] = Field(None, max_length=100)  # UTR (Unique Transfer Reference)
+    payer_name: Optional[str] = Field(
+        None, max_length=200
+    )  # Payer's name (may be different from devotee/seva kartha)
+
+    devotee_names: Optional[str] = None
+    gotra: Optional[str] = Field(None, max_length=100)
+    nakshatra: Optional[str] = Field(None, max_length=50)
+    rashi: Optional[str] = Field(None, max_length=50)
+    special_request: Optional[str] = None
+
+
+class SevaBookingCreate(SevaBookingBase):
+    pass
+
+
+class SevaBookingUpdate(BaseModel):
+    booking_date: Optional[date] = None
+    booking_time: Optional[str] = Field(None, max_length=50)
+    status: Optional[SevaBookingStatus] = None
+    amount_paid: Optional[float] = Field(None, gt=0)
+    payment_method: Optional[str] = Field(None, max_length=50)
+    payment_reference: Optional[str] = Field(None, max_length=100)
+    receipt_number: Optional[str] = Field(None, max_length=100)
+    devotee_names: Optional[str] = None
+    gotra: Optional[str] = Field(None, max_length=100)
+    nakshatra: Optional[str] = Field(None, max_length=50)
+    rashi: Optional[str] = Field(None, max_length=50)
+    special_request: Optional[str] = None
+    admin_notes: Optional[str] = None
+
+
+class SevaBookingResponse(SevaBookingBase):
+    id: int
+    user_id: Optional[int]
+    priest_id: Optional[int] = None  # Assigned priest
+    status: SevaBookingStatus
+    receipt_number: Optional[str]
+    admin_notes: Optional[str]
+    completed_at: Optional[datetime]
+    cancelled_at: Optional[datetime]
+    cancellation_reason: Optional[str]
+    # Reschedule fields
+    original_booking_date: Optional[date] = None
+    reschedule_requested_date: Optional[date] = None
+    reschedule_reason: Optional[str] = None
+    reschedule_approved: Optional[bool] = None
+    reschedule_approved_by: Optional[int] = None
+    reschedule_approved_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    # Nested relationships
+    seva: Optional[SevaResponse] = None
+    devotee: Optional[dict] = None  # Will be populated from relationship
+    priest: Optional[dict] = None  # Will be populated from relationship
+
+    class Config:
+        from_attributes = True
+
+
+class SevaListResponse(BaseModel):
+    """Response for seva listing with booking availability"""
+
+    id: int
+    name_english: str
+    name_kannada: Optional[str]
+    name_sanskrit: Optional[str]
+    description: Optional[str]
+    category: SevaCategory
+    amount: float
+    min_amount: Optional[float]
+    max_amount: Optional[float]
+    availability: SevaAvailability
+    specific_day: Optional[int]
+    except_day: Optional[int]  # Legacy single excluded day
+    except_days: Optional[
+        List[int]
+    ] = None  # Multiple excluded days: [1, 3, 6] for Monday, Wednesday, Saturday
+    time_slot: Optional[str]
+    is_active: bool
+    is_available_today: bool = False
+    bookings_available: Optional[int] = None
+
+    class Config:
+        from_attributes = True

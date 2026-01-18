@@ -1,0 +1,332 @@
+
+In temples sevas are performed based on devotees birth star day. How to find the future star or rather counter clerk helping the devotee to find the date matching the star for booking the seva
+
+we also need to find dates for coming Ekadashi as well Sankashta Chathurthi and Pradosha can we we have a easy calendar for all these like stars, Ekadashi, Sankashta Chathurthi and Pradosha
+
+we need a simple calendar we already have panchang in our MandirMitra Project now these dates are like a ready reckoner in case some devotee asks the counter clerk and check and readily help in finding it is something like a widget in the dashboard so he can tell user/clerk key in some data or it is readily available for display without going thru any laborious method to find all these
+EVENTS TO BE COVERED
+Code	Event
+NAK	Nakshatra (Today + Next occurrence of selected star)
+EK	Ekadashi
+SK	Sankashta Chaturthi
+PR	Pradosha
+PM	Pournami
+AM	Amavasya
+or any other importntant date/festival
+
+
+yes do all of the above as I am taking the help of Cursor ai t build so if you make complete note then it will be easier for cursor to build on it or even enhance it
+
+we have one note herebelow you can review and suggest
+
+
+# 🛕 MandirMitra – Devotee Ready-Reckoner Dashboard Widget
+
+**(Authoritative Implementation Note for Cursor AI)**
+
+---
+
+## 1. OBJECTIVE (VERY CLEAR)
+
+Build a **simple, fast, zero-confusion dashboard widget** that allows a **temple counter clerk** to instantly answer common devotee questions like:
+
+* “When is my next **star**?”
+* “When is the **next Ekadashi**?”
+* “Next **Sankashta Chaturthi**?”
+* “Is there **Pradosha / Amavasya / Pournami**?”
+
+WITHOUT:
+
+* Opening full Panchang
+* Reading timings
+* Doing calculations
+* Astrology knowledge
+
+This widget is a **READY RECKONER**, not a Panchang.
+
+---
+
+## 2. WHAT THIS WIDGET IS (AND IS NOT)
+
+### ✅ IS
+
+* A **summary / cache** of upcoming sacred dates
+* Always shows **ONE clear calendar date per event**
+* Uses **existing Panchang engine** in MandirMitra
+* Optimized for **counter speed**
+
+### ❌ IS NOT
+
+* A Panchang replacement
+* A tithi/nakshatra timing calculator
+* A screen showing start/end times
+* A screen requiring user inputs
+
+---
+
+## 3. EVENTS TO BE COVERED (V1 – FINALIZED)
+
+### Core Events (Must Show)
+
+| Code | Event                                                |
+| ---- | ---------------------------------------------------- |
+| NAK  | Nakshatra (Today + Next occurrence of selected star) |
+| EK   | Ekadashi                                             |
+| SK   | Sankashta Chaturthi                                  |
+| PR   | Pradosha                                             |
+| PM   | Pournami                                             |
+| AM   | Amavasya                                             |
+
+(Expandable later)
+
+---
+
+## 4. ASSIGNMENT RULES (NON-NEGOTIABLE)
+
+> **These rules decide the DATE shown. No exceptions.**
+
+### Nakshatra
+
+* Assign to the date when **main temple seva time** (e.g., morning Abhishekam) occurs.
+* Never show two dates.
+
+### Ekadashi
+
+* Date on which **Ekadashi tithi exists at sunrise**.
+
+### Sankashta Chaturthi
+
+* Date on which **Krishna Chaturthi has Moonrise**.
+
+### Pradosha
+
+* Date on which **Trayodashi exists during evening (Pradosha Kala)**.
+
+### Pournami / Amavasya
+
+* Date when respective tithi exists at sunrise.
+
+👉 **All timing logic remains backend-only.**
+
+---
+
+## 5. DATA FLOW (IMPORTANT FOR CURSOR)
+
+### High-Level Flow
+
+```
+Panchang Engine (already exists)
+        ↓
+Daily Background Job (00:05 AM)
+        ↓
+Sacred Events Cache Table
+        ↓
+Dashboard Widget (Read-only)
+```
+
+✔ Widget NEVER computes
+✔ Widget NEVER calls Panchang directly
+
+---
+
+## 6. DATABASE DESIGN (SIMPLE & FAST)
+
+### Table: `sacred_events_cache`
+
+```sql
+id                BIGINT PK
+temple_id         BIGINT
+event_code        VARCHAR(10)   -- EK, SK, PR, PM, AM, NAK
+event_name        VARCHAR(50)
+event_date        DATE
+weekday           VARCHAR(10)
+extra_info        VARCHAR(100)  -- Optional (e.g. Star name)
+valid_from        DATE
+valid_to          DATE
+created_at        TIMESTAMP
+updated_at        TIMESTAMP
+```
+
+### Example Rows
+
+```
+EK | Ekadashi | 2026-03-11 | Wed
+SK | Sankashta Chaturthi | 2026-03-10 | Tue
+PR | Pradosha | 2026-03-12 | Thu
+PM | Pournami | 2026-03-15 | Sun
+AM | Amavasya | 2026-03-29 | Sun
+NAK | Anuradha Star | 2026-03-05 | Thu
+```
+
+---
+
+## 7. BACKEND JOB (CRITICAL)
+
+### Job Name
+
+`GenerateSacredEventsCacheJob`
+
+### Frequency
+
+* Once per day (after midnight)
+* Or on demand (admin trigger)
+
+### Responsibilities
+
+* Compute **next 30–60 days**
+* Insert / update cache
+* Delete expired entries
+
+### Pseudocode (for Cursor)
+
+```
+for each temple:
+    compute upcoming sacred events using Panchang
+    apply assignment rules
+    store ONE date per event
+    update cache
+```
+
+---
+
+## 8. API CONTRACT (READ-ONLY)
+
+### Endpoint
+
+```
+GET /api/dashboard/sacred-events
+```
+
+### Response (Final Format)
+
+```json
+{
+  "today_nakshatra": "Anuradha",
+  "events": [
+    { "code": "NAK", "label": "Anuradha Star", "date": "2026-03-05", "day": "Thu" },
+    { "code": "EK", "label": "Ekadashi", "date": "2026-03-11", "day": "Wed" },
+    { "code": "SK", "label": "Sankashta Chaturthi", "date": "2026-03-10", "day": "Tue" },
+    { "code": "PR", "label": "Pradosha", "date": "2026-03-12", "day": "Thu" },
+    { "code": "PM", "label": "Pournami", "date": "2026-03-15", "day": "Sun" },
+    { "code": "AM", "label": "Amavasya", "date": "2026-03-29", "day": "Sun" }
+  ]
+}
+```
+
+---
+
+## 9. FRONTEND UI SPEC (REACT + MUI)
+
+### Widget Title
+
+**🛕 Upcoming Sacred Days**
+
+### Layout (Exact)
+
+```
+-------------------------------------
+🛕 Upcoming Sacred Days
+-------------------------------------
+⭐ Today’s Nakshatra: Anuradha
+
+📅 Next Important Days
+• ⭐ Anuradha Star        → 05 Mar (Thu)
+• 🌙 Ekadashi            → 11 Mar (Wed)
+• 🐘 Sankashta Chaturthi → 10 Mar (Tue)
+• 🔱 Pradosha            → 12 Mar (Thu)
+• 🌕 Pournami            → 15 Mar (Sun)
+• 🌑 Amavasya            → 29 Mar (Sun)
+
+[ View Monthly Calendar ]
+-------------------------------------
+```
+
+### UI RULES
+
+* No times
+* No astrology terms
+* No user inputs
+* Icons fixed
+* Dates bold
+
+---
+
+## 10. OPTIONAL QUICK LOOKUP (SAFE & SIMPLE)
+
+```
+🔍 Find Next Occurrence
+[ Select Event ▼ ]  [ Show ]
+```
+
+Dropdown values:
+
+* My Star
+* Ekadashi
+* Sankashta
+* Pradosha
+* Pournami
+* Amavasya
+
+Output:
+
+```
+Next Ekadashi → 11 March 2026 (Wed)
+```
+
+---
+
+## 11. ADMIN CONFIG (MINIMAL)
+
+```
+Enable in Ready-Reckoner:
+☑ Nakshatra
+☑ Ekadashi
+☑ Sankashta
+☑ Pradosha
+☑ Pournami
+☑ Amavasya
+```
+
+No astrology exposed.
+
+---
+
+## 12. PERFORMANCE & UX GUARANTEES
+
+* Widget load time < 200ms
+* No dependency on Panchang runtime
+* Works offline if cache exists
+* Zero training required for clerk
+
+---
+
+## 13. CLERK SOP (1 LINE – DISPLAYABLE)
+
+> “Check the ‘Upcoming Sacred Days’ box on dashboard and read out the date.”
+
+---
+
+## 14. WHY THIS IS THE RIGHT DESIGN
+
+✔ Solves real counter problems
+✔ Uses Panchang without exposing complexity
+✔ Prevents double-date confusion
+✔ Cursor-friendly (clear inputs & outputs)
+✔ Easy to extend (festivals, temple events)
+
+---
+
+## 15. WHAT TO TELL CURSOR AI (COPY THIS)
+
+> “Build a MandirMitra dashboard widget called ‘Upcoming Sacred Days’ using a cached API. Do not compute Panchang in UI. Follow the provided event assignment rules strictly and show only one date per event.”
+
+---
+
+If you want, next I can:
+
+* Convert this into **Cursor-optimized prompt**
+* Generate **backend code skeleton (FastAPI / Node)**
+* Generate **React + MUI component code**
+* Create **monthly printable A4 calendar auto-generated from cache**
+
+Just tell me what you want next.

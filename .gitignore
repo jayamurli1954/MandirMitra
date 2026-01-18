@@ -1,0 +1,43 @@
+# System files
+thumbs.db
+*.ds_store
+~$*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node/JS
+node_modules/
+dist/
+build/
+.npm
+.eslintcache
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Generated Reports and Binary files
+*.pdf
+test-results/
+backend/test-results/
+coverage/
+htmlcov/
+
+# Editor directories
+.idea/
+.vscode/
+*.swp
+*.swo

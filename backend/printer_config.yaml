@@ -1,0 +1,53 @@
+# Printer Configuration for MandirMitra
+# Supports Thermal (ESC/POS) and Standard (Inkjet/Laser/DotMatrix) printers
+
+printers:
+  # Example: Direct USB Thermal Printer (Requires Zadig driver on Windows)
+  thermal_usb_1:
+    id: thermal_usb_1
+    name: "Counter Thermal Printer"
+    type: thermal_usb
+    enabled: false  # Set to true to enable
+    connection:
+      vendor_id: 0x0416      # Example: Star Micronics
+      product_id: 0x5011
+      profile: TM-T88II
+    settings:
+      paper_width: 58
+      encoding: cp437
+
+  # Example: Network Thermal Printer
+  thermal_net_1:
+    id: thermal_net_1
+    name: "Kitchen Printer"
+    type: thermal_network
+    enabled: false
+    connection:
+      host: 192.168.1.100
+      port: 9100
+    settings:
+      paper_width: 80
+
+  # Example: Standard Windows Printer (Inkjet/Laser/DotMatrix)
+  # Uses the printer installed in Windows Control Panel
+  office_printer:
+    id: office_printer
+    name: "Office Laser Printer"
+    type: os_printer
+    enabled: true
+    connection:
+      printer_name: "Microsoft Print to PDF" # Replace with actual printer name e.g. "HP LaserJet 1020"
+    settings:
+      paper_size: A4
+
+templates:
+  seva_token:
+    paper_width: 58
+    qr_size: 6
+  
+  receipt:
+    paper_width: 80
+
+settings:
+  default_printer_id: office_printer
+  backup_printer_id: office_printer

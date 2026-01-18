@@ -1,0 +1,23 @@
+{
+  "name": "MandirMitra-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for MandirMitra using Playwright",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "test:webkit": "playwright test --project=webkit",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "install": "playwright install --with-deps"
+  },
+  "keywords": ["playwright", "e2e", "testing"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

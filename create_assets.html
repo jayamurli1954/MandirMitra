@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Assets for Donations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            background-color: #FF9933;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #e6891e;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Create Assets for Existing Donations</h1>
+    <p>This will create assets for your existing in-kind donations (Gold, Silver, Diamond Necklace, etc.)</p>
+    
+    <button onclick="createAssets()">Create Assets Now</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        async function createAssets() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="info">Creating assets... Please wait.</div>';
+            
+            // Try to get token from localStorage (common storage locations)
+            let token = localStorage.getItem('token') || 
+                       localStorage.getItem('authToken') ||
+                       localStorage.getItem('access_token') ||
+                       sessionStorage.getItem('token') ||
+                       sessionStorage.getItem('authToken');
+            
+            // If no token found, prompt user
+            if (!token) {
+                token = prompt('Please enter your authentication token (check browser Network tab for Authorization header):');
+                if (!token) {
+                    resultDiv.innerHTML = '<div class="error">Token required. Please try again.</div>';
+                    return;
+                }
+            }
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/donations/create-missing-assets/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+                    throw new Error(errorData.detail || `HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                let message = `<div class="success">
+                    <h3>✅ Success!</h3>
+                    <p><strong>Created ${data.created_count} assets</strong></p>
+                </div>`;
+                
+                if (data.errors && data.errors.length > 0) {
+                    message += `<div class="info">
+                        <h4>Errors encountered:</h4>
+                        <ul>${data.errors.map(e => `<li>${e}</li>`).join('')}</ul>
+                    </div>`;
+                }
+                
+                message += `<div class="info">
+                    <p><strong>Next steps:</strong></p>
+                    <ol>
+                        <li>Refresh the Asset Register page</li>
+                        <li>Check if assets appear in the register</li>
+                        <li>Try clearing filters if needed</li>
+                    </ol>
+                </div>`;
+                
+                resultDiv.innerHTML = message;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">
+                    <h3>❌ Error</h3>
+                    <p>${error.message}</p>
+                    <p><strong>Tip:</strong> Make sure you're logged in and the backend server is running.</p>
+                </div>`;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
