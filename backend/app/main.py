@@ -116,6 +116,9 @@ from app.api.inventory import router as inventory_router
 from app.api.inventory_additional import router as inventory_additional_router
 from app.api.inventory_alerts import router as inventory_alerts_router
 from app.api.monitoring import router as monitoring_router
+from app.api.hr import router as hr_router
+from app.api.hundi import router as hundi_router
+from app.api.tenders import router as tenders_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -189,6 +192,9 @@ app.include_router(inventory_router)
 app.include_router(inventory_additional_router)
 app.include_router(inventory_alerts_router)
 app.include_router(monitoring_router)
+app.include_router(hr_router)
+app.include_router(hundi_router)
+app.include_router(tenders_router)
 
 
 def _run_startup():
