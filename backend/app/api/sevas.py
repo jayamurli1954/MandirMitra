@@ -648,7 +648,7 @@ def get_seva(seva_id: int, db: Session = Depends(get_db)):
     return seva
 
 
-@router.post("/", response_model=SevaResponse)
+@router.post("/", response_model=SevaResponse, status_code=201)
 def create_seva(
     seva_data: SevaCreate,
     db: Session = Depends(get_db),
@@ -1194,7 +1194,7 @@ def get_booking(
     return booking
 
 
-@router.post("/bookings/", response_model=SevaBookingResponse)
+@router.post("/bookings/", response_model=SevaBookingResponse, status_code=201)
 def create_booking(
     booking_data: SevaBookingCreate,
     db: Session = Depends(get_db),
@@ -1605,7 +1605,7 @@ def approve_reschedule(
 # ===== PRIEST ASSIGNMENT =====
 
 
-@router.get("/priests")
+@router.get("/lists/priests")
 def get_priests(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get list of priests (users with role 'priest')"""
     priests = db.query(User).filter(User.role == "priest", User.is_active == True)
