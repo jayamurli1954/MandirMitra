@@ -16,6 +16,32 @@ from app.core.security import get_password_hash
 from app.main import app
 from app.models.user import User
 
+# Import ALL models so Base.metadata knows all tables before create_all()
+import app.models.temple               # noqa: F401
+import app.models.devotee              # noqa: F401
+import app.models.vendor               # noqa: F401
+import app.models.accounting           # noqa: F401
+import app.models.asset                # noqa: F401
+import app.models.donation             # noqa: F401
+import app.models.seva                 # noqa: F401
+import app.models.seva_exchange        # noqa: F401
+import app.models.token_seva           # noqa: F401
+import app.models.inkind_sponsorship   # noqa: F401
+import app.models.upi_banking          # noqa: F401
+import app.models.bank_reconciliation  # noqa: F401
+import app.models.audit_log            # noqa: F401
+import app.models.budget               # noqa: F401
+import app.models.financial_period     # noqa: F401
+import app.models.hr                   # noqa: F401
+import app.models.hundi                # noqa: F401
+import app.models.inventory            # noqa: F401
+import app.models.purchase_order       # noqa: F401
+import app.models.stock_audit          # noqa: F401
+import app.models.asset_history        # noqa: F401
+import app.models.depreciation_methods # noqa: F401
+import app.models.panchang_display_settings  # noqa: F401
+import app.models.sacred_events_cache  # noqa: F401
+
 
 # Use in-memory SQLite for fast testing
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
