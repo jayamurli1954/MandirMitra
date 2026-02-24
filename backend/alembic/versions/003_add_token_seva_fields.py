@@ -20,20 +20,29 @@ def upgrade():
     # Add token seva fields to sevas table (only if they don't exist)
     conn = op.get_bind()
     inspector = sa.inspect(conn)
-    sevas_columns = [col["name"] for col in inspector.get_columns("sevas")]
-    temples_columns = [col["name"] for col in inspector.get_columns("temples")]
+    existing_tables = inspector.get_table_names()
 
-    if "is_token_seva" not in sevas_columns:
+    # Guard: On a fresh DB, ORM create_all already created tables with all columns
+    sevas_columns = (
+        [col["name"] for col in inspector.get_columns("sevas")]
+        if "sevas" in existing_tables else []
+    )
+    temples_columns = (
+        [col["name"] for col in inspector.get_columns("temples")]
+        if "temples" in existing_tables else []
+    )
+
+    if "is_token_seva" not in sevas_columns and sevas_columns:
         op.add_column(
             "sevas", sa.Column("is_token_seva", sa.Boolean(), nullable=True, server_default="false")
         )
-    if "token_color" not in sevas_columns:
+    if "token_color" not in sevas_columns and sevas_columns:
         op.add_column("sevas", sa.Column("token_color", sa.String(length=50), nullable=True))
-    if "token_threshold" not in sevas_columns:
+    if "token_threshold" not in sevas_columns and sevas_columns:
         op.add_column("sevas", sa.Column("token_threshold", sa.Float(), nullable=True))
 
     # Add token_seva_threshold to temples table (only if it doesn't exist)
-    if "token_seva_threshold" not in temples_columns:
+    if "token_seva_threshold" not in temples_columns and temples_columns:
         op.add_column(
             "temples",
             sa.Column("token_seva_threshold", sa.Float(), nullable=True, server_default="50.0"),

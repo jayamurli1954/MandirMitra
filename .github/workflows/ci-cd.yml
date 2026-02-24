@@ -85,6 +85,15 @@ jobs:
       - name: Run database migrations
         working-directory: backend
         run: |
+          # Step 1: Create all base tables via ORM (handles fresh empty DB)
+          python -c "
+          import os
+          os.environ.setdefault('DATABASE_URL', 'postgresql://testuser:testpass@localhost:5432/mandirmitra_test')
+          from app.core.database import Base, engine
+          Base.metadata.create_all(engine)
+          print('Base tables created successfully')
+          "
+          # Step 2: Run alembic migrations (ADD COLUMN migrations are guarded no-ops on fresh DB)
           alembic upgrade head
 
       - name: Run backend tests with coverage
