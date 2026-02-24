@@ -1257,7 +1257,7 @@ def create_donation(
         entity_id=db_donation.id,
         new_values=get_entity_dict(db_donation),
         description=f"Created donation: ₹{db_donation.amount} from {devotee.name} (Receipt: {db_donation.receipt_number})",
-        ip_address=request.client.host if request else None,
+        ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
 
@@ -2068,7 +2068,7 @@ def update_donation(
         user_id=current_user.id if current_user else None,
         description=f"Updated donation details: Receipt {donation.receipt_number}",
         changes=get_entity_dict(donation),
-        ip_address=request.client.host if request else None,
+        ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
 

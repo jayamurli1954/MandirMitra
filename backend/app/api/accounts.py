@@ -251,7 +251,7 @@ def create_account(
             entity_id=account.id,
             new_values=get_entity_dict(account),
             description=f"Created account: {account.account_code} - {account.account_name}",
-            ip_address=request.client.host if request else None,
+            ip_address=request.client.host if request and request.client else None,
             user_agent=request.headers.get("user-agent") if request else None,
         )
     except Exception as e:
@@ -390,7 +390,7 @@ def update_account(
             old_values=old_values,
             new_values=new_values,
             description=description,
-            ip_address=request.client.host if request else None,
+            ip_address=request.client.host if request and request.client else None,
             user_agent=request.headers.get("user-agent") if request else None,
         )
     except Exception as e:

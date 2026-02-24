@@ -119,7 +119,7 @@ def create_user(
             "role": new_user.role,
         },
         description=f"Created user: {new_user.full_name} ({new_user.email})",
-        ip_address=request.client.host if request else None,
+        ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
 
@@ -268,7 +268,7 @@ def update_user(
         old_values=old_values,
         new_values=new_values,
         description=f"Updated user: {user.full_name} ({user.email})",
-        ip_address=request.client.host if request else None,
+        ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
 
@@ -315,7 +315,7 @@ def delete_user(
         old_values={"is_active": True},
         new_values={"is_active": False},
         description=f"Deactivated user: {user.full_name} ({user.email})",
-        ip_address=request.client.host if request else None,
+        ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
 

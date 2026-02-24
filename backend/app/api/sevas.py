@@ -689,7 +689,7 @@ def create_seva(
             entity_id=seva.id,
             new_values=get_entity_dict(seva),
             description=f"Created seva: {seva.name_english}",
-            ip_address=request.client.host if request else None,
+            ip_address=request.client.host if request and request.client else None,
             user_agent=request.headers.get("user-agent") if request else None,
         )
     except Exception as e:
@@ -833,7 +833,7 @@ def update_seva(
             old_values=old_values,
             new_values=new_values,
             description=f"Updated seva: {seva.name_english}",
-            ip_address=request.client.host if request else None,
+            ip_address=request.client.host if request and request.client else None,
             user_agent=request.headers.get("user-agent") if request else None,
         )
     except Exception as e:
@@ -915,7 +915,7 @@ def delete_seva(
             old_values=old_values,
             new_values=new_values,
             description=f"Deleted seva: {seva.name_english}. Reason: {reason}",
-            ip_address=request.client.host if request else None,
+            ip_address=request.client.host if request and request.client else None,
             user_agent=request.headers.get("user-agent") if request else None,
         )
     except Exception as e:

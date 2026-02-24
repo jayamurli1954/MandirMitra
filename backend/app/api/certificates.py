@@ -98,7 +98,7 @@ def upload_certificate(
         action="UPLOAD_CERTIFICATE",
         entity_type="Certificate",
         description=f"Uploaded certificate: {file.filename}",
-        ip_address=request.client.host if request else None,
+        ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
 
@@ -155,7 +155,7 @@ def delete_certificate(
         entity_type="Certificate",
         entity_id=certificate_id,
         description=f"Deleted certificate {certificate_id}",
-        ip_address=request.client.host if request else None,
+        ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
 

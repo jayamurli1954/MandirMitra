@@ -26,6 +26,7 @@ black==23.12.1
 flake8==7.0.0
 mypy==1.7.1
 pre-commit==3.6.0
+factory-boy==3.3.0
 python-json-logger==2.0.7
 # Monitoring and security tools
 psutil==5.9.6

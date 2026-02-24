@@ -60,7 +60,7 @@ def login_for_access_token(
                 entity_type="User",
                 entity_id=user.id,
                 description=f"Failed login attempt for {user.email}",
-                ip_address=request.client.host if request else None,
+                ip_address=request.client.host if request and request.client else None,
                 user_agent=request.headers.get("user-agent") if request else None,
             )
 
@@ -96,7 +96,7 @@ def login_for_access_token(
         entity_type="User",
         entity_id=user.id,
         description=f"Successful login for {user.email}",
-        ip_address=request.client.host if request else None,
+        ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
 

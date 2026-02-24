@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash
-from app.main import app
+from app.main import app as fastapi_app
 from app.models.user import User
 
 # Import ALL models so Base.metadata knows all tables before create_all()
@@ -107,13 +107,13 @@ def client(db_session):
         finally:
             pass
 
-    app.dependency_overrides[get_db] = override_get_db
+    fastapi_app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app) as test_client:
+    with TestClient(fastapi_app) as test_client:
         yield test_client
 
     # Clear overrides
-    app.dependency_overrides.clear()
+    fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="function")

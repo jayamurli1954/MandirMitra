@@ -138,8 +138,8 @@ def init_db():
 
     from app.core.security import get_password_hash
 
-    # Create all tables
-    Base.metadata.create_all(bind=engine)
+    # Create all tables (checkfirst=True avoids error if tables already exist, e.g. in tests)
+    Base.metadata.create_all(bind=engine, checkfirst=True)
 
     # Create default admin user if not exists (only if not in standalone mode)
     # In standalone mode (SQLite), admin user will be created by setup_wizard.py

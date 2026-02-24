@@ -61,7 +61,7 @@ class TestChartOfAccounts:
 
         if response.status_code == status.HTTP_200_OK:
             data = response.json()
-            assert data["account_code"] == A101"
+            assert data["account_code"] == "A101"
             assert "cash" in data["account_name"].lower()
 
     def test_filter_accounts_by_type(self, authenticated_client):
@@ -98,7 +98,7 @@ class TestJournalEntries:
                     "description": "Test expense"
                 },
                 {
-                    "account_code": A101",  # Cash
+                    "account_code": "A101",  # Cash
                     "debit": 0.00,
                     "credit": 1000.00,
                     "description": "Payment in cash"
@@ -129,7 +129,7 @@ class TestJournalEntries:
                     "credit": 0.00
                 },
                 {
-                    "account_code": A101",
+                    "account_code": "A101",
                     "debit": 0.00,
                     "credit": 500.00  # Cr: 500 - UNBALANCED!
                 }
@@ -181,7 +181,7 @@ class TestJournalEntries:
             "transaction_type": "manual",
             "lines": [
                 {"account_code": "5100", "debit": 500.00, "credit": 0.00},
-                {"account_code": A101", "debit": 0.00, "credit": 500.00}
+                {"account_code": "A101", "debit": 0.00, "credit": 500.00}
             ]
         }
 
@@ -385,7 +385,7 @@ class TestAccountingValidation:
                     "credit": 0.00
                 },
                 {
-                    "account_code": A101",
+                    "account_code": "A101",
                     "debit": 0.00,
                     "credit": 100.00
                 }
@@ -417,7 +417,7 @@ class TestAccountingValidation:
                     "credit": 0.00
                 },
                 {
-                    "account_code": A101",
+                    "account_code": "A101",
                     "debit": 0.00,
                     "credit": -100.00
                 }
