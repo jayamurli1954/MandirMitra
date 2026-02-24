@@ -159,8 +159,8 @@ class ReadyReckonerService:
                     events_created += 1
                 
                 # 5. Check for Pournami (PM) - Full Moon (Shukla Paksha Tithi 15, or Purnima)
-                if (tithi_data.get('name') == 'Purnima' or 
-                    (tithi_data.get('number') == 15 and tithi_data.get('paksha') == 'Shukla')):
+                if (tithi_data.get('name') == 'Purnima'
+                    or (tithi_data.get('number') == 15 and tithi_data.get('paksha') == 'Shukla')):
                     self._save_event(
                         temple_id=temple_id,
                         event_code='PM',
