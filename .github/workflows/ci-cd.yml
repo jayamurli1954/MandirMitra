@@ -84,26 +84,8 @@ jobs:
 
       - name: Run database migrations
         working-directory: backend
-        env:
-          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/mandirmitra_test
         run: |
-          # Step 1: Create all base tables via ORM directly on PostgreSQL (bypass app standalone-mode detection)
-          python -c "
-import sys
-sys.path.insert(0, '.')
-from sqlalchemy import create_engine
-from app.core.database import Base
-# Import all models so they register with Base.metadata
-import app.models.temple, app.models.user, app.models.devotee
-import app.models.donation, app.models.seva, app.models.accounting
-import app.models.vendor, app.models.inkind_sponsorship, app.models.upi_banking
-import app.models.bank_reconciliation, app.models.panchang_display_settings
-import app.models.sacred_events_cache
-pg_engine = create_engine('postgresql://testuser:testpass@localhost:5432/mandirmitra_test')
-Base.metadata.create_all(pg_engine)
-print('PostgreSQL tables created successfully')
-"
-          # Step 2: Stamp alembic to head (tables already created, no migrations needed to run)
+          python scripts/ci_create_tables.py
           alembic stamp head
 
       - name: Run backend tests with coverage
