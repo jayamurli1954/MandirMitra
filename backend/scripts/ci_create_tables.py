@@ -21,21 +21,35 @@ print(f"Connecting to: {DATABASE_URL.split('@')[-1]}")  # Log host only, not cre
 # Import Base (without triggering app startup/standalone mode)
 from app.core.database import Base  # noqa: E402
 
-# Import all models so they register with Base.metadata
+# Import ALL models so they register with Base.metadata
+# Order matters where there are FK dependencies — referenced tables first
 import app.models.temple               # noqa: E402, F401
 import app.models.user                 # noqa: E402, F401
 import app.models.devotee              # noqa: E402, F401
+import app.models.vendor               # noqa: E402, F401
+import app.models.accounting           # noqa: E402, F401
+import app.models.asset                # noqa: E402, F401  <- assets table (needed by donations.asset_id FK)
 import app.models.donation             # noqa: E402, F401
 import app.models.seva                 # noqa: E402, F401
-import app.models.accounting           # noqa: E402, F401
-import app.models.vendor               # noqa: E402, F401
+import app.models.seva_exchange        # noqa: E402, F401
+import app.models.token_seva           # noqa: E402, F401
 import app.models.inkind_sponsorship   # noqa: E402, F401
 import app.models.upi_banking          # noqa: E402, F401
 import app.models.bank_reconciliation  # noqa: E402, F401
+import app.models.audit_log            # noqa: E402, F401
+import app.models.budget               # noqa: E402, F401
+import app.models.financial_period     # noqa: E402, F401
+import app.models.hr                   # noqa: E402, F401
+import app.models.hundi                # noqa: E402, F401
+import app.models.inventory            # noqa: E402, F401
+import app.models.purchase_order       # noqa: E402, F401
+import app.models.stock_audit          # noqa: E402, F401
+import app.models.asset_history        # noqa: E402, F401
+import app.models.depreciation_methods # noqa: E402, F401
 import app.models.panchang_display_settings  # noqa: E402, F401
 import app.models.sacred_events_cache  # noqa: E402, F401
 
-# Create engine directly with PostgreSQL URL
+# Create engine directly with PostgreSQL URL (bypass any app config)
 pg_engine = create_engine(DATABASE_URL)
 Base.metadata.create_all(pg_engine)
 
