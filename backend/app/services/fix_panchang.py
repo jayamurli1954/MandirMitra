@@ -10,8 +10,9 @@ if not os.path.exists(PATCH_FILE):
     print(f"ERROR: {PATCH_FILE} not found in current directory!")
     exit()
 
+import shutil
 backup = f"{PATCH_FILE}.backup.{int(datetime.now().timestamp())}"
-os.system(f"cp {PATCH_FILE} {backup}")
+shutil.copy(PATCH_FILE, backup)
 print(f"Backup created: {backup}")
 
 # Read original file

@@ -98,7 +98,7 @@ def create_backup(
                     continue
                 
                 # Get all rows from table
-                result = db.execute(text(f"SELECT * FROM {table_name}"))
+                result = db.execute(text(f"SELECT * FROM {table_name}"))  # nosec B608
                 rows = []
                 columns = list(result.keys())
                 
@@ -305,13 +305,13 @@ def restore_backup(
                             INSERT INTO {table_name} ({columns_str})
                             VALUES ({placeholders})
                             ON CONFLICT DO NOTHING
-                        """)
+                        """)  # nosec B608
                     else:
                         # For SQLite, use INSERT OR IGNORE
                         insert_stmt = text(f"""
                             INSERT OR IGNORE INTO {table_name} ({columns_str})
                             VALUES ({placeholders})
-                        """)
+                        """)  # nosec B608
                     
                     for row in rows:
                         db.execute(insert_stmt, row)

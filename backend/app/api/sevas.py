@@ -748,7 +748,8 @@ def update_seva(
                 # Invalid JSON string, try to parse as array literal
                 try:
                     # Try to parse as Python list literal (e.g., "[1, 6]")
-                    parsed = eval(update_data["except_days"])
+                    import ast
+                    parsed = ast.literal_eval(update_data["except_days"])
                     if isinstance(parsed, list):
                         update_data["except_days"] = json.dumps(parsed)
                     else:
