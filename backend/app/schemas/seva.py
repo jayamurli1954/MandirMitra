@@ -155,8 +155,8 @@ class SevaUpdate(BaseModel):
 
 class SevaResponse(SevaBase):
     id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     @field_validator("except_days", mode="before")
     @classmethod
@@ -246,8 +246,8 @@ class SevaBookingResponse(SevaBookingBase):
     reschedule_approved: Optional[bool] = None
     reschedule_approved_by: Optional[int] = None
     reschedule_approved_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     # Nested relationships
     seva: Optional[SevaResponse] = None

@@ -340,6 +340,44 @@ def chart_of_accounts(db_session, test_user):
             is_system_account=True,
             allow_manual_entry=True
         ),
+        # Advance Seva Booking liability account (required for seva bookings)
+        Account(
+            temple_id=temple.id,
+            account_code="21003",
+            account_name="Advance Seva Booking",
+            account_type=AccountType.LIABILITY,
+            account_subtype=AccountSubType.CURRENT_LIABILITY,
+            is_system_account=True,
+            allow_manual_entry=True
+        ),
+        # Seva Income (detailed)
+        Account(
+            temple_id=temple.id,
+            account_code="41001",
+            account_name="Seva Income - Pooja",
+            account_type=AccountType.INCOME,
+            account_subtype=AccountSubType.OTHER_INCOME,
+            is_system_account=True,
+            allow_manual_entry=True
+        ),
+        Account(
+            temple_id=temple.id,
+            account_code="41002",
+            account_name="Seva Income - Abhisheka",
+            account_type=AccountType.INCOME,
+            account_subtype=AccountSubType.OTHER_INCOME,
+            is_system_account=True,
+            allow_manual_entry=True
+        ),
+        Account(
+            temple_id=temple.id,
+            account_code="41003",
+            account_name="Seva Income - Archana",
+            account_type=AccountType.INCOME,
+            account_subtype=AccountSubType.OTHER_INCOME,
+            is_system_account=True,
+            allow_manual_entry=True
+        ),
     ]
     
     for account in accounts:
