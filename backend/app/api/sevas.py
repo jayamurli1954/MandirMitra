@@ -322,7 +322,7 @@ def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
                     )
 
         if not debit_account:
-            error_msg = f"Debit account ({debit_account_code}) not found for temple {temple_id}. Please create the account in Chart of Accounts."
+            error_msg = f"Debit account not found for temple {temple_id}. Please create the account in Chart of Accounts."
             raise ValueError(error_msg)
 
         if not credit_account:
@@ -892,6 +892,7 @@ def delete_seva(
         )
 
     # Get old values for audit log
+    from app.core.audit import get_entity_dict
     old_values = get_entity_dict(seva) if hasattr(seva, "__table__") else {}
 
     # Soft delete by marking inactive

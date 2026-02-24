@@ -412,6 +412,8 @@ def post_direct_payment_to_vendor(
         # Generate entry number
         entry_number = f"JE/{datetime.now().year}/SPD{sponsorship.id:04d}"
 
+        amount = sponsorship.vendor_invoice_amount or sponsorship.committed_amount
+
         # Create journal entry
         # Narration follows standard accounting practice for in-kind sponsorships
         narration = f"In-Kind Sponsorship - {sponsorship.sponsorship_category} (FMV: ₹{amount})"

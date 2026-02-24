@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
-from app.models.asset import CapitalWorkInProgress, AssetExpense, Asset, AssetCategory, AssetStatus
+from app.models.asset import CapitalWorkInProgress, AssetExpense, Asset, AssetCategory, AssetStatus, AssetType
 from app.models.accounting import (
     Account,
     JournalEntry,

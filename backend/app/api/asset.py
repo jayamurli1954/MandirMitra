@@ -232,7 +232,7 @@ def purchase_asset(
     if purchase_request.payment_method.lower() == "cash":
         credit_account = db.query(Account).filter(
             Account.temple_id == temple_id,
-            Account.account_code == A101"  # Cash in Hand
+            Account.account_code == "A101"  # Cash in Hand
         ).first()
     elif purchase_request.payment_method.lower() == "bank":
         if purchase_request.payment_account_code:

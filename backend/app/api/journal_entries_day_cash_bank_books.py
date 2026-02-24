@@ -25,6 +25,9 @@ from app.schemas.accounting import (
 # These endpoints should be added to the journal_entries router
 # Copy the code below and add to backend/app/api/journal_entries.py after the balance sheet endpoint
 
+from fastapi import APIRouter
+router = APIRouter(prefix="/api/v1/reports", tags=["accounting-reports"])
+
 @router.get("/reports/day-book", response_model=DayBookResponse)
 def get_day_book(
     date: date = Query(default_factory=date.today, description="Date for day book"),
