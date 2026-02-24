@@ -3,6 +3,7 @@ MandirMitra - Temple Management System
 FastAPI Main Application
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import bcrypt
@@ -88,7 +89,6 @@ from app.api.panchang import router as panchang_router
 from app.api.auth import router as auth_router
 from app.api.sevas import router as sevas_router
 from app.api.seva_exchange import router as seva_exchange_router
-from app.api.seva_exchange import router as seva_exchange_router
 from app.api.accounts import router as accounts_router
 from app.api.journal_entries import router as journal_entries_router
 from app.api.vendors import router as vendors_router
@@ -117,13 +117,23 @@ from app.api.inventory_additional import router as inventory_additional_router
 from app.api.inventory_alerts import router as inventory_alerts_router
 from app.api.monitoring import router as monitoring_router
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: startup + shutdown events"""
+    # --- STARTUP ---
+    _run_startup()
+    yield
+    # --- SHUTDOWN (add cleanup here if needed) ---
+
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="Temple Management System API",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.DEBUG else None,   # Hide Swagger in production
+    redoc_url="/redoc" if settings.DEBUG else None,
+    lifespan=lifespan,
 )
 
 # Security headers middleware (add first)
@@ -151,7 +161,6 @@ app.include_router(devotees_router)
 app.include_router(donations_router)
 app.include_router(panchang_router)
 app.include_router(sevas_router)
-app.include_router(seva_exchange_router)
 app.include_router(seva_exchange_router)
 app.include_router(accounts_router)
 app.include_router(journal_entries_router)
@@ -182,10 +191,8 @@ app.include_router(inventory_alerts_router)
 app.include_router(monitoring_router)
 
 
-# Initialize database on startup
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on application startup"""
+def _run_startup():
+    """Synchronous startup logic (called from lifespan context manager)"""
     init_db()
 
     # Run database integrity check (for tampering detection)

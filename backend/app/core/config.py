@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "your-jwt-secret-key-change-this"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # Data Encryption
     ENCRYPTION_KEY: Optional[str] = None  # Set in .env for production
@@ -38,10 +39,18 @@ class Settings(BaseSettings):
     PASSWORD_REQUIRE_DIGITS: bool = True
     PASSWORD_REQUIRE_SPECIAL: bool = True
 
+    # Account Lockout (brute-force protection)
+    ACCOUNT_LOCKOUT_ENABLED: bool = True
+    ACCOUNT_LOCKOUT_ATTEMPTS: int = 5      # Max failed attempts before lockout
+    ACCOUNT_LOCKOUT_DURATION: int = 15     # Lockout duration in minutes
+
     # Rate Limiting
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_REQUESTS: int = 100  # Requests per window
-    RATE_LIMIT_WINDOW: int = 60  # Seconds
+    RATE_LIMIT_WINDOW: int = 60     # Seconds
+    # Stricter limits for auth endpoints
+    AUTH_RATE_LIMIT_REQUESTS: int = 10
+    AUTH_RATE_LIMIT_WINDOW: int = 60
 
     # Session Security
     SESSION_TIMEOUT_MINUTES: int = 120
@@ -72,19 +81,15 @@ class Settings(BaseSettings):
     SMS_API_KEY: Optional[str] = None
     SMS_SENDER_ID: Optional[str] = None
     SMS_PROVIDER: str = "MSG91"  # MSG91, Twilio, etc.
-
-    # Email (optional)
-    EMAIL_ENABLED: bool = False
-    EMAIL_API_KEY: Optional[str] = None
-    EMAIL_FROM: Optional[str] = None
-    EMAIL_PROVIDER: str = "SendGrid"  # SendGrid, AWS SES, etc.
-    SMS_PROVIDER: str = "twilio"
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None
     TWILIO_PHONE_NUMBER: Optional[str] = None
 
     # Email (optional)
     EMAIL_ENABLED: bool = False
+    EMAIL_API_KEY: Optional[str] = None
+    EMAIL_FROM: Optional[str] = None
+    EMAIL_PROVIDER: str = "SMTP"  # SMTP, SendGrid, AWS SES
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USER: Optional[str] = None
@@ -111,6 +116,11 @@ class Settings(BaseSettings):
     def is_saas(self) -> bool:
         """Check if running in SaaS mode"""
         return self.DEPLOYMENT_MODE.lower() == "saas"
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production (non-debug) mode"""
+        return not self.DEBUG
 
     @property
     def multi_tenant(self) -> bool:

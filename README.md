@@ -13,7 +13,7 @@ MandirMitra is a comprehensive temple management system designed for religious i
 ## Technology Stack
 - **Frontend:** React with culturally-appropriate UI components
 - **Backend:** Python FastAPI with Panchang API integration
-- **Database:** MongoDB with religious calendar data
+- **Database:** PostgreSQL with religious calendar data
 - **Integrations:** Payment gateways, SMS services
 
 ## Integration with SanMitra Portfolio

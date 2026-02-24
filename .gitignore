@@ -1,7 +1,9 @@
 # System files
 thumbs.db
-*.ds_store
+*.DS_Store
 ~$*
+.DS_Store
+Desktop.ini
 
 # Python
 __pycache__/
@@ -13,15 +15,21 @@ env/
 venv/
 .env
 .venv
+*.egg-info/
+dist/
+build/
 pip-log.txt
 pip-delete-this-directory.txt
+.mypy_cache/
+.pytest_cache/
+htmlcov/
 
 # Node/JS
 node_modules/
-dist/
-build/
+frontend/build/
 .npm
 .eslintcache
+.parcel-cache
 
 # Logs
 *.log
@@ -30,14 +38,64 @@ yarn-debug.log*
 yarn-error.log*
 
 # Generated Reports and Binary files
-*.pdf
+# (exclude the review documents we copied in — they are working docs)
 test-results/
 backend/test-results/
 coverage/
-htmlcov/
+coverage.xml*
 
-# Editor directories
+# SQLite local databases
+*.db
+*.sqlite3
+
+# Backup files
+*.bak
+*_backup*.py
+*_backup*.json
+account_code_migration_backup.json
+
+# Editor / IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# Railway & Netlify
+.netlify/
+.railway/
+
+# OS
+Thumbs.db
+
+# Temporary scripts used for analysis / one-time tasks
+extract_docx.py
+extract_pdf.py
+docx_output.txt
+pdf_output.txt
+
+# ════════════════════════════════════════════════════════════
+# MARKDOWN FILES — Keep only essential project documentation
+#   Allowed: README.md, ARCHITECTURE.md, CONTRIBUTING.md,
+#             CHANGELOG.md, SECURITY.md  (whitelisted below)
+#   Blocked:  Every other .md — status logs, fix notes, guides,
+#             implementation notes, conversation logs, etc.
+# ════════════════════════════════════════════════════════════
+
+# Block ALL .md files everywhere by default ...
+**/*.md
+
+# ... then whitelist the handful that SHOULD be in the repo
+!README.md
+!ARCHITECTURE.md
+!CONTRIBUTING.md
+!CHANGELOG.md
+!SECURITY.md
+!docs/PRD.md
+!docs/DATABASE_SCHEMA.md
+!docs/API_REFERENCE.md
+!docs/DEPLOYMENT.md
+!docs/ONBOARDING.md
+!backend/README.md
+!frontend/README.md
+!e2e-tests/README.md
+
