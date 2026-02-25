@@ -2,7 +2,7 @@
 Devotee API Endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
@@ -77,6 +77,19 @@ class DevoteeUpdate(BaseModel):
     receive_sms: Optional[bool] = None
     receive_email: Optional[bool] = None
     tags: Optional[List[str]] = None
+
+
+class UpdateDevoteeTagsRequest(BaseModel):
+    tags: List[str]
+
+
+class LinkFamilyMemberRequest(BaseModel):
+    family_head_id: int
+
+
+class MergeDevoteesRequest(BaseModel):
+    source_devotee_id: int
+    target_devotee_id: int
 
 
 class DevoteeResponse(DevoteeBase):
@@ -1158,3 +1171,4 @@ def bulk_import_devotees(
         raise HTTPException(status_code=400, detail=f"Error processing file: {str(e)}")
 
     return results
+

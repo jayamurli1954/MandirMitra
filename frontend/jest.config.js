@@ -63,7 +63,7 @@ module.exports = {
   },
 
   // Setup files
-  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
+  setupFilesAfterEnv: ['<rootDir>/src/setupTests.js'],
 
   // Cache configuration for faster subsequent runs
   cache: true,

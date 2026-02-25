@@ -22,12 +22,12 @@ class TestPanchangServiceUnit:
         "day_of_week,expected_segment",
         [
             (0, 6),  # Sunday -> 7th segment (0-indexed: 6)
-            (1, 2),  # Monday -> 3rd segment (0-indexed: 2)
-            (2, 0),  # Tuesday -> 1st segment (0-indexed: 0)
-            (3, 5),  # Wednesday -> 6th segment (0-indexed: 5)
-            (4, 4),  # Thursday -> 5th segment (0-indexed: 4)
-            (5, 3),  # Friday -> 4th segment (0-indexed: 3)
-            (6, 2),  # Saturday -> 3rd segment (0-indexed: 2)
+            (1, 5),  # Monday -> 6th segment (0-indexed: 5)
+            (2, 4),  # Tuesday -> 5th segment (0-indexed: 4)
+            (3, 3),  # Wednesday -> 4th segment (0-indexed: 3)
+            (4, 2),  # Thursday -> 3rd segment (0-indexed: 2)
+            (5, 1),  # Friday -> 2nd segment (0-indexed: 1)
+            (6, 0),  # Saturday -> 1st segment (0-indexed: 0)
         ],
     )
     def test_gulika_period_calculation(self, day_of_week, expected_segment):
