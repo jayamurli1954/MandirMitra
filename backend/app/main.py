@@ -28,6 +28,10 @@ from app.core.error_handlers import (
 from app.core.security_headers import SecurityHeadersMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.exceptions import RequestValidationError
+from fastapi import Request
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Import all models to ensure they're registered with SQLAlchemy
 # This must happen before init_db() is called
@@ -141,8 +145,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from app.core.jwt_middleware import JWTMiddleware
+
 # Security headers middleware (add first)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# JWT authentication middleware
+app.add_middleware(JWTMiddleware)
 
 # CORS middleware
 app.add_middleware(
@@ -158,6 +167,11 @@ app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
+
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Include routers
 app.include_router(auth_router)
@@ -339,7 +353,8 @@ def _run_startup():
 
 
 @app.get("/")
-async def root():
+@limiter.limit("60/minute")
+async def root(request: Request):
     """Root endpoint"""
     return {
         "message": f"Welcome to {settings.APP_NAME} API",
@@ -349,6 +364,7 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
+@limiter.limit("60/minute")
+async def health_check(request: Request):
     """Health check endpoint"""
     return {"status": "healthy", "service": settings.APP_NAME, "version": settings.APP_VERSION}
