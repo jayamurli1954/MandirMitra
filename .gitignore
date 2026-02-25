@@ -14,6 +14,8 @@ __pycache__/
 env/
 venv/
 .env
+.env.local
+.env.production
 .venv
 *.egg-info/
 dist/
@@ -90,11 +92,7 @@ pdf_output.txt
 !CONTRIBUTING.md
 !CHANGELOG.md
 !SECURITY.md
-!docs/PRD.md
-!docs/DATABASE_SCHEMA.md
-!docs/API_REFERENCE.md
-!docs/DEPLOYMENT.md
-!docs/ONBOARDING.md
+!docs/**/*.md
 !backend/README.md
 !frontend/README.md
 !e2e-tests/README.md
