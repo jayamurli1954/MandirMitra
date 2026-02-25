@@ -84,6 +84,15 @@ class SevaBase(BaseModel):
         # If it's already a number, return as-is (Pydantic will validate)
         return v
 
+    @field_validator("category", "availability", mode="before", check_fields=False)
+    @classmethod
+    def ensure_lowercase_enums(cls, v):
+        if hasattr(v, "value"):
+            v = v.value
+        if isinstance(v, str):
+            v = v.lower()
+        return v
+
 
 class SevaCreate(SevaBase):
     pass
@@ -209,6 +218,7 @@ class SevaBookingBase(BaseModel):
     special_request: Optional[str] = None
 
 
+
 class SevaBookingCreate(SevaBookingBase):
     pass
 
@@ -228,6 +238,15 @@ class SevaBookingUpdate(BaseModel):
     special_request: Optional[str] = None
     admin_notes: Optional[str] = None
 
+    @field_validator("status", mode="before", check_fields=False)
+    @classmethod
+    def ensure_lowercase_enums(cls, v):
+        if hasattr(v, "value"):
+            v = v.value
+        if isinstance(v, str):
+            v = v.lower()
+        return v
+
 
 class SevaBookingResponse(SevaBookingBase):
     id: int
@@ -239,6 +258,15 @@ class SevaBookingResponse(SevaBookingBase):
     completed_at: Optional[datetime]
     cancelled_at: Optional[datetime]
     cancellation_reason: Optional[str]
+    
+    @field_validator("status", mode="before", check_fields=False)
+    @classmethod
+    def ensure_lowercase_enums(cls, v):
+        if hasattr(v, "value"):
+            v = v.value
+        if isinstance(v, str):
+            v = v.lower()
+        return v
     # Reschedule fields
     original_booking_date: Optional[date] = None
     reschedule_requested_date: Optional[date] = None
@@ -253,6 +281,21 @@ class SevaBookingResponse(SevaBookingBase):
     seva: Optional[SevaResponse] = None
     devotee: Optional[dict] = None  # Will be populated from relationship
     priest: Optional[dict] = None  # Will be populated from relationship
+
+    @field_validator("devotee", "priest", mode="before", check_fields=False)
+    @classmethod
+    def convert_orm_to_dict(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, list):
+            if not v:
+                return None
+            v = v[0]
+        if hasattr(v, "__table__"):
+            return {c.name: getattr(v, c.name) for c in v.__table__.columns}
+        return v
 
     class Config:
         from_attributes = True

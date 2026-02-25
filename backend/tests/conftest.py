@@ -183,7 +183,7 @@ def chart_of_accounts(db_session, test_user):
         # Main donation income account
         Account(
             temple_id=temple.id,
-            account_code="D100",
+            account_code="44000",
             account_name="Donation Income",
             account_type=AccountType.INCOME,
             account_subtype=AccountSubType.DONATION_INCOME,
@@ -193,17 +193,37 @@ def chart_of_accounts(db_session, test_user):
         # Cash account
         Account(
             temple_id=temple.id,
-            account_code="A101",
-            account_name="Cash in Hand - Counter",
+            account_code="11001",
+            account_name="Cash",
             account_type=AccountType.ASSET,
             account_subtype=AccountSubType.CASH_BANK,
+            is_system_account=True,
+            allow_manual_entry=True
+        ),
+        # Hundi account
+        Account(
+            temple_id=temple.id,
+            account_code="11002",
+            account_name="Hundi Cash",
+            account_type=AccountType.ASSET,
+            account_subtype=AccountSubType.CASH_BANK,
+            is_system_account=True,
+            allow_manual_entry=True
+        ),
+        # General Donations Income
+        Account(
+            temple_id=temple.id,
+            account_code="44001",
+            account_name="General Donations",
+            account_type=AccountType.INCOME,
+            account_subtype=AccountSubType.DONATION_INCOME,
             is_system_account=True,
             allow_manual_entry=True
         ),
         # UPI account
         Account(
             temple_id=temple.id,
-            account_code="A110",
+            account_code="11003",
             account_name="Bank - UPI",
             account_type=AccountType.ASSET,
             account_subtype=AccountSubType.CASH_BANK,
@@ -213,7 +233,7 @@ def chart_of_accounts(db_session, test_user):
         # Inventory account (for in-kind donations)
         Account(
             temple_id=temple.id,
-            account_code="1300",
+            account_code="13000",
             account_name="Inventory",
             account_type=AccountType.ASSET,
             account_subtype=AccountSubType.INVENTORY,
@@ -223,7 +243,7 @@ def chart_of_accounts(db_session, test_user):
         # Asset account (for in-kind asset donations)
         Account(
             temple_id=temple.id,
-            account_code="1500",
+            account_code="15000",
             account_name="Fixed Assets",
             account_type=AccountType.ASSET,
             account_subtype=AccountSubType.FIXED_ASSET,
@@ -233,7 +253,7 @@ def chart_of_accounts(db_session, test_user):
         # Seva income account (main)
         Account(
             temple_id=temple.id,
-            account_code="4200",
+            account_code="42000",
             account_name="Seva Income - Main",
             account_type=AccountType.INCOME,
             account_subtype=AccountSubType.OTHER_INCOME,
@@ -243,7 +263,7 @@ def chart_of_accounts(db_session, test_user):
         # Sponsorship Receivable account
         Account(
             temple_id=temple.id,
-            account_code="1402",
+            account_code="14020",
             account_name="Sponsorship Receivable",
             account_type=AccountType.ASSET,
             account_subtype=AccountSubType.RECEIVABLE,
@@ -253,7 +273,7 @@ def chart_of_accounts(db_session, test_user):
         # Sponsorship Income account (parent)
         Account(
             temple_id=temple.id,
-            account_code="4300",
+            account_code="43000",
             account_name="Sponsorship Income",
             account_type=AccountType.INCOME,
             account_subtype=AccountSubType.OTHER_INCOME,
@@ -263,7 +283,7 @@ def chart_of_accounts(db_session, test_user):
         # Sponsorship Income - Direct Payment
         Account(
             temple_id=temple.id,
-            account_code="4301",
+            account_code="43010",
             account_name="Sponsorship Income - Direct Payment",
             account_type=AccountType.INCOME,
             account_subtype=AccountSubType.OTHER_INCOME,
@@ -273,7 +293,7 @@ def chart_of_accounts(db_session, test_user):
         # In-Kind Donation Income (for direct payment fallback)
         Account(
             temple_id=temple.id,
-            account_code="4400",
+            account_code="44002",
             account_name="In-Kind Donation Income",
             account_type=AccountType.INCOME,
             account_subtype=AccountSubType.OTHER_INCOME,
@@ -283,7 +303,7 @@ def chart_of_accounts(db_session, test_user):
         # In-Kind Sponsorship Income (preferred for direct payment)
         Account(
             temple_id=temple.id,
-            account_code="4403",
+            account_code="44030",
             account_name="In-Kind Sponsorship Income",
             account_type=AccountType.INCOME,
             account_subtype=AccountSubType.OTHER_INCOME,
@@ -293,7 +313,7 @@ def chart_of_accounts(db_session, test_user):
         # Flower Decoration Expense
         Account(
             temple_id=temple.id,
-            account_code="E201",
+            account_code="52010",
             account_name="Flowers for daily pooja and decoration",
             account_type=AccountType.EXPENSE,
             account_subtype=AccountSubType.OPERATIONAL_EXPENSE,
@@ -303,7 +323,7 @@ def chart_of_accounts(db_session, test_user):
         # Festival Expenses (default)
         Account(
             temple_id=temple.id,
-            account_code="5400",
+            account_code="54000",
             account_name="Festival Expenses",
             account_type=AccountType.EXPENSE,
             account_subtype=AccountSubType.OPERATIONAL_EXPENSE,
@@ -313,7 +333,7 @@ def chart_of_accounts(db_session, test_user):
         # Lighting Expense
         Account(
             temple_id=temple.id,
-            account_code="E403",
+            account_code="54030",
             account_name="Lighting Expense",
             account_type=AccountType.EXPENSE,
             account_subtype=AccountSubType.OPERATIONAL_EXPENSE,
@@ -323,7 +343,7 @@ def chart_of_accounts(db_session, test_user):
         # Tent Hiring
         Account(
             temple_id=temple.id,
-            account_code="E401",
+            account_code="54010",
             account_name="Tent Hiring",
             account_type=AccountType.EXPENSE,
             account_subtype=AccountSubType.OPERATIONAL_EXPENSE,
@@ -333,7 +353,7 @@ def chart_of_accounts(db_session, test_user):
         # Sound System
         Account(
             temple_id=temple.id,
-            account_code="E402",
+            account_code="54020",
             account_name="Sound System",
             account_type=AccountType.EXPENSE,
             account_subtype=AccountSubType.OPERATIONAL_EXPENSE,

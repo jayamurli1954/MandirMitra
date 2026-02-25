@@ -83,7 +83,7 @@ class TestPurchaseOrders:
             "items": [{"item_id": 1, "quantity": 100, "unit_price": 50.00}],
         }
 
-        response = authenticated_client.post("/api/v1/inventory/purchase-orders", json=po_data)
+        response = authenticated_client.post("/api/v1/purchase-orders/", json=po_data)
 
         if response.status_code == status.HTTP_201_CREATED:
             data = response.json()

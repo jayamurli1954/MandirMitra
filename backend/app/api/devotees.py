@@ -58,6 +58,8 @@ class DevoteeCreate(DevoteeBase):
 
 class DevoteeUpdate(BaseModel):
     name_prefix: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None

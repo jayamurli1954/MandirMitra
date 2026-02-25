@@ -32,7 +32,7 @@ class TestChartOfAccounts:
     def test_create_account(self, authenticated_client, test_user):
         """Test creating a new account"""
         account_data = {
-            "account_code": "9999",
+            "account_code": "59990",
             "account_name": "Test Account",
             "account_type": "expense",
             "temple_id": test_user.temple_id,
@@ -47,7 +47,7 @@ class TestChartOfAccounts:
 
         assert response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]
         data = response.json()
-        assert data["account_code"] == "9999"
+        assert data["account_code"] == "59990"
         assert data["account_name"] == "Test Account"
         assert "id" in data
 
@@ -55,7 +55,7 @@ class TestChartOfAccounts:
         """Test retrieving a specific account"""
         # First create an account
         account_data = {
-            "account_code": "8888",
+            "account_code": "18880",
             "account_name": "Test Get Account",
             "account_type": "asset",
             "temple_id": test_user.temple_id,
@@ -73,7 +73,7 @@ class TestChartOfAccounts:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["id"] == account_id
-        assert data["account_code"] == "8888"
+        assert data["account_code"] == "18880"
 
     def test_get_account_not_found(self, authenticated_client):
         """Test getting non-existent account"""
@@ -85,7 +85,7 @@ class TestChartOfAccounts:
         """Test updating an account"""
         # Create account first
         account_data = {
-            "account_code": "7777",
+            "account_code": "27770",
             "account_name": "Original Name",
             "account_type": "liability",
             "temple_id": test_user.temple_id,
@@ -102,7 +102,7 @@ class TestChartOfAccounts:
             "account_name": "Updated Name"
         }
         response = authenticated_client.put(
-            f"/api/v1/accounts/{account_id}",
+            f"/api/v1/accounts/{account_id}?reason=testing",
             json=update_data
         )
 
@@ -114,7 +114,7 @@ class TestChartOfAccounts:
         """Test getting account balance"""
         # Create account first
         account_data = {
-            "account_code": "6666",
+            "account_code": "16660",
             "account_name": "Balance Test Account",
             "account_type": "asset",
             "temple_id": test_user.temple_id,
@@ -138,7 +138,7 @@ class TestChartOfAccounts:
         """Test checking if account has transactions"""
         # Create account first
         account_data = {
-            "account_code": "5555",
+            "account_code": "55550",
             "account_name": "Transaction Check Account",
             "account_type": "expense",
             "temple_id": test_user.temple_id,
@@ -162,7 +162,7 @@ class TestChartOfAccounts:
         """Test deleting an account"""
         # Create account first
         account_data = {
-            "account_code": "4444",
+            "account_code": "54440",
             "account_name": "Delete Test Account",
             "account_type": "expense",
             "temple_id": test_user.temple_id,
@@ -177,17 +177,17 @@ class TestChartOfAccounts:
         # Delete it
         response = authenticated_client.delete(f"/api/v1/accounts/{account_id}")
 
-        # Should return 200 or 204
-        assert response.status_code in [status.HTTP_200_OK, status.HTTP_204_NO_CONTENT]
+        # Should return 400 because accounts cannot be deleted, only deactivated
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-        # Verify it's deleted
+        # Verify it's STILL NOT deleted
         get_response = authenticated_client.get(f"/api/v1/accounts/{account_id}")
-        assert get_response.status_code == status.HTTP_404_NOT_FOUND
+        assert get_response.status_code == status.HTTP_200_OK
 
     def test_create_account_duplicate_code(self, authenticated_client, test_user):
         """Test that duplicate account codes are rejected"""
         account_data = {
-            "account_code": "3333",
+            "account_code": "13330",
             "account_name": "First Account",
             "account_type": "asset",
             "temple_id": test_user.temple_id,
@@ -197,9 +197,9 @@ class TestChartOfAccounts:
 
         # Try to create another with same code
         duplicate_data = {
-            "account_code": "3333",
+            "account_code": "13330",
             "account_name": "Duplicate Account",
-            "account_type": "liability",
+            "account_type": "asset",
             "temple_id": test_user.temple_id,
             "is_active": True
         }
@@ -217,7 +217,7 @@ class TestChartOfAccounts:
     def test_create_account_invalid_type(self, authenticated_client, test_user):
         """Test that invalid account types are rejected"""
         account_data = {
-            "account_code": "2222",
+            "account_code": "12220",
             "account_name": "Invalid Type Account",
             "account_type": "invalid_type",
             "temple_id": test_user.temple_id,

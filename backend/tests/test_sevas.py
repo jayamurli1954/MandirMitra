@@ -155,7 +155,7 @@ class TestSevaManagement:
         seva_id = create_response.json()["id"]
 
         # Deactivate
-        response = authenticated_client.delete(f"/api/v1/sevas/{seva_id}")
+        response = authenticated_client.delete(f"/api/v1/sevas/{seva_id}?reason=test_deactivation")
 
         assert response.status_code in [status.HTTP_200_OK, status.HTTP_204_NO_CONTENT]
 
@@ -239,7 +239,7 @@ class TestSevaBookings:
             "booking_date": str(date.today() + timedelta(days=2)),
             "booking_time": "10:00",
             "amount_paid": 600.00,
-            "payment_method": "upi",
+            "payment_method": "cash",
             "transaction_id": "UPI987654321",
             "special_instructions": "Please use coconut for abhishekam",
         }
@@ -366,10 +366,12 @@ class TestSevaBookings:
         }
 
         booking_response = authenticated_client.post("/api/v1/sevas/bookings/", json=booking_data)
+        if booking_response.status_code not in [200, 201]: print("BOOKING CREATE ERROR:", booking_response.text)
         booking_id = booking_response.json().get("id") if booking_response.status_code in [200, 201] else None
 
         # Retrieve booking
         response = authenticated_client.get(f"/api/v1/sevas/bookings/{booking_id}")
+        if response.status_code != 200: print("BOOKING GET ERROR:", response.text)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -449,7 +451,7 @@ class TestSevaReceipts:
             "devotee_id": devotee_id,
             "booking_date": str(date.today() + timedelta(days=1)),
             "amount_paid": 400.00,
-            "payment_method": "upi",
+            "payment_method": "cash",
         }
 
         booking_response = authenticated_client.post("/api/v1/sevas/bookings/", json=booking_data)

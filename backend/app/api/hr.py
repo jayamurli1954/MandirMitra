@@ -133,6 +133,65 @@ def list_departments(
     return departments
 
 
+@router.get("/departments/{dept_id}", response_model=DepartmentResponse)
+def get_department(
+    dept_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get department by ID"""
+    dept = (
+        db.query(Department)
+        .filter(Department.id == dept_id, Department.temple_id == current_user.temple_id)
+        .first()
+    )
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    return dept
+
+
+@router.put("/departments/{dept_id}", response_model=DepartmentResponse)
+def update_department(
+    dept_id: int,
+    dept_data: DepartmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update department"""
+    dept = (
+        db.query(Department)
+        .filter(Department.id == dept_id, Department.temple_id == current_user.temple_id)
+        .first()
+    )
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    update_data = dept_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(dept, field, value)
+    db.commit()
+    db.refresh(dept)
+    return dept
+
+
+@router.delete("/departments/{dept_id}", status_code=status.HTTP_200_OK)
+def deactivate_department(
+    dept_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Deactivate a department"""
+    dept = (
+        db.query(Department)
+        .filter(Department.id == dept_id, Department.temple_id == current_user.temple_id)
+        .first()
+    )
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+    dept.is_active = False
+    db.commit()
+    return {"message": f"Department '{dept.name}' deactivated"}
+
+
 # ===== DESIGNATION MANAGEMENT =====
 
 
@@ -818,6 +877,10 @@ def process_payroll_for_employee(
         days_payable=days_payable,
         leave_days=leave_days or 0,
         status=PayrollStatus.DRAFT.value,
+        gross_salary=0.0,
+        total_earnings=0.0,
+        total_deductions=0.0,
+        net_salary=0.0,
         created_by=current_user.id if current_user else None,
     )
 
