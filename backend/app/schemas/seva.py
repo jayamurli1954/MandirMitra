@@ -218,7 +218,6 @@ class SevaBookingBase(BaseModel):
     special_request: Optional[str] = None
 
 
-
 class SevaBookingCreate(SevaBookingBase):
     pass
 
