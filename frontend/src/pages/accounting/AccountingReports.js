@@ -23,6 +23,10 @@ import {
 import Layout from '../../components/Layout';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import DownloadIcon from '@mui/icons-material/Download';
+import BalanceSheetReport from './BalanceSheetReport';
+import DayBookReport from './DayBookReport';
+import CashBookReport from './CashBookReport';
+import BankBookReport from './BankBookReport';
 
 function TabPanel({ children, value, index }) {
   return (
@@ -203,9 +207,13 @@ function AccountingReports() {
           >
             <Tab label="Trial Balance" />
             <Tab label="Account Ledger" />
-            <Tab label="Profit & Loss" />
+            <Tab label="Income & Expenditure" />
             <Tab label="Category Income" />
             <Tab label="Top Donors" />
+            <Tab label="Balance Sheet" />
+            <Tab label="Day Book" />
+            <Tab label="Cash Book" />
+            <Tab label="Bank Book" />
           </Tabs>
 
           {/* Trial Balance Tab */}
@@ -433,7 +441,7 @@ function AccountingReports() {
             {profitLoss && (
               <>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Profit & Loss Statement
+                  Income & Expenditure Statement
                   <br />
                   Period: {new Date(profitLoss.from_date).toLocaleDateString()} to {new Date(profitLoss.to_date).toLocaleDateString()}
                 </Alert>
@@ -793,6 +801,27 @@ function AccountingReports() {
               </>
             )}
           </TabPanel>
+
+          {/* Balance Sheet Tab */}
+          <TabPanel value={activeTab} index={5}>
+            <BalanceSheetReport token={localStorage.getItem('token') || ''} />
+          </TabPanel>
+
+          {/* Day Book Tab */}
+          <TabPanel value={activeTab} index={6}>
+            <DayBookReport token={localStorage.getItem('token') || ''} />
+          </TabPanel>
+
+          {/* Cash Book Tab */}
+          <TabPanel value={activeTab} index={7}>
+            <CashBookReport token={localStorage.getItem('token') || ''} />
+          </TabPanel>
+
+          {/* Bank Book Tab */}
+          <TabPanel value={activeTab} index={8}>
+            <BankBookReport token={localStorage.getItem('token') || ''} accounts={accounts} />
+          </TabPanel>
+
         </Paper>
       </Box>
     </Layout>
