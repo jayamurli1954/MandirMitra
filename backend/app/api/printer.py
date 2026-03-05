@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List, Optional
 from pydantic import BaseModel
-from app.services.printer import get_printer_manager
-from app.services.printer import get_print_queue
+from app.services.printer.printer_manager import get_printer_manager
+from app.services.printer.print_queue import get_print_queue
 from app.core.security import get_current_user
 from app.models.user import User
 

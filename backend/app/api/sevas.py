@@ -38,7 +38,7 @@ from app.schemas.seva import (
     SevaBookingUpdate,
     SevaBookingResponse,
 )
-from app.services.printer import get_print_queue
+from app.services.printer.print_queue import get_print_queue
 from app.services.notification_service import notification_service
 from app.constants.hindu_constants import GOTHRAS, NAKSHATRAS, RASHIS
 
