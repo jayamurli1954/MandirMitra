@@ -27,10 +27,12 @@ import {
   Stack,
   Grid,
   CircularProgress,
+  Tooltip,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import MinimizeIcon from '@mui/icons-material/Minimize';
 import api from '../services/api';
 
 function SevaManagement() {
@@ -41,6 +43,7 @@ function SevaManagement() {
 
   // Dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editDialogMinimized, setEditDialogMinimized] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedSeva, setSelectedSeva] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -104,8 +107,9 @@ function SevaManagement() {
   const fetchSevas = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/v1/sevas/', { params: { is_active: false } }); // Get all sevas including inactive
-      setSevas(response.data);
+      // include_inactive=true returns both active and inactive sevas.
+      const response = await api.get('/api/v1/sevas/', { params: { include_inactive: true } });
+      setSevas(Array.isArray(response.data) ? response.data : []);
       setLoading(false);
     } catch (err) {
       setError('Failed to load sevas');
@@ -136,6 +140,7 @@ function SevaManagement() {
       instructions: '',
       duration_minutes: ''
     });
+    setEditDialogMinimized(false);
     setEditDialogOpen(true);
   };
 
@@ -163,7 +168,31 @@ function SevaManagement() {
       instructions: seva.instructions || '',
       duration_minutes: seva.duration_minutes || ''
     });
+    setEditDialogMinimized(false);
     setEditDialogOpen(true);
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditDialogOpen(false);
+    setEditDialogMinimized(false);
+  };
+
+  const handleMinimizeEditDialog = () => {
+    setEditDialogOpen(false);
+    setEditDialogMinimized(true);
+  };
+
+  const handleRestoreEditDialog = () => {
+    setEditDialogOpen(true);
+    setEditDialogMinimized(false);
+  };
+
+  const handleEditDialogRequestClose = (_event, reason) => {
+    if (reason === 'backdropClick' || reason === 'escapeKeyDown') {
+      handleMinimizeEditDialog();
+      return;
+    }
+    handleCloseEditDialog();
   };
 
   const handleDelete = (seva) => {
@@ -194,7 +223,7 @@ function SevaManagement() {
         setSuccess('Seva created successfully!');
       }
 
-      setEditDialogOpen(false);
+      handleCloseEditDialog();
       fetchSevas();
 
       // Clear success message after 3 seconds
@@ -368,11 +397,21 @@ function SevaManagement() {
       {/* Create/Edit Dialog */}
       <Dialog
         open={editDialogOpen}
-        onClose={() => setEditDialogOpen(false)}
+        onClose={handleEditDialogRequestClose}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>
+        <DialogTitle sx={{ pr: 7, position: 'relative' }}>
+          <Tooltip title="Minimize">
+            <IconButton
+              aria-label="minimize seva form dialog"
+              onClick={handleMinimizeEditDialog}
+              size="small"
+              sx={{ position: 'absolute', right: 12, top: 12 }}
+            >
+              <MinimizeIcon />
+            </IconButton>
+          </Tooltip>
           {isEditMode ? 'Edit Seva' : 'Add New Seva'}
         </DialogTitle>
         <DialogContent dividers>
@@ -480,9 +519,10 @@ function SevaManagement() {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Time Slot (e.g., Morning, Evening)"
+                label="Seva Time Slot (Morning/Noon/Evening/Night)"
                 value={sevaForm.time_slot}
                 onChange={(e) => setSevaForm({...sevaForm, time_slot: e.target.value})}
+                helperText="Example: Morning 6:00 AM, Noon 12:00 PM, Evening 7:00 PM"
                 fullWidth
               />
             </Grid>
@@ -529,7 +569,7 @@ function SevaManagement() {
                 value={sevaForm.max_bookings_per_day}
                 onChange={(e) => setSevaForm({...sevaForm, max_bookings_per_day: parseInt(e.target.value) || ''})}
                 fullWidth
-                helperText="Leave blank for unlimited"
+                helperText="Set 1 for special sevas; leave blank for unlimited"
               />
             </Grid>
             <Grid item xs={12} sm={4}>
@@ -599,7 +639,7 @@ function SevaManagement() {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleCloseEditDialog}>Cancel</Button>
           <Button
             onClick={handleSaveSevaForm}
             variant="contained"
@@ -609,6 +649,21 @@ function SevaManagement() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {editDialogMinimized && (
+        <Box
+          sx={{
+            position: 'fixed',
+            right: 24,
+            bottom: 24,
+            zIndex: (theme) => theme.zIndex.modal + 1,
+          }}
+        >
+          <Button variant="contained" color="warning" onClick={handleRestoreEditDialog}>
+            Resume Seva Form
+          </Button>
+        </Box>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog

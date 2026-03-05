@@ -4,7 +4,7 @@
 [build]
   base      = "frontend"
   command   = "npm ci && npm run build"
-  publish   = "frontend/build"
+  publish   = "build"
 
 [build.environment]
   NODE_VERSION = "18"
@@ -24,7 +24,7 @@
     X-Content-Type-Options     = "nosniff"
     Referrer-Policy            = "strict-origin-when-cross-origin"
     Permissions-Policy         = "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy    = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.railway.app;"
+    Content-Security-Policy    = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.railway.app https://*.onrender.com;"
     Strict-Transport-Security  = "max-age=31536000; includeSubDomains; preload"
 
 # Static asset caching — JS/CSS/images get 1 year cache

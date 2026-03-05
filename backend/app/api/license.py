@@ -3,7 +3,7 @@ License API endpoints
 Handles trial activation, license checking, and upgrades
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
@@ -13,6 +13,8 @@ from app.licensing import (
     LicenseStatus,
     check_trial_status,
 )
+from app.core.security import get_current_user
+from app.models.user import User
 
 
 router = APIRouter(prefix="/api/license", tags=["License"])
@@ -55,14 +57,25 @@ class LicenseResponse(BaseModel):
     grace_days_left: Optional[int] = None
 
 
+def _require_admin_license_access(current_user: User) -> None:
+    if current_user.role not in ["admin", "super_admin"] and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can manage license operations",
+        )
+
+
 @router.post("/activate-trial", response_model=LicenseResponse)
-async def activate_trial(request: TrialActivationRequest):
+async def activate_trial(
+    request: TrialActivationRequest, current_user: User = Depends(get_current_user)
+):
     """
     Activate a new trial license
 
     This endpoint creates a trial license for the specified temple.
     Trial period can be 10, 15, or 30 days.
     """
+    _require_admin_license_access(current_user)
     try:
         manager = get_license_manager()
 
@@ -102,12 +115,15 @@ async def activate_trial(request: TrialActivationRequest):
 
 
 @router.post("/activate-full", response_model=LicenseResponse)
-async def activate_full_license(request: LicenseActivationRequest):
+async def activate_full_license(
+    request: LicenseActivationRequest, current_user: User = Depends(get_current_user)
+):
     """
     Activate a full license
 
     This endpoint activates a full/premium license with the provided license key.
     """
+    _require_admin_license_access(current_user)
     try:
         manager = get_license_manager()
 
@@ -150,7 +166,7 @@ async def activate_full_license(request: LicenseActivationRequest):
 
 
 @router.get("/status", response_model=LicenseResponse)
-async def get_license_status():
+async def get_license_status(current_user: User = Depends(get_current_user)):
     """
     Get current license status
 
@@ -175,12 +191,15 @@ async def get_license_status():
 
 
 @router.post("/extend-trial", response_model=LicenseResponse)
-async def extend_trial(request: ExtendTrialRequest):
+async def extend_trial(
+    request: ExtendTrialRequest, current_user: User = Depends(get_current_user)
+):
     """
     Extend trial period
 
     Admin endpoint to extend an existing trial by additional days.
     """
+    _require_admin_license_access(current_user)
     try:
         manager = get_license_manager()
 
@@ -208,13 +227,14 @@ async def extend_trial(request: ExtendTrialRequest):
 
 
 @router.delete("/deactivate")
-async def deactivate_license():
+async def deactivate_license(current_user: User = Depends(get_current_user)):
     """
     Deactivate/remove current license
 
     Admin endpoint to remove the license file.
     Use with caution!
     """
+    _require_admin_license_access(current_user)
     try:
         manager = get_license_manager()
         success = manager.deactivate_license()

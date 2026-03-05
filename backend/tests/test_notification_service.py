@@ -47,6 +47,7 @@ class TestNotificationService:
         notification_service.sms_enabled = True
         notification_service.sms_api_key = "test_key"
         notification_service.sms_sender_id = "TEST"
+        notification_service.sms_template_id = "template_123"
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -64,6 +65,7 @@ class TestNotificationService:
         """Test SMS sending when API fails"""
         notification_service.sms_enabled = True
         notification_service.sms_api_key = "test_key"
+        notification_service.sms_template_id = "template_123"
         
         mock_post.side_effect = requests.RequestException("API Error")
         
@@ -77,6 +79,7 @@ class TestNotificationService:
         """Test SMS sending when API returns error"""
         notification_service.sms_enabled = True
         notification_service.sms_api_key = "test_key"
+        notification_service.sms_template_id = "template_123"
         
         mock_response = Mock()
         mock_response.status_code = 400
@@ -87,6 +90,52 @@ class TestNotificationService:
         
         assert result['success'] == False
         assert 'error' in result
+
+    @patch('app.services.notification_service.requests.post')
+    def test_send_sms_infobip_success(self, mock_post, notification_service):
+        """Test successful Infobip SMS sending"""
+        notification_service.sms_enabled = True
+        notification_service.sms_provider = "INFOBIP"
+        notification_service.sms_api_key = "test_key"
+        notification_service.sms_sender_id = "MANDIR"
+        notification_service.infobip_base_url = "https://api.infobip.com"
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"messages": [{"messageId": "ib-msg-123"}]}
+        mock_post.return_value = mock_response
+
+        result = notification_service.send_sms("9876543210", "Test message")
+
+        assert result['success'] == True
+        assert result.get('provider') == "INFOBIP"
+        assert result.get('message_id') == "ib-msg-123"
+        mock_post.assert_called_once()
+        called_url = mock_post.call_args.kwargs.get("url") or mock_post.call_args.args[0]
+        assert "/sms/2/text/advanced" in called_url
+
+    @patch('app.services.notification_service.requests.post')
+    def test_send_sms_test_mode_routes_to_fixed_recipient(self, mock_post, notification_service):
+        """Test SMS test mode reroutes all messages to a fixed recipient number"""
+        notification_service.sms_enabled = True
+        notification_service.sms_provider = "INFOBIP"
+        notification_service.sms_api_key = "test_key"
+        notification_service.sms_sender_id = "MANDIR"
+        notification_service.infobip_base_url = "https://api.infobip.com"
+        notification_service.sms_test_mode = True
+        notification_service.sms_test_recipient = "919444019106"
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"messages": [{"messageId": "ib-msg-test"}]}
+        mock_post.return_value = mock_response
+
+        result = notification_service.send_sms("7904942915", "Test message")
+
+        assert result["success"] == True
+        assert result.get("test_mode_routed") == True
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["messages"][0]["destinations"][0]["to"] == "+919444019106"
     
     def test_send_email_when_disabled(self, notification_service):
         """Test email sending when service is disabled"""

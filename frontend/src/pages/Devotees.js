@@ -31,7 +31,7 @@ function Devotees() {
     try {
       setLoading(true);
       setError('');
-      
+
       // Try direct devotees API first
       try {
         const devoteesRes = await api.get('/api/v1/devotees');
@@ -42,14 +42,14 @@ function Devotees() {
       } catch (devoteesErr) {
         console.log('Devotees API failed, trying donations API:', devoteesErr);
       }
-      
+
       // Fallback: Get devotees from donations (unique by phone)
       const donationsRes = await api.get('/api/v1/donations?limit=1000');
-      
+
       if (donationsRes.data && Array.isArray(donationsRes.data) && donationsRes.data.length > 0) {
         // Extract unique devotees from donations
         const devoteeMap = new Map();
-        
+
         donationsRes.data.forEach(donation => {
           const phone = donation.devotee?.phone || donation.devotee_phone;
           if (phone) {
@@ -64,19 +64,21 @@ function Devotees() {
                 state: donation.devotee?.state || null,
                 pincode: donation.devotee?.pincode || null,
                 donation_count: 0,
-                total_donated: 0
+                total_donations: 0,
+                booking_count: 0,
+                total_seva_amount: 0
               });
             }
             // Update donation stats
             const devotee = devoteeMap.get(phone);
             devotee.donation_count += 1;
-            devotee.total_donated += (donation.amount || 0);
+            devotee.total_donations += (donation.amount || 0);
           }
         });
-        
+
         const devoteesList = Array.from(devoteeMap.values());
         setDevotees(devoteesList);
-        
+
         if (devoteesList.length === 0) {
           setError('No devotees found. Devotees are automatically created when donations are recorded.');
         }
@@ -108,7 +110,7 @@ function Devotees() {
       </Typography>
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        Devotees are automatically created when donations are recorded. No need to create them separately.
+        Devotees are automatically created when donations are recorded. This list includes both donation and seva contribution totals.
       </Alert>
 
       {error && (
@@ -133,6 +135,8 @@ function Devotees() {
                   <TableCell>Address</TableCell>
                   <TableCell align="right">Donations</TableCell>
                   <TableCell align="right">Total Donated</TableCell>
+                  <TableCell align="right">Sevas</TableCell>
+                  <TableCell align="right">Total Seva</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -140,7 +144,7 @@ function Devotees() {
                   <TableRow key={devotee.id || devotee.phone}>
                     <TableCell>
                       <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                        {devotee.name || devotee.full_name || 'N/A'}
+                        {devotee.name_prefix ? `${devotee.name_prefix} ` : ''}{devotee.name || devotee.full_name || 'N/A'}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -171,7 +175,11 @@ function Devotees() {
                     </TableCell>
                     <TableCell align="right">{devotee.donation_count || 0}</TableCell>
                     <TableCell align="right">
-                      {formatCurrency(devotee.total_donated || 0)}
+                      {formatCurrency(devotee.total_donations ?? devotee.total_donated ?? 0)}
+                    </TableCell>
+                    <TableCell align="right">{devotee.booking_count || 0}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(devotee.total_seva_amount || 0)}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -13,8 +13,9 @@ from sqlalchemy import (
     ForeignKey,
     Enum as SQLEnum,
     DateTime,
+    event,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Session as SQLAlchemySession
 from datetime import datetime
 import enum
 
@@ -225,6 +226,10 @@ class JournalLine(Base):
     # Description
     description = Column(Text)
 
+    # Bank Reconciliation
+    is_cleared = Column(Boolean, default=True, index=True)  # Default True for cash, False for bank (handled in API)
+    cleared_at = Column(DateTime, nullable=True)
+    
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -234,3 +239,82 @@ class JournalLine(Base):
 
     def __repr__(self):
         return f"<JournalLine(account={self.account_id}, debit={self.debit_amount}, credit={self.credit_amount})>"
+
+
+# --- Global double-entry integrity guard ---
+# Enforces invariants for every commit, regardless of source API/module.
+_BALANCE_TOLERANCE = 0.01
+
+
+@event.listens_for(SQLAlchemySession, "before_commit")
+def validate_double_entry_integrity(session: SQLAlchemySession) -> None:
+    """
+    Enforce core accounting integrity:
+    1) Every changed journal entry must have at least 2 lines.
+    2) Every line must be debit OR credit (not both / not neither), non-negative.
+    3) Sum(debit) must equal Sum(credit) within tolerance.
+    4) JournalEntry.total_amount must equal total debit.
+    """
+    changed_objects = session.new.union(session.dirty).union(session.deleted)
+    if not any(isinstance(obj, (JournalEntry, JournalLine)) for obj in changed_objects):
+        return
+
+    # Flush pending objects first so IDs and relationships are materialized.
+    session.flush()
+
+    entry_ids = set()
+    for obj in changed_objects:
+        if isinstance(obj, JournalEntry):
+            if obj.id is not None:
+                entry_ids.add(obj.id)
+            continue
+
+        if isinstance(obj, JournalLine):
+            entry_id = obj.journal_entry_id
+            if entry_id is None and obj.journal_entry is not None:
+                entry_id = obj.journal_entry.id
+            if entry_id is not None:
+                entry_ids.add(entry_id)
+
+    if not entry_ids:
+        return
+
+    entries = session.query(JournalEntry).filter(JournalEntry.id.in_(entry_ids)).all()
+    for entry in entries:
+        active_lines = [line for line in entry.journal_lines if line not in session.deleted]
+
+        if len(active_lines) < 2:
+            raise ValueError(
+                f"Journal entry '{entry.entry_number}' must have at least two ledger lines."
+            )
+
+        total_debit = 0.0
+        total_credit = 0.0
+
+        for line in active_lines:
+            debit = float(line.debit_amount or 0.0)
+            credit = float(line.credit_amount or 0.0)
+
+            if debit < 0 or credit < 0:
+                raise ValueError(
+                    f"Journal entry '{entry.entry_number}' has negative debit/credit amounts."
+                )
+
+            if (debit > 0 and credit > 0) or (debit == 0 and credit == 0):
+                raise ValueError(
+                    f"Journal entry '{entry.entry_number}' has invalid line: each line must be either debit or credit."
+                )
+
+            total_debit += debit
+            total_credit += credit
+
+        if abs(total_debit - total_credit) > _BALANCE_TOLERANCE:
+            raise ValueError(
+                f"Journal entry '{entry.entry_number}' is unbalanced: debit {total_debit:.2f} != credit {total_credit:.2f}."
+            )
+
+        entry_total = float(entry.total_amount or 0.0)
+        if abs(entry_total - total_debit) > _BALANCE_TOLERANCE:
+            raise ValueError(
+                f"Journal entry '{entry.entry_number}' total_amount {entry_total:.2f} does not match ledger total {total_debit:.2f}."
+            )

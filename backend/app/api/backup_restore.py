@@ -7,16 +7,82 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from fastapi.responses import FileResponse, JSONResponse
 from datetime import datetime
-import os
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any, List
+import re
 
 from app.core.database import get_db, engine
+from app.core.config import settings
 from app.core.security import get_current_user
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/backup-restore", tags=["backup-restore"])
+
+BACKUP_DIR = Path(settings.BACKUP_PATH).expanduser()
+BACKUP_ALLOWED_ROLES = {"admin", "super_admin"}
+ALLOWED_TABLES = {
+    "temples",
+    "users",
+    "devotees",
+    "donation_categories",
+    "donations",
+    "sevas",
+    "seva_bookings",
+    "accounts",
+    "journal_entries",
+    "journal_lines",
+    "bank_accounts",
+}
+IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _require_backup_access(current_user: User) -> None:
+    if current_user.role not in BACKUP_ALLOWED_ROLES and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators can access backup/restore features",
+        )
+
+
+def _is_super_admin(current_user: User) -> bool:
+    return current_user.role == "super_admin" or bool(current_user.is_superuser)
+
+
+def _backup_filename_prefix(current_user: User) -> str:
+    if _is_super_admin(current_user):
+        return "backup_global_"
+    temple_id = current_user.temple_id
+    if not temple_id:
+        raise HTTPException(status_code=400, detail="Admin user must be associated with a temple")
+    return f"backup_temple_{temple_id}_"
+
+
+def _can_access_backup_file(current_user: User, filename: str) -> bool:
+    if _is_super_admin(current_user):
+        return True
+    return filename.startswith(_backup_filename_prefix(current_user))
+
+
+def _validate_identifier(identifier: str) -> bool:
+    return bool(identifier and IDENTIFIER_RE.match(identifier))
+
+
+def _safe_filename(filename: str) -> str:
+    base = Path(filename).name
+    if base != filename or not base.endswith(".json"):
+        raise HTTPException(status_code=400, detail="Invalid backup file name")
+    return base
+
+
+def _ensure_backup_dir() -> None:
+    try:
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    except (PermissionError, FileNotFoundError, OSError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Backup directory is not writable: {exc}",
+        ) from exc
 
 
 @router.get("/status")
@@ -25,20 +91,14 @@ def get_backup_status(
     current_user: User = Depends(get_current_user)
 ):
     """Get backup status and information"""
-    # Check if user is admin
-    if current_user.role not in ['admin', 'super_admin', 'temple_manager']:
-        raise HTTPException(
-            status_code=403,
-            detail="Only administrators can access backup/restore features"
-        )
-    
-    backup_dir = Path("backups")
-    backup_dir.mkdir(exist_ok=True)
+    _require_backup_access(current_user)
     
     # Get list of backup files
     backup_files = []
-    if backup_dir.exists():
-        for file_path in sorted(backup_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+    if BACKUP_DIR.exists():
+        for file_path in sorted(BACKUP_DIR.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+            if not _can_access_backup_file(current_user, file_path.name):
+                continue
             stat = file_path.stat()
             backup_files.append({
                 "filename": file_path.name,
@@ -48,7 +108,7 @@ def get_backup_status(
             })
     
     return {
-        "backup_directory": str(backup_dir.absolute()),
+        "backup_directory": str(BACKUP_DIR.absolute()),
         "backup_files": backup_files[:10],  # Latest 10 backups
         "total_backups": len(backup_files)
     }
@@ -60,68 +120,43 @@ def create_backup(
     current_user: User = Depends(get_current_user)
 ):
     """Create a backup of critical database tables"""
-    # Check if user is admin
-    if current_user.role not in ['admin', 'super_admin', 'temple_manager']:
-        raise HTTPException(
-            status_code=403,
-            detail="Only administrators can create backups"
-        )
+    _require_backup_access(current_user)
+    _ensure_backup_dir()
     
     try:
-        from sqlalchemy import text, inspect
-        
-        backup_dir = Path("backups")
-        backup_dir.mkdir(exist_ok=True)
+        from sqlalchemy import inspect, MetaData, Table, select
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_file = backup_dir / f"backup_{timestamp}.json"
-        
-        # Tables to backup (excluding system tables)
-        tables_to_backup = [
-            'temples', 'users', 'devotees', 'donation_categories', 'donations',
-            'sevas', 'seva_bookings', 'accounts', 'journal_entries', 'journal_lines',
-            'bank_accounts', 'donation_categories'
-        ]
+        backup_file = BACKUP_DIR / f"{_backup_filename_prefix(current_user)}{timestamp}.json"
         
         backup_data = {
             "backup_timestamp": datetime.now().isoformat(),
             "backed_up_by": current_user.email,
+            "temple_scope": current_user.temple_id,
             "tables": {}
         }
         
         # Backup each table
-        for table_name in tables_to_backup:
+        inspector = inspect(engine)
+        metadata = MetaData()
+        for table_name in ALLOWED_TABLES:
             try:
                 # Check if table exists
-                inspector = inspect(engine)
                 if table_name not in inspector.get_table_names():
                     continue
-                
-                # Get all rows from table
-                result = db.execute(text(f"SELECT * FROM {table_name}"))  # nosec B608
-                rows = []
-                columns = list(result.keys())
-                
+                table = Table(table_name, metadata, autoload_with=engine)
+                stmt = select(table)
+                if not _is_super_admin(current_user) and "temple_id" in table.c:
+                    stmt = stmt.where(table.c.temple_id == current_user.temple_id)
+
+                result = db.execute(stmt).mappings().all()
+                columns = [c.name for c in table.columns]
+                rows: List[Dict[str, Any]] = []
                 for row in result:
-                    row_dict = {}
-                    # Handle both Row objects and tuples
-                    if hasattr(row, '_mapping'):
-                        # SQLAlchemy Row object
-                        for col in columns:
-                            value = row[col]
-                            # Convert datetime/date to string
-                            if hasattr(value, 'isoformat'):
-                                row_dict[col] = value.isoformat()
-                            else:
-                                row_dict[col] = value
-                    else:
-                        # Tuple row
-                        for i, col in enumerate(columns):
-                            value = row[i]
-                            if hasattr(value, 'isoformat'):
-                                row_dict[col] = value.isoformat()
-                            else:
-                                row_dict[col] = value
+                    row_dict: Dict[str, Any] = {}
+                    for col in columns:
+                        value = row.get(col)
+                        row_dict[col] = value.isoformat() if hasattr(value, "isoformat") else value
                     rows.append(row_dict)
                 
                 backup_data["tables"][table_name] = {
@@ -165,18 +200,15 @@ def download_backup(
     current_user: User = Depends(get_current_user)
 ):
     """Download a backup file"""
-    # Check if user is admin
-    if current_user.role not in ['admin', 'super_admin', 'temple_manager']:
-        raise HTTPException(
-            status_code=403,
-            detail="Only administrators can download backups"
-        )
+    _require_backup_access(current_user)
     
-    backup_dir = Path("backups")
-    backup_file = backup_dir / filename
+    safe_name = _safe_filename(filename)
+    if not _can_access_backup_file(current_user, safe_name):
+        raise HTTPException(status_code=403, detail="Not authorized to access this backup file")
+    backup_file = BACKUP_DIR / safe_name
     
     # Security: Only allow JSON files from backup directory
-    if not filename.endswith('.json') or not backup_file.exists():
+    if not backup_file.exists():
         raise HTTPException(
             status_code=404,
             detail="Backup file not found"
@@ -184,7 +216,7 @@ def download_backup(
     
     # Ensure file is in backup directory (prevent path traversal)
     try:
-        backup_file.resolve().relative_to(backup_dir.resolve())
+        backup_file.resolve().relative_to(BACKUP_DIR.resolve())
     except ValueError:
         raise HTTPException(
             status_code=403,
@@ -193,7 +225,7 @@ def download_backup(
     
     return FileResponse(
         path=str(backup_file),
-        filename=filename,
+        filename=safe_name,
         media_type='application/json'
     )
 
@@ -204,25 +236,22 @@ def delete_backup(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a backup file"""
-    # Check if user is admin
-    if current_user.role not in ['admin', 'super_admin', 'temple_manager']:
-        raise HTTPException(
-            status_code=403,
-            detail="Only administrators can delete backups"
-        )
-    
-    backup_dir = Path("backups")
-    backup_file = backup_dir / filename
+    _require_backup_access(current_user)
+
+    safe_name = _safe_filename(filename)
+    if not _can_access_backup_file(current_user, safe_name):
+        raise HTTPException(status_code=403, detail="Not authorized to delete this backup file")
+    backup_file = BACKUP_DIR / safe_name
     
     # Security checks
-    if not filename.endswith('.json') or not backup_file.exists():
+    if not backup_file.exists():
         raise HTTPException(
             status_code=404,
             detail="Backup file not found"
         )
     
     try:
-        backup_file.resolve().relative_to(backup_dir.resolve())
+        backup_file.resolve().relative_to(BACKUP_DIR.resolve())
     except ValueError:
         raise HTTPException(
             status_code=403,
@@ -233,7 +262,7 @@ def delete_backup(
         backup_file.unlink()
         return {
             "status": "success",
-            "message": f"Backup file {filename} deleted successfully"
+            "message": f"Backup file {safe_name} deleted successfully"
         }
     except Exception as e:
         raise HTTPException(
@@ -253,8 +282,8 @@ def restore_backup(
     
     WARNING: This will overwrite existing data. Use with extreme caution!
     """
-    # Check if user is admin
-    if current_user.role not in ['admin', 'super_admin']:
+    # Restore is super-admin only
+    if not _is_super_admin(current_user):
         raise HTTPException(
             status_code=403,
             detail="Only super administrators can restore backups"
@@ -268,7 +297,8 @@ def restore_backup(
         )
     
     try:
-        from sqlalchemy import text
+        from sqlalchemy import MetaData, Table, insert, inspect
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
         
         # Read backup file
         content = file.file.read()
@@ -284,40 +314,49 @@ def restore_backup(
         restored_records = 0
         
         # Restore each table
+        inspector = inspect(engine)
+        metadata = MetaData()
         for table_name, table_data in backup_data["tables"].items():
             try:
-                # Delete existing data (optional - you might want to merge instead)
-                # db.execute(text(f"DELETE FROM {table_name}"))
-                
-                # Insert restored data
-                if table_data["rows"]:
-                    columns = table_data["columns"]
-                    rows = table_data["rows"]
-                    
-                    # Build INSERT statement (using ON CONFLICT for PostgreSQL, or simple INSERT for others)
-                    columns_str = ", ".join(columns)
-                    placeholders = ", ".join([f":{col}" for col in columns])
-                    
-                    # Check database type
-                    db_url = str(engine.url)
-                    if 'postgresql' in db_url.lower():
-                        insert_stmt = text(f"""
-                            INSERT INTO {table_name} ({columns_str})
-                            VALUES ({placeholders})
-                            ON CONFLICT DO NOTHING
-                        """)  # nosec B608
-                    else:
-                        # For SQLite, use INSERT OR IGNORE
-                        insert_stmt = text(f"""
-                            INSERT OR IGNORE INTO {table_name} ({columns_str})
-                            VALUES ({placeholders})
-                        """)  # nosec B608
-                    
-                    for row in rows:
-                        db.execute(insert_stmt, row)
-                    
-                    restored_tables.append(table_name)
-                    restored_records += len(rows)
+                if table_name not in ALLOWED_TABLES or not _validate_identifier(table_name):
+                    continue
+                if table_name not in inspector.get_table_names():
+                    continue
+
+                rows = table_data.get("rows", [])
+                if not rows:
+                    continue
+
+                table = Table(table_name, metadata, autoload_with=engine)
+                valid_columns = {c.name for c in table.columns}
+                allowed_columns = [
+                    c for c in table_data.get("columns", [])
+                    if c in valid_columns and _validate_identifier(c)
+                ]
+                if not allowed_columns:
+                    continue
+
+                sanitized_rows = []
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    sanitized_row = {c: row.get(c) for c in allowed_columns if c in row}
+                    if sanitized_row:
+                        sanitized_rows.append(sanitized_row)
+
+                if not sanitized_rows:
+                    continue
+
+                if engine.dialect.name == "postgresql":
+                    stmt = pg_insert(table).on_conflict_do_nothing()
+                elif engine.dialect.name == "sqlite":
+                    stmt = insert(table).prefix_with("OR IGNORE")
+                else:
+                    stmt = insert(table)
+
+                db.execute(stmt, sanitized_rows)
+                restored_tables.append(table_name)
+                restored_records += len(sanitized_rows)
                 
             except Exception as e:
                 print(f"Warning: Could not restore table {table_name}: {e}")

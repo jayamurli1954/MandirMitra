@@ -21,6 +21,7 @@ import {
   Alert,
   Snackbar,
   Chip,
+  Stack,
 } from '@mui/material';
 import Layout from '../../components/Layout';
 import MoneyOffIcon from '@mui/icons-material/MoneyOff';
@@ -28,47 +29,67 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
 // Common expense types with their account mappings
 const EXPENSE_TYPES = [
-  { label: 'Priest Salary', account_code: '5101', category: 'Operational' },
-  { label: 'Staff Salary', account_code: '5102', category: 'Operational' },
-  { label: 'Electricity Bill', account_code: '5110', category: 'Operational' },
-  { label: 'Water Bill', account_code: '5111', category: 'Operational' },
-  { label: 'Maintenance & Repairs', account_code: '5120', category: 'Operational' },
-  { label: 'Flower Decoration', account_code: '5201', category: 'Pooja & Ritual' },
-  { label: 'Pooja Materials', account_code: '5202', category: 'Pooja & Ritual' },
-  { label: 'Prasadam Expense', account_code: '5203', category: 'Pooja & Ritual' },
-  { label: 'Vegetables & Groceries', account_code: '5301', category: 'Annadana' },
-  { label: 'Cooking Gas', account_code: '5302', category: 'Annadana' },
-  { label: 'Tent Hiring', account_code: '5401', category: 'Festival' },
-  { label: 'Sound System', account_code: '5402', category: 'Festival' },
-  { label: 'Lighting Expense', account_code: '5403', category: 'Festival' },
-  { label: 'Audit Fees', account_code: '5501', category: 'Administrative' },
-  { label: 'Bank Charges', account_code: '5502', category: 'Administrative' },
-  { label: 'Printing & Stationery', account_code: '5503', category: 'Administrative' },
+  { label: 'Priest Salary', account_code: '52003', category: 'Operational' },
+  { label: 'Staff Salary', account_code: '52001', category: 'Operational' },
+  { label: 'Electricity Bill', account_code: '53002', category: 'Operational' },
+  { label: 'Water Bill', account_code: '53007', category: 'Operational' },
+  { label: 'Maintenance & Repairs', account_code: '53004', category: 'Operational' },
+  { label: 'Flower Decoration', account_code: '54006', category: 'Pooja & Ritual' },
+  { label: 'Pooja Materials', account_code: '51004', category: 'Pooja & Ritual' },
+  { label: 'Prasadam Expense', account_code: '54007', category: 'Pooja & Ritual' },
+  { label: 'Vegetables & Groceries', account_code: '51001', category: 'Annadana' },
+  { label: 'Cooking Gas', account_code: '54012', category: 'Annadana' },
+  { label: 'Tent Hiring', account_code: '54005', category: 'Festival' },
+  { label: 'Sound System', account_code: '54005', category: 'Festival' },
+  { label: 'Lighting Expense', account_code: '54004', category: 'Festival' },
+  { label: 'Audit Fees', account_code: '54010', category: 'Administrative' },
+  { label: 'Bank Charges', account_code: '54001', category: 'Administrative' },
+  { label: 'Printing & Stationery', account_code: '53006', category: 'Administrative' },
 ];
 
-// Payment methods with their account mappings
-const PAYMENT_METHODS = [
-  { label: 'Cash - Counter', account_code: '1101' },
-  { label: 'Cash - Hundi', account_code: '1102' },
-  { label: 'Bank - SBI Current Account', account_code: '1110' },
-  { label: 'Bank - HDFC Savings Account', account_code: '1111' },
-];
+const PAYMENT_MODES = ['Cash', 'Bank'];
+const LEGACY_EXPENSE_CODE_MAP = {
+  '5101': '52003',
+  '5102': '52001',
+  '5110': '53002',
+  '5111': '53007',
+  '5120': '53004',
+  '5201': '54006',
+  '5202': '51004',
+  '5203': '54007',
+  '5301': '51001',
+  '5302': '54012',
+  '5401': '54005',
+  '5402': '54005',
+  '5403': '54004',
+  '5501': '54010',
+  '5502': '54001',
+  '5503': '53006',
+};
 
 function QuickExpense() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const canReverseEntries = user.role === 'admin';
   const [accounts, setAccounts] = useState([]);
+  const [paymentAccounts, setPaymentAccounts] = useState({ cash_accounts: [], bank_accounts: [] });
   const [todayExpenses, setTodayExpenses] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   // Form state
   const [expenseType, setExpenseType] = useState('');
   const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentMode, setPaymentMode] = useState('');
+  const [paymentAccountId, setPaymentAccountId] = useState('');
   const [description, setDescription] = useState('');
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
   const [referenceNumber, setReferenceNumber] = useState('');
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [postingEntryId, setPostingEntryId] = useState(null);
+  const [reversingEntryId, setReversingEntryId] = useState(null);
 
   useEffect(() => {
     fetchAccounts();
+    fetchPaymentAccounts();
     fetchTodayExpenses();
   }, []);
 
@@ -100,67 +121,126 @@ function QuickExpense() {
       const token = localStorage.getItem('token');
       const today = new Date().toISOString().split('T')[0];
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/?from_date=${today}&to_date=${today}&reference_type=EXPENSE`,
+        `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/?from_date=${today}&to_date=${today}&reference_type=expense`,
         {
           headers: { 'Authorization': `Bearer ${token}` },
         }
       );
       const data = await response.json();
-      setTodayExpenses(data);
+      setTodayExpenses(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching today expenses:', error);
+      setTodayExpenses([]);
     }
   };
 
-  const getAccountIdByCode = (code) => {
-    const account = accounts.find(acc => acc.account_code === code);
-    return account ? account.id : null;
+  const fetchPaymentAccounts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/donations/payment-accounts`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await response.json();
+      setPaymentAccounts({
+        cash_accounts: Array.isArray(data.cash_accounts) ? data.cash_accounts : [],
+        bank_accounts: Array.isArray(data.bank_accounts) ? data.bank_accounts : [],
+      });
+    } catch (error) {
+      console.error('Error fetching payment accounts:', error);
+      setPaymentAccounts({ cash_accounts: [], bank_accounts: [] });
+    }
+  };
+
+  const getAccountIdByCode = (code, options = {}) => {
+    const { allowLegacyExpenseFormat = false } = options;
+    const normalizedCode = String(code || '').trim();
+
+    // 1) Exact code match
+    const exact = accounts.find((acc) => String(acc.account_code) === normalizedCode);
+    if (exact) {
+      return exact.id;
+    }
+
+    if (!allowLegacyExpenseFormat) {
+      return null;
+    }
+
+    // 2) Explicit legacy expense code mapping (old 4-digit -> current 5-digit COA)
+    const mappedLegacyCode = LEGACY_EXPENSE_CODE_MAP[normalizedCode];
+    if (mappedLegacyCode) {
+      const mapped = accounts.find((acc) => String(acc.account_code) === mappedLegacyCode);
+      if (mapped) {
+        return mapped.id;
+      }
+    }
+
+    // 3) Generic legacy 4-digit expense code -> modern 5-digit code (e.g., 5102 -> 51002)
+    if (/^\d{4}$/.test(normalizedCode)) {
+      const migratedCode = `${normalizedCode.slice(0, 3)}0${normalizedCode.slice(3)}`;
+      const migrated = accounts.find((acc) => String(acc.account_code) === migratedCode);
+      if (migrated) {
+        return migrated.id;
+      }
+    }
+
+    return null;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!expenseType || !amount || !paymentMethod || !description) {
+    if (!expenseType || !amount || !paymentMode || !paymentAccountId || !description) {
       setSnackbar({ open: true, message: 'Please fill all required fields', severity: 'error' });
       return;
     }
 
-    const selectedExpense = EXPENSE_TYPES.find(exp => exp.account_code === expenseType);
-    const selectedPayment = PAYMENT_METHODS.find(pay => pay.account_code === paymentMethod);
+    const selectedExpense = EXPENSE_TYPES.find((exp) => exp.account_code === expenseType);
+    const selectablePaymentAccounts = paymentMode === 'Cash'
+      ? paymentAccounts.cash_accounts
+      : paymentAccounts.bank_accounts;
+    const selectedPayment = selectablePaymentAccounts.find(
+      (acc) => String(acc.account_id) === String(paymentAccountId)
+    );
 
-    const expenseAccountId = getAccountIdByCode(expenseType);
-    const paymentAccountId = getAccountIdByCode(paymentMethod);
+    const expenseAccountId = getAccountIdByCode(expenseType, { allowLegacyExpenseFormat: true });
+    const selectedPaymentAccountId = selectedPayment ? selectedPayment.account_id : null;
 
-    if (!expenseAccountId || !paymentAccountId) {
+    if (!expenseAccountId || !selectedPaymentAccountId || !selectedExpense) {
       setSnackbar({ open: true, message: 'Invalid account mapping', severity: 'error' });
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
+      const entryDateTime = String(expenseDate).includes('T') ? expenseDate : `${expenseDate}T00:00:00`;
       const payload = {
-        entry_date: expenseDate,
+        entry_date: entryDateTime,
         narration: `${selectedExpense.label} - ${description}`,
-        reference_type: 'EXPENSE',
-        reference_number: referenceNumber || undefined,
+        reference_type: 'expense',
+        reference_id: referenceNumber ? Number(referenceNumber) : undefined,
         journal_lines: [
           {
             account_id: expenseAccountId,
             debit_amount: parseFloat(amount),
             credit_amount: 0,
-            description: description,
+            description,
           },
           {
-            account_id: paymentAccountId,
+            account_id: selectedPaymentAccountId,
             debit_amount: 0,
             credit_amount: parseFloat(amount),
-            description: `Paid via ${selectedPayment.label}`,
+            description: `Paid via ${paymentMode} - ${selectedPayment.account_code} ${selectedPayment.account_name}`,
           },
         ],
       };
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/`, {
-        method: 'POST',
+      const requestMethod = editingExpenseId ? 'PUT' : 'POST';
+      const requestUrl = editingExpenseId
+        ? `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${editingExpenseId}`
+        : `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/`;
+
+      const response = await fetch(requestUrl, {
+        method: requestMethod,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -170,30 +250,221 @@ function QuickExpense() {
 
       if (response.ok) {
         const data = await response.json();
+        const formattedAmount = Number(amount).toLocaleString('en-IN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        let finalMessage = editingExpenseId
+          ? `Expense updated successfully. Entry #${data.entry_number} | Rs ${formattedAmount} via ${paymentMode}.`
+          : `Expense recorded successfully. Entry #${data.entry_number} | Rs ${formattedAmount} via ${paymentMode}.`;
+        let finalSeverity = 'success';
+
+        if (!editingExpenseId && data?.id) {
+          const postResponse = await fetch(
+            `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${data.id}/post`,
+            {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+            }
+          );
+
+          if (postResponse.ok) {
+            finalMessage = `Expense posted to accounts. Entry #${data.entry_number} | Rs ${formattedAmount} via ${paymentMode}.`;
+          } else {
+            let postErrorMessage = 'Unknown posting error';
+            try {
+              const postError = await postResponse.json();
+              postErrorMessage = Array.isArray(postError.detail)
+                ? postError.detail.map((d) => `${d.field}: ${d.message}`).join(' | ')
+                : (postError.detail || postErrorMessage);
+            } catch {
+              // keep fallback
+            }
+            finalMessage = `Expense saved as draft (Entry #${data.entry_number}). Posting failed: ${postErrorMessage}`;
+            finalSeverity = 'warning';
+          }
+        }
+
         setSnackbar({
           open: true,
-          message: `Expense recorded successfully! Entry #${data.entry_number}`,
-          severity: 'success',
+          message: finalMessage,
+          severity: finalSeverity,
         });
-        // Reset form
+
         setExpenseType('');
         setAmount('');
-        setPaymentMethod('');
+        setPaymentMode('');
+        setPaymentAccountId('');
         setDescription('');
         setReferenceNumber('');
-        // Refresh today's expenses
+        setEditingExpenseId(null);
+        setExpenseDate(new Date().toISOString().split('T')[0]);
         fetchTodayExpenses();
       } else {
         const error = await response.json();
-        setSnackbar({ open: true, message: error.detail || 'Failed to record expense', severity: 'error' });
+        const detailMessage = Array.isArray(error.detail)
+          ? error.detail.map((d) => `${d.field}: ${d.message}`).join(' | ')
+          : (error.detail || 'Failed to save expense');
+        setSnackbar({ open: true, message: detailMessage, severity: 'error' });
       }
     } catch (error) {
-      console.error('Error recording expense:', error);
-      setSnackbar({ open: true, message: 'Error recording expense', severity: 'error' });
+      console.error('Error saving expense:', error);
+      setSnackbar({ open: true, message: 'Error saving expense', severity: 'error' });
     }
   };
 
-  const totalExpensesToday = todayExpenses.reduce((sum, exp) => sum + exp.total_amount, 0);
+  const handlePostDraft = async (entryId, entryNumber) => {
+    try {
+      setPostingEntryId(entryId);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${entryId}/post`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        setSnackbar({
+          open: true,
+          message: `Entry #${entryNumber} posted to accounts successfully.`,
+          severity: 'success',
+        });
+        fetchTodayExpenses();
+      } else {
+        const error = await response.json();
+        const detailMessage = Array.isArray(error.detail)
+          ? error.detail.map((d) => `${d.field}: ${d.message}`).join(' | ')
+          : (error.detail || 'Failed to post entry');
+        setSnackbar({
+          open: true,
+          message: `Entry #${entryNumber} is still draft. ${detailMessage}`,
+          severity: 'warning',
+        });
+      }
+    } catch (error) {
+      console.error('Error posting draft entry:', error);
+      setSnackbar({ open: true, message: 'Error posting draft entry', severity: 'error' });
+    } finally {
+      setPostingEntryId(null);
+    }
+  };
+
+  const handleEditExpense = (expense) => {
+    if (String(expense.status).toLowerCase() !== 'draft') {
+      setSnackbar({
+        open: true,
+        message: 'Only draft entries can be edited. Use reversal for posted entries.',
+        severity: 'warning',
+      });
+      return;
+    }
+
+    const debitLine = (expense.journal_lines || []).find((line) => Number(line.debit_amount) > 0);
+    const creditLine = (expense.journal_lines || []).find((line) => Number(line.credit_amount) > 0);
+
+    if (!debitLine || !creditLine) {
+      setSnackbar({ open: true, message: 'Unable to load entry lines for editing.', severity: 'error' });
+      return;
+    }
+
+    const expenseAccountCode = String(
+      debitLine.account_code || accounts.find((acc) => acc.id === debitLine.account_id)?.account_code || ''
+    );
+
+    const matchedExpenseType = EXPENSE_TYPES.find((exp) => exp.account_code === expenseAccountCode);
+    if (!matchedExpenseType) {
+      setSnackbar({
+        open: true,
+        message: `Entry uses account code ${expenseAccountCode}, not configured in Quick Expense presets.`,
+        severity: 'warning',
+      });
+      return;
+    }
+
+    const creditAccountId = String(creditLine.account_id || '');
+    const isCash = paymentAccounts.cash_accounts.some((acc) => String(acc.account_id) === creditAccountId);
+    const isBank = paymentAccounts.bank_accounts.some((acc) => String(acc.account_id) === creditAccountId);
+    if (!isCash && !isBank) {
+      setSnackbar({
+        open: true,
+        message: 'Cannot determine payment account type for this entry.',
+        severity: 'warning',
+      });
+      return;
+    }
+
+    setEditingExpenseId(expense.id);
+    setExpenseType(matchedExpenseType.account_code);
+    setAmount(String(expense.total_amount || ''));
+    setPaymentMode(isCash ? 'Cash' : 'Bank');
+    setPaymentAccountId(creditAccountId);
+    setDescription(debitLine.description || expense.narration || '');
+    setExpenseDate(String(expense.entry_date || '').split('T')[0] || new Date().toISOString().split('T')[0]);
+    setReferenceNumber(String(expense.reference_id || ''));
+    setSnackbar({
+      open: true,
+      message: `Editing ${expense.entry_number}. Update and save to keep audit trail intact.`,
+      severity: 'info',
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingExpenseId(null);
+    setExpenseType('');
+    setAmount('');
+    setPaymentMode('');
+    setPaymentAccountId('');
+    setDescription('');
+    setReferenceNumber('');
+    setExpenseDate(new Date().toISOString().split('T')[0]);
+  };
+
+  const handleReverseExpense = async (expense) => {
+    const reason = window.prompt(
+      `Enter reversal reason for ${expense.entry_number}:`,
+      'Correction entry'
+    );
+    if (!reason || !reason.trim()) {
+      return;
+    }
+
+    try {
+      setReversingEntryId(expense.id);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${expense.id}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ cancellation_reason: reason.trim() }),
+      });
+
+      if (response.ok) {
+        setSnackbar({
+          open: true,
+          message: `Entry ${expense.entry_number} reversed. Reversal voucher created automatically.`,
+          severity: 'success',
+        });
+        fetchTodayExpenses();
+      } else {
+        const error = await response.json();
+        const detailMessage = Array.isArray(error.detail)
+          ? error.detail.map((d) => `${d.field}: ${d.message}`).join(' | ')
+          : (error.detail || 'Failed to reverse entry');
+        setSnackbar({ open: true, message: detailMessage, severity: 'error' });
+      }
+    } catch (error) {
+      console.error('Error reversing entry:', error);
+      setSnackbar({ open: true, message: 'Error reversing entry', severity: 'error' });
+    } finally {
+      setReversingEntryId(null);
+    }
+  };
+
+  const totalExpensesToday = (Array.isArray(todayExpenses) ? todayExpenses : []).reduce(
+    (sum, exp) => sum + (Number(exp.total_amount) || 0),
+    0
+  );
 
   return (
     <Layout>
@@ -236,7 +507,7 @@ function QuickExpense() {
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                 <ReceiptLongIcon sx={{ mr: 1, color: '#d32f2f' }} />
                 <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                  Record Expense
+                  {editingExpenseId ? 'Edit Expense Entry' : 'Record Expense'}
                 </Typography>
               </Box>
 
@@ -278,18 +549,71 @@ function QuickExpense() {
                     <FormControl fullWidth required>
                       <InputLabel>Payment Method</InputLabel>
                       <Select
-                        value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        value={paymentMode}
+                        onChange={(e) => {
+                          setPaymentMode(e.target.value);
+                          setPaymentAccountId('');
+                        }}
                         label="Payment Method"
                       >
-                        {PAYMENT_METHODS.map((method) => (
-                          <MenuItem key={method.account_code} value={method.account_code}>
-                            {method.label}
+                        {PAYMENT_MODES.map((mode) => (
+                          <MenuItem key={mode} value={mode}>
+                            {mode}
                           </MenuItem>
                         ))}
                       </Select>
                     </FormControl>
                   </Grid>
+
+                  {paymentMode === 'Cash' && (
+                    <Grid item xs={12}>
+                      <FormControl fullWidth required>
+                        <InputLabel>Cash Account Code</InputLabel>
+                        <Select
+                          value={paymentAccountId}
+                          onChange={(e) => setPaymentAccountId(e.target.value)}
+                          label="Cash Account Code"
+                        >
+                          {paymentAccounts.cash_accounts.length === 0 ? (
+                            <MenuItem value="" disabled>
+                              No cash accounts found
+                            </MenuItem>
+                          ) : (
+                            paymentAccounts.cash_accounts.map((acc) => (
+                              <MenuItem key={acc.account_id} value={String(acc.account_id)}>
+                                {acc.account_code} - {acc.account_name}
+                              </MenuItem>
+                            ))
+                          )}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  )}
+
+                  {paymentMode === 'Bank' && (
+                    <Grid item xs={12}>
+                      <FormControl fullWidth required>
+                        <InputLabel>Bank Account Code</InputLabel>
+                        <Select
+                          value={paymentAccountId}
+                          onChange={(e) => setPaymentAccountId(e.target.value)}
+                          label="Bank Account Code"
+                        >
+                          {paymentAccounts.bank_accounts.length === 0 ? (
+                            <MenuItem value="" disabled>
+                              No bank accounts found
+                            </MenuItem>
+                          ) : (
+                            paymentAccounts.bank_accounts.map((acc) => (
+                              <MenuItem key={acc.account_id} value={String(acc.account_id)}>
+                                {acc.account_code} - {acc.account_name}
+                              </MenuItem>
+                            ))
+                          )}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  )}
 
                   <Grid item xs={12}>
                     <TextField
@@ -333,9 +657,17 @@ function QuickExpense() {
                       size="large"
                       sx={{ bgcolor: '#d32f2f', '&:hover': { bgcolor: '#b71c1c' } }}
                     >
-                      Record Expense
+                      {editingExpenseId ? 'Update Expense' : 'Record Expense'}
                     </Button>
                   </Grid>
+
+                  {editingExpenseId && (
+                    <Grid item xs={12}>
+                      <Button type="button" variant="outlined" fullWidth size="large" onClick={handleCancelEdit}>
+                        Cancel Edit
+                      </Button>
+                    </Grid>
+                  )}
                 </Grid>
               </form>
             </Paper>
@@ -356,12 +688,13 @@ function QuickExpense() {
                       <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Narration</TableCell>
                       <TableCell sx={{ color: 'white', fontWeight: 'bold' }} align="right">Amount</TableCell>
                       <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Status</TableCell>
+                      <TableCell sx={{ color: 'white', fontWeight: 'bold' }} align="center">Action</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {todayExpenses.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} align="center">
+                        <TableCell colSpan={5} align="center">
                           <Typography color="text.secondary">No expenses recorded today</Typography>
                         </TableCell>
                       </TableRow>
@@ -374,9 +707,43 @@ function QuickExpense() {
                           <TableCell>
                             <Chip
                               label={expense.status}
-                              color={expense.status === 'POSTED' ? 'success' : 'warning'}
+                              color={String(expense.status).toLowerCase() === 'posted' ? 'success' : 'warning'}
                               size="small"
                             />
+                          </TableCell>
+                          <TableCell align="center">
+                            {String(expense.status).toLowerCase() === 'draft' ? (
+                              <Stack direction="row" spacing={1} justifyContent="center">
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => handleEditExpense(expense)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="warning"
+                                  disabled={postingEntryId === expense.id}
+                                  onClick={() => handlePostDraft(expense.id, expense.entry_number)}
+                                >
+                                  {postingEntryId === expense.id ? 'Posting...' : 'Post'}
+                                </Button>
+                              </Stack>
+                            ) : String(expense.status).toLowerCase() === 'posted' && canReverseEntries ? (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                disabled={reversingEntryId === expense.id}
+                                onClick={() => handleReverseExpense(expense)}
+                              >
+                                {reversingEntryId === expense.id ? 'Reversing...' : 'Reverse'}
+                              </Button>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">-</Typography>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))
@@ -405,3 +772,4 @@ function QuickExpense() {
 }
 
 export default QuickExpense;
+

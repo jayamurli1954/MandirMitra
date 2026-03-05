@@ -1,14 +1,14 @@
 # Quick Start: Multi-User & Audit Trail
 
-## 🚀 Quick Setup (5 Minutes)
+## ðŸš€ Quick Setup (5 Minutes)
 
 ### Step 1: Create Audit Logs Table
 
-**Where to run:** From **PROJECT ROOT** (`D:\MandirSync`) OR directly in your database client
+**Where to run:** From **PROJECT ROOT** (`D:\MandirMitra`) OR directly in your database client
 
 **Option A: Using psql command (from project root)**
 ```bash
-# From project root: D:\MandirSync
+# From project root: D:\MandirMitra
 psql -d your_database_name -f backend/scripts/create_audit_logs_table.sql
 
 # Or if you need to specify host/user:
@@ -22,7 +22,7 @@ psql -h localhost -U postgres -d your_database_name -f backend/scripts/create_au
 
 **Option C: Using Python (from backend directory)**
 ```bash
-# From backend directory: D:\MandirSync\backend
+# From backend directory: D:\MandirMitra\backend
 python -c "from app.core.database import engine; exec(open('../backend/scripts/create_audit_logs_table.sql').read())"
 ```
 
@@ -30,11 +30,11 @@ python -c "from app.core.database import engine; exec(open('../backend/scripts/c
 
 ### Step 2: Create Clerk Users
 
-**Where to run:** From **BACKEND DIRECTORY** (`D:\MandirSync\backend`)
+**Where to run:** From **BACKEND DIRECTORY** (`D:\MandirMitra\backend`)
 
 ```bash
 # Make sure you're in the backend directory
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 
 # Run the script
 python -m scripts.create_clerk_users --num-clerks 3 --password clerk123
@@ -59,28 +59,28 @@ This creates:
 
 ---
 
-## 📋 What's Implemented
+## ðŸ“‹ What's Implemented
 
-### ✅ Multi-User Support
+### âœ… Multi-User Support
 - User management API (`/api/v1/users/`)
 - Role-based access (admin, staff, clerk, accountant, priest)
 - User creation, update, deactivation
 - Login tracking
 
-### ✅ Audit Trail
+### âœ… Audit Trail
 - Comprehensive logging of all actions
 - Tracks: Who, What, When, What Changed
 - IP address and user agent tracking
 - Admin-only access to audit logs
 
-### ✅ Enhanced Authentication
+### âœ… Enhanced Authentication
 - Login success/failure tracking
 - Last login timestamp
 - Failed login attempt counter
 
 ---
 
-## 🔍 Viewing Audit Logs
+## ðŸ” Viewing Audit Logs
 
 ### API Endpoint
 ```
@@ -101,7 +101,7 @@ GET /api/v1/audit-logs/?user_id=2&action=CREATE_DONATION&limit=50
 
 ---
 
-## 👥 Managing Users
+## ðŸ‘¥ Managing Users
 
 ### Create User (Admin Only)
 ```
@@ -127,18 +127,18 @@ PUT /api/v1/users/{id}
 
 ---
 
-## 📊 What Gets Logged
+## ðŸ“Š What Gets Logged
 
-- ✅ User creation/update/deletion
-- ✅ Login (success/failure)
-- ✅ Donation creation/update
-- ✅ Seva booking creation/update
-- ✅ Journal entry creation
-- ✅ Account modifications
+- âœ… User creation/update/deletion
+- âœ… Login (success/failure)
+- âœ… Donation creation/update
+- âœ… Seva booking creation/update
+- âœ… Journal entry creation
+- âœ… Account modifications
 
 ---
 
-## 🔒 Security Notes
+## ðŸ”’ Security Notes
 
 1. **Change Default Passwords!**
    - Default clerk password: `clerk123`
@@ -154,11 +154,11 @@ PUT /api/v1/users/{id}
 
 ---
 
-## 📚 Full Documentation
+## ðŸ“š Full Documentation
 
 See `MULTI_USER_AUDIT_TRAIL.md` for complete documentation.
 
 ---
 
-**Ready to use!** 🎉
+**Ready to use!** ðŸŽ‰
 

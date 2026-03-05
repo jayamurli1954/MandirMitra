@@ -223,7 +223,7 @@ def get_sacred_events(
     service = ReadyReckonerService(db)
 
     # Get dashboard data (this reads from cache)
-    result = service.get_dashboard_data(temple_id=temple_id)
+    result = service.get_dashboard_data(temple_id=temple_id, lat=lat, lon=lon, city=city)
 
     return result
 
@@ -322,7 +322,12 @@ def find_nakshatra_dates(
 
     # Find nakshatra dates (this reads from cache)
     result = service.find_next_nakshatra(
-        temple_id=temple_id, nakshatra_name=nakshatra_name, limit=limit
+        temple_id=temple_id,
+        nakshatra_name=nakshatra_name,
+        limit=limit,
+        lat=lat,
+        lon=lon,
+        city=city,
     )
 
     return result

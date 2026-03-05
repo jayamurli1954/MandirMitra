@@ -6,7 +6,7 @@ Handles temple sevas/poojas/archanas
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from typing import List, Optional
 from datetime import date, datetime, timedelta
 from pydantic import BaseModel
@@ -14,6 +14,7 @@ import io
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.coa_bootstrap import ensure_default_coa_for_temple
 from app.core.auto_setup import is_standalone_mode
 from app.models.user import User
 from app.models.seva import Seva, SevaBooking, SevaCategory, SevaAvailability, SevaBookingStatus
@@ -21,11 +22,13 @@ from app.models.devotee import Devotee
 from app.models.temple import Temple
 from app.models.accounting import (
     Account,
+    AccountSubType,
     JournalEntry,
     JournalLine,
     JournalEntryStatus,
     TransactionType,
 )
+from app.models.upi_banking import BankAccount
 from app.schemas.seva import (
     SevaCreate,
     SevaUpdate,
@@ -36,6 +39,7 @@ from app.schemas.seva import (
     SevaBookingResponse,
 )
 from app.services.printer import get_print_queue
+from app.services.notification_service import notification_service
 from app.constants.hindu_constants import GOTHRAS, NAKSHATRAS, RASHIS
 
 router = APIRouter(prefix="/api/v1/sevas", tags=["sevas"])
@@ -190,7 +194,120 @@ def get_seva_safely(db: Session, seva_id: int = None, filter_conditions: dict = 
         return query.first() if seva_id else query.all()
 
 
-def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
+def _get_payment_accounts_for_temple(db: Session, temple_id: Optional[int]) -> dict:
+    """Fetch active cash and bank accounts for seva payment selection."""
+    # Standalone fallback: resolve first temple when user.temple_id is null.
+    if not temple_id:
+        first_temple = db.query(Temple.id).order_by(Temple.id.asc()).first()
+        temple_id = first_temple.id if first_temple else None
+    if not temple_id:
+        return {"cash_accounts": [], "bank_accounts": []}
+
+    cash_accounts = (
+        db.query(Account)
+        .filter(
+            Account.temple_id == temple_id,
+            Account.is_active == True,
+            Account.account_subtype == AccountSubType.CASH_BANK,
+            Account.account_code.like("11%"),
+        )
+        .order_by(Account.account_code.asc())
+        .all()
+    )
+    # Fallback for legacy COA rows without account_subtype.
+    if not cash_accounts:
+        cash_accounts = (
+            db.query(Account)
+            .filter(
+                Account.temple_id == temple_id,
+                Account.is_active == True,
+                Account.account_code.like("11%"),
+            )
+            .order_by(Account.account_code.asc())
+            .all()
+        )
+
+    bank_accounts = (
+        db.query(BankAccount)
+        .filter(BankAccount.temple_id == temple_id, BankAccount.is_active == True)
+        .order_by(BankAccount.is_primary.desc(), BankAccount.account_name.asc())
+        .all()
+    )
+
+    bank_results = []
+    for bank_acc in bank_accounts:
+        chart_account = (
+            db.query(Account)
+            .filter(
+                Account.id == bank_acc.chart_account_id,
+                Account.temple_id == temple_id,
+                Account.is_active == True,
+            )
+            .first()
+        )
+        if not chart_account:
+            continue
+        bank_results.append(
+            {
+                "id": bank_acc.id,  # BankAccount.id
+                "bank_account_id": bank_acc.id,
+                "account_id": chart_account.id,  # Account.id used in booking payload
+                "account_code": chart_account.account_code,
+                "account_name": chart_account.account_name,
+                "name": bank_acc.account_name,
+                "bank_name": bank_acc.bank_name,
+                "account_number": bank_acc.account_number,
+                "ifsc_code": bank_acc.ifsc_code,
+                "is_primary": bank_acc.is_primary,
+            }
+        )
+
+    # Fallback: if BankAccount master is not configured, use bank ledgers directly from COA.
+    if not bank_results:
+        fallback_bank_ledgers = (
+            db.query(Account)
+            .filter(
+                Account.temple_id == temple_id,
+                Account.is_active == True,
+                Account.account_code.like("12%"),
+            )
+            .order_by(Account.account_code.asc())
+            .all()
+        )
+        for ledger in fallback_bank_ledgers:
+            bank_results.append(
+                {
+                    "id": f"coa-{ledger.id}",
+                    "bank_account_id": None,
+                    "account_id": ledger.id,
+                    "account_code": ledger.account_code,
+                    "account_name": ledger.account_name,
+                    "name": ledger.account_name,
+                    "bank_name": None,
+                    "account_number": None,
+                    "ifsc_code": None,
+                    "is_primary": False,
+                }
+            )
+
+    cash_results = [
+        {
+            "account_id": acc.id,
+            "account_code": acc.account_code,
+            "account_name": acc.account_name,
+        }
+        for acc in cash_accounts
+    ]
+
+    return {"cash_accounts": cash_results, "bank_accounts": bank_results}
+
+
+def post_seva_to_accounting(
+    db: Session,
+    booking: SevaBooking,
+    temple_id: int,
+    payment_account_id: Optional[int] = None,
+):
     """
     Create journal entry for seva booking in accounting system
 
@@ -206,6 +323,17 @@ def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
     on the morning of the booking_date via daily batch transfer.
     """
     try:
+        # Ensure base COA exists before posting entries.
+        seed_result = ensure_default_coa_for_temple(db, temple_id, raise_on_error=False)
+        if seed_result.get("created", 0) > 0:
+            print(
+                f"  INFO: Initialized {seed_result['created']} default COA account(s) for temple {temple_id}"
+            )
+        if seed_result.get("error"):
+            print(
+                f"  WARNING: Could not auto-initialize COA for temple {temple_id}: {seed_result['error']}"
+            )
+
         # Determine debit account (payment method) using helper function
         from app.core.bank_account_helper import (
             get_bank_account_for_payment,
@@ -213,9 +341,41 @@ def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
         )
 
         payment_method = booking.payment_method or "CASH"
-        payment_method_upper = payment_method.upper()
+        payment_method_upper = payment_method.strip().upper()
+        bank_payment_modes = {"UPI", "ONLINE", "CARD", "NETBANKING", "BANK", "CHEQUE", "DD"}
+        debit_account = None
 
-        if payment_method_upper in ["CASH", "COUNTER"]:
+        # First priority: explicitly selected chart account from UI.
+        if payment_account_id:
+            selected_account = (
+                db.query(Account)
+                .filter(
+                    Account.id == payment_account_id,
+                    Account.temple_id == temple_id,
+                    Account.is_active == True,
+                )
+                .first()
+            )
+            if not selected_account:
+                raise ValueError(f"Selected payment account {payment_account_id} was not found.")
+
+            is_cash_mode = payment_method_upper in {"CASH", "COUNTER"} or "HUNDI" in payment_method_upper
+            is_bank_mode = payment_method_upper in bank_payment_modes
+            if is_cash_mode and not selected_account.account_code.startswith("11"):
+                raise ValueError(
+                    "Selected payment account is not a cash account (expected code starting with 11)."
+                )
+            if is_bank_mode and not selected_account.account_code.startswith("12"):
+                raise ValueError(
+                    "Selected payment account is not a bank account (expected code starting with 12)."
+                )
+
+            debit_account = selected_account
+            print(
+                f"  Using selected payment account: {debit_account.account_code} - {debit_account.account_name}"
+            )
+
+        if not debit_account and payment_method_upper in ["CASH", "COUNTER"]:
             debit_account = get_cash_account_for_payment(
                 db, temple_id, payment_method_upper, hundi=False
             )
@@ -229,15 +389,7 @@ def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
                     )
                     .first()
                 )
-        elif payment_method_upper in [
-            "UPI",
-            "ONLINE",
-            "CARD",
-            "NETBANKING",
-            "BANK",
-            "CHEQUE",
-            "DD",
-        ]:
+        elif not debit_account and payment_method_upper in bank_payment_modes:
             # Get bank account from BankAccount model
             debit_account, fallback_code = get_bank_account_for_payment(
                 db,
@@ -255,7 +407,7 @@ def post_seva_to_accounting(db: Session, booking: SevaBooking, temple_id: int):
                 print(
                     f"  WARNING: No bank account found for payment method {payment_method}. Please create a bank account in Bank Account Management."
                 )
-        else:
+        elif not debit_account:
             # Default to cash counter
             debit_account = get_cash_account_for_payment(
                 db, temple_id, payment_method_upper, hundi=False
@@ -637,6 +789,15 @@ def get_dropdown_options():
         print(f"Error in dropdown-options endpoint: {e}")
         # Return empty arrays as fallback
         return {"gothras": [], "nakshatras": [], "rashis": []}
+
+
+@router.get("/payment-accounts")
+def get_payment_accounts_for_sevas(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Get active cash and bank accounts for seva booking payment selection."""
+    temple_id = current_user.temple_id if current_user else None
+    return _get_payment_accounts_for_temple(db, temple_id)
 
 
 @router.get("/{seva_id}", response_model=SevaResponse)
@@ -1325,8 +1486,10 @@ def create_booking(
 
     # Create booking (but don't commit yet - wait for accounting)
     try:
+        selected_payment_account_id = booking_data.payment_account_id
+        booking_payload = booking_data.dict(exclude={"payment_account_id"})
         booking = SevaBooking(
-            **booking_data.dict(),
+            **booking_payload,
             user_id=current_user.id,
             status=SevaBookingStatus.PENDING
             if seva.requires_approval
@@ -1350,7 +1513,12 @@ def create_booking(
     # This ensures strict double-entry accounting - if accounting fails, booking fails
     if current_user and current_user.temple_id:
         try:
-            journal_entry = post_seva_to_accounting(db, booking, current_user.temple_id)
+            journal_entry = post_seva_to_accounting(
+                db,
+                booking,
+                current_user.temple_id,
+                payment_account_id=selected_payment_account_id,
+            )
             # No commit here - part of main transaction
         except Exception as e:
             # Accounting failed, so we must rollback the entire transaction
@@ -1367,14 +1535,24 @@ def create_booking(
 
     # Auto-send SMS/Email confirmation (if enabled and devotee preferences allow)
     try:
-        if booking.devotee and booking.devotee.receive_sms and booking.devotee.phone:
-            # Send SMS booking confirmation (async - don't block response)
-            # TODO: Implement SMS service integration
-            pass
-        if booking.devotee and booking.devotee.receive_email and booking.devotee.email:
-            # Send Email booking confirmation (async - don't block response)
-            # TODO: Implement Email service integration
-            pass
+        if booking.devotee and (
+            (booking.devotee.receive_sms and booking.devotee.phone)
+            or (booking.devotee.receive_email and booking.devotee.email)
+        ):
+            notification_service.send_seva_booking_confirmation(
+                {
+                    "devotee_name": booking.devotee.name,
+                    "phone": booking.devotee.phone,
+                    "email": booking.devotee.email,
+                    "receipt_number": booking.receipt_number,
+                    "seva_name": seva.name_english if seva else "Seva",
+                    "booking_date": booking.booking_date.strftime("%d-%m-%Y")
+                    if booking.booking_date
+                    else "",
+                    "booking_time": booking.booking_time or "All Day",
+                    "amount": booking.amount_paid or 0,
+                }
+            )
     except Exception as e:
         # Don't fail booking creation if SMS/Email fails
         print(f"Failed to send booking confirmation: {str(e)}")
@@ -1452,6 +1630,88 @@ def cancel_booking(
 # ===== SEVA RESCHEDULE (POSTPONE/PREPONE) =====
 
 
+def _validate_reschedule_target_date(
+    db: Session, booking: SevaBooking, new_date: date, check_advance_limit: bool = True
+):
+    """
+    Validate whether a booking can be moved to `new_date`.
+    Enforces:
+    - today/future only
+    - seva availability rule on target day
+    - advance booking window (optional)
+    - max bookings per day / free slot on target date
+    """
+    if new_date < date.today():
+        raise HTTPException(
+            status_code=400,
+            detail="Reschedule date must be today or a future date.",
+        )
+
+    seva = db.query(Seva).filter(Seva.id == booking.seva_id).first()
+    if not seva:
+        raise HTTPException(status_code=404, detail="Seva not found for this booking")
+
+    # Check advance booking window.
+    if (
+        check_advance_limit
+        and seva.advance_booking_days is not None
+        and seva.advance_booking_days > 0
+    ):
+        max_date = date.today() + timedelta(days=seva.advance_booking_days)
+        if new_date > max_date:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"This seva can be booked/rescheduled only up to "
+                    f"{seva.advance_booking_days} day(s) in advance."
+                ),
+            )
+
+    # Check availability rule for target day.
+    day_of_week = (new_date.weekday() + 1) % 7
+    if seva.availability == SevaAvailability.SPECIFIC_DAY and day_of_week != seva.specific_day:
+        raise HTTPException(status_code=400, detail="Seva not available on requested date")
+    elif seva.availability == SevaAvailability.EXCEPT_DAY:
+        except_days_list = []
+        if seva.except_days:
+            import json
+
+            if isinstance(seva.except_days, str):
+                try:
+                    except_days_list = json.loads(seva.except_days)
+                except json.JSONDecodeError:
+                    except_days_list = []
+            elif isinstance(seva.except_days, list):
+                except_days_list = seva.except_days
+
+        if seva.except_day is not None and seva.except_day not in except_days_list:
+            except_days_list.append(seva.except_day)
+
+        if day_of_week in except_days_list:
+            raise HTTPException(status_code=400, detail="Seva not available on requested date")
+
+    # Check free slot on target date (exclude current booking itself).
+    if seva.max_bookings_per_day:
+        existing_bookings = (
+            db.query(SevaBooking)
+            .filter(
+                SevaBooking.seva_id == booking.seva_id,
+                SevaBooking.booking_date == new_date,
+                SevaBooking.id != booking.id,
+                SevaBooking.status.in_([SevaBookingStatus.PENDING, SevaBookingStatus.CONFIRMED]),
+            )
+            .count()
+        )
+        if existing_bookings >= seva.max_bookings_per_day:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"No slots available on requested date. "
+                    f"Maximum {seva.max_bookings_per_day} booking(s) allowed."
+                ),
+            )
+
+
 @router.put("/bookings/{booking_id}/reschedule")
 def request_reschedule(
     booking_id: int,
@@ -1489,6 +1749,9 @@ def request_reschedule(
     if new_date == booking.booking_date:
         raise HTTPException(status_code=400, detail="New date must be different from current date")
 
+    # Validate requested date availability and slot limits before submitting for approval.
+    _validate_reschedule_target_date(db, booking, new_date, check_advance_limit=True)
+
     # Store original date if not already stored
     if not booking.original_booking_date:
         booking.original_booking_date = booking.booking_date
@@ -1497,6 +1760,8 @@ def request_reschedule(
     booking.reschedule_requested_date = new_date
     booking.reschedule_reason = reason
     booking.reschedule_approved = None  # Pending approval
+    booking.reschedule_approved_by = None
+    booking.reschedule_approved_at = None
 
     db.commit()
     db.refresh(booking)
@@ -1510,7 +1775,8 @@ def request_reschedule(
     }
 
 
-@router.get("/bookings/pending-reschedule", response_model=List[SevaBookingResponse])
+@router.get("/reschedule/pending", response_model=List[SevaBookingResponse])
+@router.get("/bookings/pending-reschedule", response_model=List[SevaBookingResponse])  # backward compatibility
 def get_pending_reschedule_requests(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
@@ -1526,7 +1792,16 @@ def get_pending_reschedule_requests(
             detail="Only admins and temple managers can view pending reschedule requests",
         )
 
-    # Get bookings with pending reschedule requests (reschedule_approved IS NULL and reschedule_requested_date IS NOT NULL)
+    # Get bookings with pending reschedule requests.
+    # Legacy safety: some DBs may store default False instead of NULL for new requests.
+    pending_filter = or_(
+        SevaBooking.reschedule_approved.is_(None),
+        and_(
+            SevaBooking.reschedule_approved == False,  # noqa: E712
+            SevaBooking.reschedule_approved_at.is_(None),
+        ),
+    )
+
     bookings = (
         db.query(SevaBooking)
         .options(
@@ -1535,7 +1810,7 @@ def get_pending_reschedule_requests(
             joinedload(SevaBooking.priest),
         )
         .filter(
-            SevaBooking.reschedule_approved.is_(None),
+            pending_filter,
             SevaBooking.reschedule_requested_date.isnot(None),
         )
         .all()
@@ -1570,13 +1845,22 @@ def approve_reschedule(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
-    if booking.reschedule_approved is not None:
+    is_legacy_pending_false = booking.reschedule_approved is False and booking.reschedule_approved_at is None
+    if booking.reschedule_approved is not None and not is_legacy_pending_false:
         raise HTTPException(status_code=400, detail="Reschedule request already processed")
 
     if not booking.reschedule_requested_date:
         raise HTTPException(status_code=400, detail="No reschedule request found")
 
     if approve:
+        # Re-check slot/date validity at approval time to avoid race conditions.
+        _validate_reschedule_target_date(
+            db,
+            booking,
+            booking.reschedule_requested_date,
+            check_advance_limit=False,
+        )
+
         # Approve: Update booking date
         booking.booking_date = booking.reschedule_requested_date
         booking.reschedule_approved = True
@@ -2091,6 +2375,27 @@ def _generate_seva_receipt_pdf(booking: SevaBooking, db: Session, temple_id: int
         ["Payment Mode:", booking.payment_method.upper() if booking.payment_method else "Cash"],
         ["Amount Paid:", f"₹ {booking.amount_paid:,.2f}"],
     ]
+
+    # Show reschedule details only when a reschedule was requested.
+    if booking.reschedule_requested_date:
+        original_date = booking.original_booking_date or booking.booking_date
+        if booking.reschedule_approved is True:
+            approval_status = "Approved"
+        elif booking.reschedule_approved is False:
+            approval_status = "Rejected"
+        else:
+            approval_status = "Pending"
+
+        receipt_data.append(
+            ["Original Date:", original_date.strftime("%d-%m-%Y") if original_date else ""]
+        )
+        receipt_data.append(
+            [
+                "Requested Reschedule Date:",
+                booking.reschedule_requested_date.strftime("%d-%m-%Y"),
+            ]
+        )
+        receipt_data.append(["Approval Status:", approval_status])
 
     # Add additional booking details if available
     if booking.gotra:

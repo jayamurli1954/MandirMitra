@@ -25,6 +25,7 @@ import {
   MenuItem,
   Alert,
   Snackbar,
+  Tooltip,
 } from '@mui/material';
 import Layout from '../../components/Layout';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -32,17 +33,26 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import MinimizeIcon from '@mui/icons-material/Minimize';
 
-function JournalEntryRow({ entry }) {
+function JournalEntryRow({
+  entry,
+  onEdit,
+  onPost,
+  onReverse,
+  postingEntryId,
+  reversingEntryId,
+  canReverseEntries,
+}) {
   const [open, setOpen] = useState(false);
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'POSTED':
+    switch (String(status).toLowerCase()) {
+      case 'posted':
         return 'success';
-      case 'DRAFT':
+      case 'draft':
         return 'warning';
-      case 'CANCELLED':
+      case 'cancelled':
         return 'error';
       default:
         return 'default';
@@ -65,9 +75,39 @@ function JournalEntryRow({ entry }) {
           <Chip label={entry.status} color={getStatusColor(entry.status)} size="small" />
         </TableCell>
         <TableCell>{entry.reference_type || '-'}</TableCell>
+        <TableCell align="center">
+          {String(entry.status).toLowerCase() === 'draft' ? (
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+              <Button size="small" variant="outlined" onClick={() => onEdit(entry)}>
+                Edit
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                color="warning"
+                onClick={() => onPost(entry)}
+                disabled={postingEntryId === entry.id}
+              >
+                {postingEntryId === entry.id ? 'Posting...' : 'Post'}
+              </Button>
+            </Box>
+          ) : String(entry.status).toLowerCase() === 'posted' && canReverseEntries ? (
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              onClick={() => onReverse(entry)}
+              disabled={reversingEntryId === entry.id}
+            >
+              {reversingEntryId === entry.id ? 'Reversing...' : 'Reverse'}
+            </Button>
+          ) : (
+            <Typography variant="body2" color="text.secondary">-</Typography>
+          )}
+        </TableCell>
       </TableRow>
       <TableRow>
-        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
+        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={8}>
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Box sx={{ margin: 2 }}>
               <Typography variant="h6" gutterBottom>
@@ -121,11 +161,17 @@ function JournalEntryRow({ entry }) {
 }
 
 function JournalEntries() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const canReverseEntries = user.role === 'admin';
   const [entries, setEntries] = useState([]);
   const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), 3, 1)); // April 1st
   const [toDate, setToDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [dialogMinimized, setDialogMinimized] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState(null);
+  const [postingEntryId, setPostingEntryId] = useState(null);
+  const [reversingEntryId, setReversingEntryId] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
@@ -159,9 +205,10 @@ function JournalEntries() {
         }
       );
       const data = await response.json();
-      setEntries(data);
+      setEntries(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching journal entries:', error);
+      setEntries([]);
     } finally {
       setLoading(false);
     }
@@ -213,7 +260,7 @@ function JournalEntries() {
     return { totalDebit, totalCredit };
   };
 
-  const handleCreateEntry = async () => {
+  const handleSaveEntry = async () => {
     try {
       const { totalDebit, totalCredit } = calculateTotals();
       if (totalDebit !== totalCredit) {
@@ -231,7 +278,7 @@ function JournalEntries() {
         entry_date: entryDate,
         narration,
         reference_type: referenceType,
-        reference_number: referenceNumber || undefined,
+        reference_id: referenceNumber ? Number(referenceNumber) : undefined,
         journal_lines: journalLines.map(line => ({
           account_id: parseInt(line.account_id),
           debit_amount: parseFloat(line.debit_amount) || 0,
@@ -240,31 +287,139 @@ function JournalEntries() {
         })),
       };
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/`, {
+      const response = await fetch(
+        editingEntryId
+          ? `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${editingEntryId}`
+          : `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/`,
+        {
+          method: editingEntryId ? 'PUT' : 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (response.ok) {
+        setSnackbar({
+          open: true,
+          message: editingEntryId
+            ? 'Journal entry updated successfully!'
+            : 'Journal entry created successfully!',
+          severity: 'success',
+        });
+        handleCloseCreateDialog();
+        resetForm();
+        fetchEntries();
+      } else {
+        const error = await response.json();
+        setSnackbar({ open: true, message: error.detail || 'Failed to save entry', severity: 'error' });
+      }
+    } catch (error) {
+      console.error('Error saving journal entry:', error);
+      setSnackbar({ open: true, message: 'Error saving journal entry', severity: 'error' });
+    }
+  };
+
+  const handlePostEntry = async (entry) => {
+    try {
+      setPostingEntryId(entry.id);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${entry.id}/post`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        setSnackbar({ open: true, message: `Entry #${entry.entry_number} posted successfully.`, severity: 'success' });
+        fetchEntries();
+      } else {
+        const error = await response.json();
+        setSnackbar({ open: true, message: error.detail || 'Failed to post entry', severity: 'error' });
+      }
+    } catch (error) {
+      console.error('Error posting journal entry:', error);
+      setSnackbar({ open: true, message: 'Error posting journal entry', severity: 'error' });
+    } finally {
+      setPostingEntryId(null);
+    }
+  };
+
+  const handleReverseEntry = async (entry) => {
+    const reason = window.prompt(`Enter reversal reason for ${entry.entry_number}:`, 'Correction entry');
+    if (!reason || !reason.trim()) {
+      return;
+    }
+
+    try {
+      setReversingEntryId(entry.id);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${entry.id}/cancel`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ cancellation_reason: reason.trim() }),
       });
 
       if (response.ok) {
-        setSnackbar({ open: true, message: 'Journal entry created successfully!', severity: 'success' });
-        setOpenDialog(false);
-        resetForm();
+        setSnackbar({
+          open: true,
+          message: `Entry #${entry.entry_number} reversed. Reversal entry created automatically.`,
+          severity: 'success',
+        });
         fetchEntries();
       } else {
         const error = await response.json();
-        setSnackbar({ open: true, message: error.detail || 'Failed to create entry', severity: 'error' });
+        setSnackbar({ open: true, message: error.detail || 'Failed to reverse entry', severity: 'error' });
       }
     } catch (error) {
-      console.error('Error creating journal entry:', error);
-      setSnackbar({ open: true, message: 'Error creating journal entry', severity: 'error' });
+      console.error('Error reversing journal entry:', error);
+      setSnackbar({ open: true, message: 'Error reversing journal entry', severity: 'error' });
+    } finally {
+      setReversingEntryId(null);
     }
   };
 
+  const handleOpenNewEntry = () => {
+    setEditingEntryId(null);
+    resetForm();
+    handleRestoreCreateDialog();
+  };
+
+  const handleEditEntry = (entry) => {
+    if (String(entry.status).toLowerCase() !== 'draft') {
+      setSnackbar({ open: true, message: 'Only draft entries can be edited.', severity: 'warning' });
+      return;
+    }
+
+    setEditingEntryId(entry.id);
+    setEntryDate(String(entry.entry_date || '').split('T')[0] || new Date().toISOString().split('T')[0]);
+    setNarration(entry.narration || '');
+    setReferenceType((entry.reference_type || 'EXPENSE').toUpperCase());
+    setReferenceNumber(entry.reference_id ? String(entry.reference_id) : '');
+    setJournalLines(
+      (entry.journal_lines || []).length > 0
+        ? entry.journal_lines.map((line) => ({
+            account_id: line.account_id ? String(line.account_id) : '',
+            debit_amount: line.debit_amount || '',
+            credit_amount: line.credit_amount || '',
+            description: line.description || '',
+          }))
+        : [
+            { account_id: '', debit_amount: '', credit_amount: '', description: '' },
+            { account_id: '', debit_amount: '', credit_amount: '', description: '' },
+          ]
+    );
+    handleRestoreCreateDialog();
+  };
+
   const resetForm = () => {
+    setEditingEntryId(null);
     setEntryDate(new Date().toISOString().split('T')[0]);
     setNarration('');
     setReferenceType('EXPENSE');
@@ -273,6 +428,30 @@ function JournalEntries() {
       { account_id: '', debit_amount: '', credit_amount: '', description: '' },
       { account_id: '', debit_amount: '', credit_amount: '', description: '' },
     ]);
+  };
+
+  const handleCloseCreateDialog = () => {
+    setOpenDialog(false);
+    setDialogMinimized(false);
+    resetForm();
+  };
+
+  const handleMinimizeCreateDialog = () => {
+    setOpenDialog(false);
+    setDialogMinimized(true);
+  };
+
+  const handleRestoreCreateDialog = () => {
+    setOpenDialog(true);
+    setDialogMinimized(false);
+  };
+
+  const handleCreateDialogRequestClose = (_event, reason) => {
+    if (reason === 'backdropClick' || reason === 'escapeKeyDown') {
+      handleMinimizeCreateDialog();
+      return;
+    }
+    handleCloseCreateDialog();
   };
 
   const { totalDebit, totalCredit } = calculateTotals();
@@ -290,7 +469,7 @@ function JournalEntries() {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setOpenDialog(true)}
+            onClick={handleOpenNewEntry}
             sx={{ bgcolor: '#FF9933', '&:hover': { bgcolor: '#E68A2E' } }}
           >
             Create Entry
@@ -347,23 +526,35 @@ function JournalEntries() {
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }} align="right">Amount</TableCell>
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Status</TableCell>
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Type</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }} align="center">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
+                    <TableCell colSpan={8} align="center">
                       <Typography>Loading journal entries...</Typography>
                     </TableCell>
                   </TableRow>
                 ) : entries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
+                    <TableCell colSpan={8} align="center">
                       <Typography color="text.secondary">No journal entries found for this period</Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  entries.map((entry) => <JournalEntryRow key={entry.id} entry={entry} />)
+                  entries.map((entry) => (
+                    <JournalEntryRow
+                      key={entry.id}
+                      entry={entry}
+                      onEdit={handleEditEntry}
+                      onPost={handlePostEntry}
+                      onReverse={handleReverseEntry}
+                      postingEntryId={postingEntryId}
+                      reversingEntryId={reversingEntryId}
+                      canReverseEntries={canReverseEntries}
+                    />
+                  ))
                 )}
               </TableBody>
             </Table>
@@ -371,8 +562,20 @@ function JournalEntries() {
         </Paper>
 
         {/* Create Entry Dialog */}
-        <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-          <DialogTitle>Create Journal Entry</DialogTitle>
+        <Dialog open={openDialog} onClose={handleCreateDialogRequestClose} maxWidth="md" fullWidth>
+          <DialogTitle sx={{ pr: 7, position: 'relative' }}>
+            <Tooltip title="Minimize">
+              <IconButton
+                aria-label="minimize journal entry dialog"
+                onClick={handleMinimizeCreateDialog}
+                size="small"
+                sx={{ position: 'absolute', right: 12, top: 12 }}
+              >
+                <MinimizeIcon />
+              </IconButton>
+            </Tooltip>
+            {editingEntryId ? 'Edit Journal Entry' : 'Create Journal Entry'}
+          </DialogTitle>
           <DialogContent>
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12} md={6}>
@@ -518,17 +721,32 @@ function JournalEntries() {
             </Grid>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+            <Button onClick={handleCloseCreateDialog}>Cancel</Button>
             <Button
               variant="contained"
-              onClick={handleCreateEntry}
+              onClick={handleSaveEntry}
               disabled={totalDebit !== totalCredit || totalDebit === 0}
               sx={{ bgcolor: '#FF9933', '&:hover': { bgcolor: '#E68A2E' } }}
             >
-              Create Entry
+              {editingEntryId ? 'Update Entry' : 'Create Entry'}
             </Button>
           </DialogActions>
         </Dialog>
+
+        {dialogMinimized && (
+          <Box
+            sx={{
+              position: 'fixed',
+              right: 24,
+              bottom: 24,
+              zIndex: (theme) => theme.zIndex.modal + 1,
+            }}
+          >
+            <Button variant="contained" color="warning" onClick={handleRestoreCreateDialog}>
+              Resume Journal Entry
+            </Button>
+          </Box>
+        )}
 
         {/* Snackbar for notifications */}
         <Snackbar

@@ -32,6 +32,7 @@ class AssetType(str, enum.Enum):
     FIXED = "fixed"  # Land, buildings, vehicles
     MOVABLE = "movable"  # Furniture, equipment
     PRECIOUS = "precious"  # Gold, silver, precious metals
+    IDOL = "idol"  # Deities, Vigrahas
     INTANGIBLE = "intangible"  # Software, licenses
     CWIP = "cwip"  # Capital work in progress
 
@@ -149,6 +150,12 @@ class Asset(Base):
     tag_number = Column(String(50))  # Physical tag number
     serial_number = Column(String(100))  # Manufacturer serial number
     identification_mark = Column(Text)  # Unique identification marks
+    
+    # Specialized Fields for Ornaments & Idols
+    weight_grams = Column(Float, nullable=True) # For Gold/Silver
+    purity = Column(String(50), nullable=True) # e.g., 22k, 24k, 925 Silver
+    material = Column(String(100), nullable=True) # For Idols (Panchaloha, Black Stone, etc.)
+    dimensions = Column(String(100), nullable=True) # Size for Idols/Assets
 
     # Financial - Purchase
     purchase_date = Column(Date, nullable=False)

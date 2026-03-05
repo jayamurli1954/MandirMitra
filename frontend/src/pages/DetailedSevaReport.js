@@ -27,6 +27,8 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import IconButton from '@mui/material/IconButton';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import ExportButton from '../components/ExportButton';
@@ -50,16 +52,16 @@ function DetailedSevaReport() {
     try {
       setLoading(true);
       setError('');
-      
+
       const params = {
         from_date: fromDate.toISOString().split('T')[0],
         to_date: toDate.toISOString().split('T')[0],
       };
-      
+
       if (statusFilter) params.status = statusFilter;
-      
+
       const response = await api.get('/api/v1/reports/sevas/detailed', { params });
-      
+
       setReportData(response.data);
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to load report');
@@ -87,7 +89,7 @@ function DetailedSevaReport() {
           reason: rescheduleReason,
         }
       });
-      
+
       showSuccess('Reschedule request submitted. Waiting for admin approval.');
       setRescheduleDialog({ open: false, booking: null });
       fetchReport();
@@ -96,11 +98,36 @@ function DetailedSevaReport() {
     }
   };
 
+  const handleDownloadReceipt = async (bookingId, receiptNumber) => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/api/v1/sevas/bookings/${bookingId}/receipt/pdf`, {
+        responseType: 'blob',
+      });
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `seva_receipt_${receiptNumber || bookingId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading receipt:', err);
+      setError('Failed to download receipt');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleExport = (format) => {
     if (!reportData) return;
 
     const exportData = reportData.sevas.map(s => ({
-      'Date': new Date(s.seva_date).toLocaleDateString(),
+      'Receipt Date': new Date(s.receipt_date || s.seva_date).toLocaleDateString(),
+      'Seva Date': new Date(s.seva_date || s.booking_date).toLocaleDateString(),
       'Receipt Number': s.receipt_number,
       'Seva Name': s.seva_name,
       'Devotee Name': s.devotee_name,
@@ -191,9 +218,9 @@ function DetailedSevaReport() {
           <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
-                Total: {reportData.total_count} sevas | 
-                Completed: {reportData.completed_count} | 
-                Pending: {reportData.pending_count} | 
+                Total: {reportData.total_count} sevas |
+                Completed: {reportData.completed_count} |
+                Pending: {reportData.pending_count} |
                 Amount: ₹{new Intl.NumberFormat('en-IN').format(reportData.total_amount)}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
@@ -206,7 +233,8 @@ function DetailedSevaReport() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Date</strong></TableCell>
+                    <TableCell><strong>Receipt Date</strong></TableCell>
+                    <TableCell><strong>Seva Date</strong></TableCell>
                     <TableCell><strong>Receipt #</strong></TableCell>
                     <TableCell><strong>Seva Name</strong></TableCell>
                     <TableCell><strong>Devotee Name</strong></TableCell>
@@ -219,7 +247,8 @@ function DetailedSevaReport() {
                 <TableBody>
                   {reportData.sevas.map((seva) => (
                     <TableRow key={seva.id}>
-                      <TableCell>{new Date(seva.seva_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{new Date(seva.receipt_date || seva.seva_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{new Date(seva.seva_date || seva.booking_date).toLocaleDateString()}</TableCell>
                       <TableCell>{seva.receipt_number}</TableCell>
                       <TableCell>{seva.seva_name}</TableCell>
                       <TableCell>{seva.devotee_name}</TableCell>
@@ -232,22 +261,32 @@ function DetailedSevaReport() {
                         }).format(seva.amount)}
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={seva.status} 
+                        <Chip
+                          label={seva.status}
                           color={getStatusColor(seva.status)}
                           size="small"
                         />
                       </TableCell>
                       <TableCell>
-                        {seva.status === 'Pending' && (
-                          <Button
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          {seva.status === 'Pending' && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => handleReschedule(seva)}
+                            >
+                              Reschedule
+                            </Button>
+                          )}
+                          <IconButton
+                            color="primary"
                             size="small"
-                            variant="outlined"
-                            onClick={() => handleReschedule(seva)}
+                            onClick={() => handleDownloadReceipt(seva.id, seva.receipt_number)}
+                            title="Download Receipt"
                           >
-                            Reschedule
-                          </Button>
-                        )}
+                            <PictureAsPdfIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -286,8 +325,8 @@ function DetailedSevaReport() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setRescheduleDialog({ open: false, booking: null })}>Cancel</Button>
-            <Button 
-              variant="contained" 
+            <Button
+              variant="contained"
               onClick={submitReschedule}
               disabled={!newDate || !rescheduleReason}
             >

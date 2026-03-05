@@ -4,35 +4,35 @@
 
 ---
 
-## 🚀 Quick Context
+## ðŸš€ Quick Context
 
-**Project:** MandirSync - Temple Management System  
+**Project:** MandirMitra - Temple Management System  
 **Status:** Active Development  
 **Last Work:** Panchang Display Settings + Frontend Dashboard
 
 ---
 
-## 📋 What Was Built Recently
+## ðŸ“‹ What Was Built Recently
 
 ### Backend (Completed):
-- ✅ Panchang Display Settings API
-- ✅ Database models (Temple, User, Donation, PanchangDisplaySettings)
-- ✅ FastAPI setup with CORS
+- âœ… Panchang Display Settings API
+- âœ… Database models (Temple, User, Donation, PanchangDisplaySettings)
+- âœ… FastAPI setup with CORS
 
 ### Frontend (Completed):
-- ✅ Login page
-- ✅ Dashboard with donation entry form + panchang widget
-- ✅ Sidebar navigation with temple gopuram icon
-- ✅ Pages: Donations, Devotees, Reports, Panchang, Settings
+- âœ… Login page
+- âœ… Dashboard with donation entry form + panchang widget
+- âœ… Sidebar navigation with temple gopuram icon
+- âœ… Pages: Donations, Devotees, Reports, Panchang, Settings
 
 ---
 
-## 🎯 Current State
+## ðŸŽ¯ Current State
 
 **Dashboard Features:**
 - Quick donation entry form (left side)
 - Today's Panchang widget (right side)
-- Stats cards (Today's Donations: ₹8,500, Devotees, Seva Bookings, Monthly)
+- Stats cards (Today's Donations: â‚¹8,500, Devotees, Seva Bookings, Monthly)
 
 **Key Files:**
 - `CONVERSATION_LOG.md` - Full conversation history
@@ -42,7 +42,7 @@
 
 ---
 
-## 🔧 To Continue Development
+## ðŸ”§ To Continue Development
 
 **Tell the AI:**
 ```
@@ -51,9 +51,9 @@
 
 ---
 
-## 📝 Important Notes
+## ðŸ“ Important Notes
 
-- Actual donation amount: ₹8,500 (not hardcoded)
+- Actual donation amount: â‚¹8,500 (not hardcoded)
 - 5 donation categories configured
 - Temple gopuram icon in sidebar (SVG)
 - Saffron/Green color scheme

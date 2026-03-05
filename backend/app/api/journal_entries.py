@@ -471,29 +471,16 @@ def delete_journal_entry(
     entry_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """
-    Delete a draft journal entry
-    Only draft entries can be deleted. Posted entries must be cancelled instead.
+    Journal entries are immutable and cannot be deleted.
+    Use update (for drafts) or cancel/reversal (for posted entries).
     """
-    entry = (
-        db.query(JournalEntry)
-        .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == current_user.temple_id)
-        .first()
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail=(
+            "Journal entries cannot be deleted. "
+            "Edit draft entries or cancel posted entries to create an automatic reversal."
+        ),
     )
-
-    if not entry:
-        raise HTTPException(status_code=404, detail="Journal entry not found")
-
-    if entry.status != JournalEntryStatus.DRAFT:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Only draft entries can be deleted. Current status: {entry.status}. Posted entries must be cancelled instead.",
-        )
-
-    # Delete the entry (cascade will delete journal lines)
-    db.delete(entry)
-    db.commit()
-
-    return {"message": "Journal entry deleted successfully", "entry_id": entry_id}
 
 
 @router.post("/{entry_id}/post", response_model=JournalEntryResponse)
@@ -504,9 +491,11 @@ def post_journal_entry(
     Post a draft journal entry
     Posted entries cannot be modified
     """
+    # Handle standalone mode consistently with list/create endpoints
+    effective_temple_id = current_user.temple_id if current_user.temple_id is not None else 0
     entry = (
         db.query(JournalEntry)
-        .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == current_user.temple_id)
+        .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == effective_temple_id)
         .first()
     )
 
@@ -520,7 +509,8 @@ def post_journal_entry(
         )
 
     # Revalidate before posting
-    validate_journal_entry(entry.journal_lines, db, current_user.temple_id)
+    validation_temple_id = current_user.temple_id if current_user.temple_id is not None else None
+    validate_journal_entry(entry.journal_lines, db, validation_temple_id)
 
     # Post entry
     entry.status = JournalEntryStatus.POSTED
@@ -693,15 +683,13 @@ def get_trial_balance(
     # For standalone mode, handle temple_id = None
     temple_id = current_user.temple_id
 
-    # Get all active accounts for temple
-    account_filter = [Account.is_active == True]
+    # Get all accounts for temple (including inactive) so Trial Balance is always
+    # derived from the full ledger history and remains arithmetically complete.
+    account_filter = []
     if temple_id is not None:
         account_filter.append(Account.temple_id == temple_id)
 
     all_accounts = db.query(Account).filter(*account_filter).order_by(Account.account_code).all()
-
-    # Build account map for quick lookup
-    account_map = {acc.id: acc for acc in all_accounts}
 
     # Calculate balances for all accounts
     account_balances = {}
@@ -745,6 +733,28 @@ def get_trial_balance(
             "credit": credit_balance,
             "account": account,
         }
+
+    def build_unaggregated_trial_balance():
+        """Build trial balance directly from per-account ledger balances."""
+        items = []
+        debits = 0.0
+        credits = 0.0
+        for account in all_accounts:
+            balance = account_balances.get(account.id, {"debit": 0, "credit": 0})
+            if balance["debit"] > 0 or balance["credit"] > 0:
+                items.append(
+                    TrialBalanceItem(
+                        account_code=account.account_code,
+                        account_name=account.account_name,
+                        account_type=account.account_type,
+                        debit_balance=balance["debit"],
+                        credit_balance=balance["credit"],
+                    )
+                )
+                debits += balance["debit"]
+                credits += balance["credit"]
+        items.sort(key=lambda x: x.account_code)
+        return items, debits, credits
 
     # Define parent accounts that should aggregate their children
     # Format: parent_code: [list of child code patterns or ranges]
@@ -859,9 +869,29 @@ def get_trial_balance(
     # Sort by account code
     trial_balance_items.sort(key=lambda x: x.account_code)
 
-    # Check if balanced
+    # Safety: if grouping logic causes mismatch, fall back to pure ledger-derived listing.
     difference = abs(total_debits - total_credits)
-    is_balanced = difference < 0.01  # Allow small floating point difference
+    if difference >= 0.01:
+        fallback_items, fallback_debits, fallback_credits = build_unaggregated_trial_balance()
+        fallback_difference = abs(fallback_debits - fallback_credits)
+        if fallback_difference < difference:
+            trial_balance_items = fallback_items
+            total_debits = fallback_debits
+            total_credits = fallback_credits
+            difference = fallback_difference
+
+    # Normalize tiny floating precision noise so reported totals are exactly equal.
+    if difference <= 0.01:
+        normalized_total = round((total_debits + total_credits) / 2, 2)
+        total_debits = normalized_total
+        total_credits = normalized_total
+        difference = 0.0
+        is_balanced = True
+    else:
+        total_debits = round(total_debits, 2)
+        total_credits = round(total_credits, 2)
+        difference = round(difference, 2)
+        is_balanced = False
 
     return TrialBalanceResponse(
         as_of_date=as_of_date,

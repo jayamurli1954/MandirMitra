@@ -1,8 +1,8 @@
-# MandirSync - Windows Setup Script
+# MandirMitra - Windows Setup Script
 # Run this in PowerShell as Administrator
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  MandirSync - Windows Setup Script" -ForegroundColor Cyan
+Write-Host "  MandirMitra - Windows Setup Script" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -11,9 +11,9 @@ Write-Host "Checking Python..." -ForegroundColor Yellow
 $python = Get-Command python -ErrorAction SilentlyContinue
 if ($python) {
     $pythonVersion = python --version
-    Write-Host "✓ $pythonVersion found" -ForegroundColor Green
+    Write-Host "âœ“ $pythonVersion found" -ForegroundColor Green
 } else {
-    Write-Host "✗ Python not found" -ForegroundColor Red
+    Write-Host "âœ— Python not found" -ForegroundColor Red
     Write-Host "  Download from: https://www.python.org/downloads/" -ForegroundColor Yellow
     exit
 }
@@ -23,9 +23,9 @@ Write-Host "Checking Node.js..." -ForegroundColor Yellow
 $node = Get-Command node -ErrorAction SilentlyContinue
 if ($node) {
     $nodeVersion = node --version
-    Write-Host "✓ Node.js $nodeVersion found" -ForegroundColor Green
+    Write-Host "âœ“ Node.js $nodeVersion found" -ForegroundColor Green
 } else {
-    Write-Host "✗ Node.js not found" -ForegroundColor Red
+    Write-Host "âœ— Node.js not found" -ForegroundColor Red
     Write-Host "  Download from: https://nodejs.org/" -ForegroundColor Yellow
     exit
 }
@@ -35,15 +35,15 @@ Write-Host "Checking PostgreSQL..." -ForegroundColor Yellow
 $psql = Get-Command psql -ErrorAction SilentlyContinue
 if ($psql) {
     $pgVersion = psql --version
-    Write-Host "✓ $pgVersion found" -ForegroundColor Green
+    Write-Host "âœ“ $pgVersion found" -ForegroundColor Green
 } else {
-    Write-Host "✗ PostgreSQL not found" -ForegroundColor Red
+    Write-Host "âœ— PostgreSQL not found" -ForegroundColor Red
     Write-Host "  Download from: https://www.postgresql.org/download/windows/" -ForegroundColor Yellow
     exit
 }
 
 Write-Host ""
-Write-Host "All prerequisites installed! ✓" -ForegroundColor Green
+Write-Host "All prerequisites installed! âœ“" -ForegroundColor Green
 Write-Host ""
 
 # Setup Backend
@@ -60,7 +60,7 @@ if (Test-Path "venv") {
 } else {
     Write-Host "Creating virtual environment..." -ForegroundColor Yellow
     python -m venv venv
-    Write-Host "✓ Virtual environment created" -ForegroundColor Green
+    Write-Host "âœ“ Virtual environment created" -ForegroundColor Green
 }
 
 # Activate virtual environment
@@ -70,14 +70,14 @@ Write-Host "Activating virtual environment..." -ForegroundColor Yellow
 # Install dependencies
 Write-Host "Installing dependencies..." -ForegroundColor Yellow
 pip install -r requirements.txt
-Write-Host "✓ Dependencies installed" -ForegroundColor Green
+Write-Host "âœ“ Dependencies installed" -ForegroundColor Green
 
 # Copy .env file if not exists
 if (Test-Path ".env") {
     Write-Host ".env file already exists" -ForegroundColor Yellow
 } else {
     Copy-Item ".env.example" ".env"
-    Write-Host "✓ .env file created (please edit with your settings)" -ForegroundColor Green
+    Write-Host "âœ“ .env file created (please edit with your settings)" -ForegroundColor Green
 }
 
 Write-Host ""
@@ -91,6 +91,6 @@ Write-Host "2. Create database: psql -U postgres -c 'CREATE DATABASE temple_db;'
 Write-Host "3. Run backend: cd backend && python app/main.py" -ForegroundColor White
 Write-Host "4. Open http://localhost:8000/docs" -ForegroundColor White
 Write-Host ""
-Write-Host "Happy coding! 🚀" -ForegroundColor Cyan
+Write-Host "Happy coding! ðŸš€" -ForegroundColor Cyan
 
 

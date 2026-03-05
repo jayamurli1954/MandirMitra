@@ -75,6 +75,13 @@ extract_pdf.py
 docx_output.txt
 pdf_output.txt
 
+# Local private and transient files
+do_not_push_This_folder_to_GitHub/
+.tmp.driveupload/
+tmp/
+.coverage
+backend/audit_log.txt
+
 # ════════════════════════════════════════════════════════════
 # MARKDOWN FILES — Keep only essential project documentation
 #   Allowed: README.md, ARCHITECTURE.md, CONTRIBUTING.md,

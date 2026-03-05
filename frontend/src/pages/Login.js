@@ -8,16 +8,23 @@ import {
   Box,
   Alert,
   CircularProgress,
+  Link,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { IconButton, InputAdornment } from '@mui/material';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  const handleClickShowPassword = () => setShowPassword(!showPassword);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -76,7 +83,7 @@ function Login() {
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
             <LockOutlinedIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
             <Typography component="h1" variant="h4" sx={{ fontWeight: 'bold' }}>
-              🕉️ MandirSync
+              {'\u0950\uFE0F MandirMitra'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               Temple Management System
@@ -109,12 +116,25 @@ function Login() {
               fullWidth
               name="password"
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               id="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={handleClickShowPassword}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <Button
               type="submit"
@@ -125,6 +145,16 @@ function Login() {
             >
               {loading ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>
+            <Box sx={{ textAlign: 'right', mb: 2 }}>
+              <Link
+                component="button"
+                type="button"
+                variant="body2"
+                onClick={() => navigate('/forgot-password')}
+              >
+                Forgot Password?
+              </Link>
+            </Box>
             <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 2 }}>
               Use: admin@temple.com / admin123
             </Typography>

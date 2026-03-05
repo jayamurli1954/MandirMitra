@@ -1,23 +1,23 @@
-# 🛡️ SOFTWARE STABILITY & QUALITY ASSURANCE GUIDE
+# ðŸ›¡ï¸ SOFTWARE STABILITY & QUALITY ASSURANCE GUIDE
 ## Ensuring Bug-Free Temple Management Software
 
-**For:** MandirSync/MandirConnect Development  
+**For:** MandirMitra/MandirConnect Development  
 **Target:** Zero bugs after installation  
 **Audience:** Beginner-friendly with step-by-step guidance  
 **Last Updated:** November 2024
 
 ---
 
-## 🎯 CORE PRINCIPLE
+## ðŸŽ¯ CORE PRINCIPLE
 
 **"A temple cannot afford software failures. Ever."**
 
 Unlike other software where a bug might be inconvenient, temple software failures mean:
-- ❌ Devotees can't donate during festivals (revenue loss)
-- ❌ Wrong accounting entries (audit problems)
-- ❌ Lost bookings (devotee frustration)
-- ❌ Incorrect 80G certificates (legal issues)
-- ❌ Data corruption (disaster!)
+- âŒ Devotees can't donate during festivals (revenue loss)
+- âŒ Wrong accounting entries (audit problems)
+- âŒ Lost bookings (devotee frustration)
+- âŒ Incorrect 80G certificates (legal issues)
+- âŒ Data corruption (disaster!)
 
 **Therefore: Stability is NOT optional. It's MANDATORY.**
 
@@ -48,11 +48,11 @@ Unlike other software where a bug might be inconvenient, temple software failure
 ### 1. **Critical Bugs** (Software Unusable)
 ```
 Examples:
-❌ Software crashes on startup
-❌ Database connection fails
-❌ Login not working
-❌ Payment gateway integration broken
-❌ Cannot save any data
+âŒ Software crashes on startup
+âŒ Database connection fails
+âŒ Login not working
+âŒ Payment gateway integration broken
+âŒ Cannot save any data
 
 Impact: Complete failure
 Priority: MUST fix before deployment
@@ -61,11 +61,11 @@ Priority: MUST fix before deployment
 ### 2. **Major Bugs** (Core Features Broken)
 ```
 Examples:
-❌ Donation entry not saving
-❌ Receipt printing fails
-❌ Accounting entries wrong
-❌ Reports showing incorrect data
-❌ Bank reconciliation not working
+âŒ Donation entry not saving
+âŒ Receipt printing fails
+âŒ Accounting entries wrong
+âŒ Reports showing incorrect data
+âŒ Bank reconciliation not working
 
 Impact: Core functionality broken
 Priority: MUST fix before deployment
@@ -74,11 +74,11 @@ Priority: MUST fix before deployment
 ### 3. **Moderate Bugs** (Features Work but Incorrectly)
 ```
 Examples:
-❌ Wrong date format displayed
-❌ SMS not sending sometimes
-❌ Search not finding all results
-❌ Filter not working properly
-❌ Export missing some columns
+âŒ Wrong date format displayed
+âŒ SMS not sending sometimes
+âŒ Search not finding all results
+âŒ Filter not working properly
+âŒ Export missing some columns
 
 Impact: Reduced functionality
 Priority: Should fix before deployment
@@ -87,11 +87,11 @@ Priority: Should fix before deployment
 ### 4. **Minor Bugs** (Cosmetic/UI Issues)
 ```
 Examples:
-❌ Button slightly misaligned
-❌ Text color hard to read
-❌ Modal doesn't center properly
-❌ Tooltip shows late
-❌ Icon missing in one place
+âŒ Button slightly misaligned
+âŒ Text color hard to read
+âŒ Modal doesn't center properly
+âŒ Tooltip shows late
+âŒ Icon missing in one place
 
 Impact: User experience affected
 Priority: Can fix after deployment
@@ -100,11 +100,11 @@ Priority: Can fix after deployment
 ### 5. **Performance Issues** (Works but Slow)
 ```
 Examples:
-❌ Report takes 30 seconds to load
-❌ Search is slow with 1000+ devotees
-❌ Page loads slowly
-❌ Database queries slow
-❌ Memory usage keeps growing
+âŒ Report takes 30 seconds to load
+âŒ Search is slow with 1000+ devotees
+âŒ Page loads slowly
+âŒ Database queries slow
+âŒ Memory usage keeps growing
 
 Impact: User frustration
 Priority: Must optimize
@@ -113,11 +113,11 @@ Priority: Must optimize
 ### 6. **Security Issues** (Data at Risk)
 ```
 Examples:
-❌ SQL injection possible
-❌ Passwords stored in plain text
-❌ No input validation
-❌ XSS attacks possible
-❌ Session hijacking possible
+âŒ SQL injection possible
+âŒ Passwords stored in plain text
+âŒ No input validation
+âŒ XSS attacks possible
+âŒ Session hijacking possible
 
 Impact: DATA BREACH!
 Priority: CRITICAL - Must fix immediately
@@ -160,10 +160,10 @@ Priority: CRITICAL - Must fix immediately
 # Download from: https://cursor.sh
 
 # 2. Use Claude Sonnet 4.5 (best model)
-# Settings → Models → Select Claude Sonnet 4.5
+# Settings â†’ Models â†’ Select Claude Sonnet 4.5
 
 # 3. Enable Copilot++ mode
-# Settings → Copilot++ → Enable
+# Settings â†’ Copilot++ â†’ Enable
 ```
 
 **How to Use:**
@@ -275,14 +275,14 @@ npm install -D eslint prettier typescript
 **Python Type Hints:**
 
 ```python
-# ❌ Without types (bugs hide!)
+# âŒ Without types (bugs hide!)
 def create_donation(devotee_id, amount, category):
     # What if devotee_id is string instead of int?
     # What if amount is negative?
     # What if category is None?
     pass
 
-# ✅ With types (bugs caught immediately!)
+# âœ… With types (bugs caught immediately!)
 from typing import Optional
 from decimal import Decimal
 
@@ -869,7 +869,7 @@ describe('Complete Donation Flow', () => {
     
     // Verify receipt content
     cy.contains('DONATION RECEIPT').should('be.visible');
-    cy.contains('₹1,000.00').should('be.visible');
+    cy.contains('â‚¹1,000.00').should('be.visible');
     cy.contains('80G Certificate').should('be.visible');
   });
 });
@@ -1027,7 +1027,7 @@ pre-commit install
 - At least one donation category exists
 
 ## Test Steps:
-1. Navigate to Donations → New Donation
+1. Navigate to Donations â†’ New Donation
 2. Select devotee from dropdown
 3. Enter amount: 1000
 4. Select category: General
@@ -1107,7 +1107,7 @@ Day 3: Explore Accounting Module (4 hours)
 1. Developer fixes Bug #123
 2. QA retests Bug #123 (verify fixed)
 3. QA runs FULL test suite (verify nothing else broke)
-4. If anything broke → report new bugs
+4. If anything broke â†’ report new bugs
 5. Repeat until clean
 ```
 
@@ -1325,27 +1325,27 @@ def create_donation(data):
 
 ```
 ROLLBACK CHECKLIST:
-─────────────────────
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Before Deployment:
-☐ Database backup taken
-☐ Previous version files saved
-☐ Configuration files backed up
-☐ Rollback script tested
+â˜ Database backup taken
+â˜ Previous version files saved
+â˜ Configuration files backed up
+â˜ Rollback script tested
 
 If Deployment Fails:
-☐ Stop application
-☐ Restore previous version
-☐ Restore database (if schema changed)
-☐ Restart application
-☐ Verify working
-☐ Notify team
+â˜ Stop application
+â˜ Restore previous version
+â˜ Restore database (if schema changed)
+â˜ Restart application
+â˜ Verify working
+â˜ Notify team
 
 If Bugs Found Post-Deployment:
-☐ Assess severity
-☐ If critical → immediate rollback
-☐ If moderate → hotfix or rollback
-☐ If minor → fix in next release
+â˜ Assess severity
+â˜ If critical â†’ immediate rollback
+â˜ If moderate â†’ hotfix or rollback
+â˜ If minor â†’ fix in next release
 
 Rollback Script:
 #!/bin/bash
@@ -1397,17 +1397,17 @@ sentry_sdk.init(
 **Set up alerts:**
 ```
 Alert Rule 1: ANY error in production
-→ Slack notification immediately
-→ Email to dev team
+â†’ Slack notification immediately
+â†’ Email to dev team
 
 Alert Rule 2: >10 errors in 5 minutes
-→ Slack notification immediately
-→ SMS to on-call engineer
-→ Auto-create incident
+â†’ Slack notification immediately
+â†’ SMS to on-call engineer
+â†’ Auto-create incident
 
 Alert Rule 3: Response time >2 seconds
-→ Slack notification
-→ Performance investigation needed
+â†’ Slack notification
+â†’ Performance investigation needed
 ```
 
 ---
@@ -1729,92 +1729,92 @@ pip install sqlmap
 ## Pre-Deployment Checklist
 
 ```
-☐ DEVELOPMENT COMPLETE
-  ☐ All features implemented
-  ☐ Code reviewed by 2+ people
-  ☐ No hardcoded credentials
-  ☐ Environment variables configured
-  ☐ Documentation updated
+â˜ DEVELOPMENT COMPLETE
+  â˜ All features implemented
+  â˜ Code reviewed by 2+ people
+  â˜ No hardcoded credentials
+  â˜ Environment variables configured
+  â˜ Documentation updated
 
-☐ UNIT TESTS
-  ☐ 90%+ code coverage
-  ☐ All tests passing
-  ☐ Edge cases covered
-  ☐ Error cases covered
+â˜ UNIT TESTS
+  â˜ 90%+ code coverage
+  â˜ All tests passing
+  â˜ Edge cases covered
+  â˜ Error cases covered
 
-☐ INTEGRATION TESTS
-  ☐ All API endpoints tested
-  ☐ All database operations tested
-  ☐ All module integrations tested
-  ☐ All tests passing
+â˜ INTEGRATION TESTS
+  â˜ All API endpoints tested
+  â˜ All database operations tested
+  â˜ All module integrations tested
+  â˜ All tests passing
 
-☐ SECURITY TESTS
-  ☐ SQL injection tested
-  ☐ XSS tested
-  ☐ CSRF protection enabled
-  ☐ Authentication tested
-  ☐ Authorization tested
-  ☐ Input validation tested
-  ☐ Dependency vulnerabilities checked
+â˜ SECURITY TESTS
+  â˜ SQL injection tested
+  â˜ XSS tested
+  â˜ CSRF protection enabled
+  â˜ Authentication tested
+  â˜ Authorization tested
+  â˜ Input validation tested
+  â˜ Dependency vulnerabilities checked
 
-☐ PERFORMANCE TESTS
-  ☐ Load testing done (100+ concurrent users)
-  ☐ Stress testing done
-  ☐ All queries <1 second
-  ☐ API response times <500ms
-  ☐ Memory leaks checked
+â˜ PERFORMANCE TESTS
+  â˜ Load testing done (100+ concurrent users)
+  â˜ Stress testing done
+  â˜ All queries <1 second
+  â˜ API response times <500ms
+  â˜ Memory leaks checked
 
-☐ USER INTERFACE TESTS
-  ☐ All pages tested in Chrome
-  ☐ All pages tested in Firefox
-  ☐ All pages tested in Safari
-  ☐ Mobile responsive tested
-  ☐ Tablet responsive tested
-  ☐ All forms validated
-  ☐ All error messages clear
+â˜ USER INTERFACE TESTS
+  â˜ All pages tested in Chrome
+  â˜ All pages tested in Firefox
+  â˜ All pages tested in Safari
+  â˜ Mobile responsive tested
+  â˜ Tablet responsive tested
+  â˜ All forms validated
+  â˜ All error messages clear
 
-☐ MANUAL TESTING
-  ☐ Happy path scenarios tested
-  ☐ Error scenarios tested
-  ☐ Edge cases tested
-  ☐ Exploratory testing done (8+ hours)
-  ☐ All found bugs fixed
+â˜ MANUAL TESTING
+  â˜ Happy path scenarios tested
+  â˜ Error scenarios tested
+  â˜ Edge cases tested
+  â˜ Exploratory testing done (8+ hours)
+  â˜ All found bugs fixed
 
-☐ USER ACCEPTANCE TESTING
-  ☐ Tested by temple staff (5+ people)
-  ☐ Real-world scenarios tested
-  ☐ Feedback incorporated
-  ☐ Training materials created
-  ☐ User manual created
+â˜ USER ACCEPTANCE TESTING
+  â˜ Tested by temple staff (5+ people)
+  â˜ Real-world scenarios tested
+  â˜ Feedback incorporated
+  â˜ Training materials created
+  â˜ User manual created
 
-☐ DEPLOYMENT PREPARATION
-  ☐ Database backed up
-  ☐ Rollback plan documented
-  ☐ Monitoring configured
-  ☐ Alerts configured
-  ☐ Health checks working
-  ☐ Staging environment tested
+â˜ DEPLOYMENT PREPARATION
+  â˜ Database backed up
+  â˜ Rollback plan documented
+  â˜ Monitoring configured
+  â˜ Alerts configured
+  â˜ Health checks working
+  â˜ Staging environment tested
 
-☐ DOCUMENTATION
-  ☐ API documentation complete
-  ☐ User manual complete
-  ☐ Admin guide complete
-  ☐ Troubleshooting guide complete
-  ☐ Training videos created
+â˜ DOCUMENTATION
+  â˜ API documentation complete
+  â˜ User manual complete
+  â˜ Admin guide complete
+  â˜ Troubleshooting guide complete
+  â˜ Training videos created
 
-☐ SUPPORT READINESS
-  ☐ Support team trained
-  ☐ Support tickets system ready
-  ☐ Escalation process defined
-  ☐ FAQ document created
-  ☐ Support hours defined
+â˜ SUPPORT READINESS
+  â˜ Support team trained
+  â˜ Support tickets system ready
+  â˜ Escalation process defined
+  â˜ FAQ document created
+  â˜ Support hours defined
 
-☐ FINAL CHECKS
-  ☐ All team members approved
-  ☐ Stakeholders approved
-  ☐ Deployment date/time set
-  ☐ Communication plan ready
-  ☐ Celebration planned! 🎉
+â˜ FINAL CHECKS
+  â˜ All team members approved
+  â˜ Stakeholders approved
+  â˜ Deployment date/time set
+  â˜ Communication plan ready
+  â˜ Celebration planned! ðŸŽ‰
 ```
 
 ---
@@ -1901,66 +1901,66 @@ confluence               # Documentation
 
 ## For Every Release:
 
-### STEP 1: CODE QUALITY ✅
+### STEP 1: CODE QUALITY âœ…
 - [ ] Use AI assistant (Cursor/Claude) for code review
 - [ ] Run linting (pylint/eslint)
 - [ ] Run type checking (mypy/typescript)
 - [ ] Code coverage >90%
 
-### STEP 2: UNIT TESTING ✅
+### STEP 2: UNIT TESTING âœ…
 - [ ] Test every function
 - [ ] Test edge cases
 - [ ] Test error cases
 - [ ] All tests pass
 
-### STEP 3: INTEGRATION TESTING ✅
+### STEP 3: INTEGRATION TESTING âœ…
 - [ ] Test API endpoints
 - [ ] Test database operations
 - [ ] Test module interactions
 - [ ] All tests pass
 
-### STEP 4: SECURITY TESTING ✅
+### STEP 4: SECURITY TESTING âœ…
 - [ ] Check SQL injection
 - [ ] Check XSS
 - [ ] Check authentication
 - [ ] Check authorization
 - [ ] No vulnerabilities found
 
-### STEP 5: MANUAL TESTING ✅
+### STEP 5: MANUAL TESTING âœ…
 - [ ] Test all features manually
 - [ ] Test on different browsers
 - [ ] Test on mobile
 - [ ] Exploratory testing (4+ hours)
 - [ ] All bugs fixed
 
-### STEP 6: USER ACCEPTANCE TESTING ✅
+### STEP 6: USER ACCEPTANCE TESTING âœ…
 - [ ] Temple staff testing (1-2 weeks)
 - [ ] Real-world scenarios
 - [ ] Feedback incorporated
 - [ ] Approval received
 
-### STEP 7: STAGING DEPLOYMENT ✅
+### STEP 7: STAGING DEPLOYMENT âœ…
 - [ ] Deploy to staging
 - [ ] Run all tests on staging
 - [ ] Performance testing
 - [ ] Load testing
 - [ ] All checks pass
 
-### STEP 8: PRODUCTION DEPLOYMENT ✅
+### STEP 8: PRODUCTION DEPLOYMENT âœ…
 - [ ] Database backup
 - [ ] Deploy to production
 - [ ] Verify health checks
 - [ ] Smoke testing
 - [ ] Monitor for 24 hours
 
-### STEP 9: MONITORING SETUP ✅
+### STEP 9: MONITORING SETUP âœ…
 - [ ] Error tracking enabled (Sentry)
 - [ ] Performance monitoring enabled
 - [ ] Health checks running
 - [ ] Alerts configured
 - [ ] Logs being collected
 
-### STEP 10: SUPPORT READY ✅
+### STEP 10: SUPPORT READY âœ…
 - [ ] Support team trained
 - [ ] Documentation complete
 - [ ] Rollback plan ready
@@ -1974,32 +1974,32 @@ confluence               # Documentation
 **Software stability is NOT achieved by luck.**
 
 **It's achieved by:**
-1. ✅ Writing good code (with AI help!)
-2. ✅ Testing thoroughly (automated + manual)
-3. ✅ Deploying carefully (staged rollout)
-4. ✅ Monitoring constantly (catch issues early)
-5. ✅ Maintaining regularly (keep it healthy)
+1. âœ… Writing good code (with AI help!)
+2. âœ… Testing thoroughly (automated + manual)
+3. âœ… Deploying carefully (staged rollout)
+4. âœ… Monitoring constantly (catch issues early)
+5. âœ… Maintaining regularly (keep it healthy)
 
 **For temple software specifically:**
 
 **Critical Success Factors:**
-- 🎯 **Financial Accuracy** - Accounting must be 100% accurate
-- 🎯 **Data Integrity** - Never lose data, never corrupt data
-- 🎯 **Reliability** - Work during festivals when traffic is 10x
-- 🎯 **Security** - Protect devotee data and donations
-- 🎯 **Ease of Use** - Temple staff should find it simple
+- ðŸŽ¯ **Financial Accuracy** - Accounting must be 100% accurate
+- ðŸŽ¯ **Data Integrity** - Never lose data, never corrupt data
+- ðŸŽ¯ **Reliability** - Work during festivals when traffic is 10x
+- ðŸŽ¯ **Security** - Protect devotee data and donations
+- ðŸŽ¯ **Ease of Use** - Temple staff should find it simple
 
 **Follow this guide, and you'll have:**
-- ✅ Software that WORKS
-- ✅ Software that's FAST
-- ✅ Software that's SECURE
-- ✅ Software that SCALES
-- ✅ Software that LASTS
+- âœ… Software that WORKS
+- âœ… Software that's FAST
+- âœ… Software that's SECURE
+- âœ… Software that SCALES
+- âœ… Software that LASTS
 
 **Most importantly:**
-- ✅ Temples will TRUST your software
-- ✅ Devotees will have GREAT experience
-- ✅ You'll sleep well at night! 😊
+- âœ… Temples will TRUST your software
+- âœ… Devotees will have GREAT experience
+- âœ… You'll sleep well at night! ðŸ˜Š
 
 ---
 
@@ -2026,4 +2026,4 @@ confluence               # Documentation
 
 **END OF STABILITY GUIDE**
 
-*May your software be as stable as a temple's foundation! 🏛️*
+*May your software be as stable as a temple's foundation! ðŸ›ï¸*

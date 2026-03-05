@@ -1,4 +1,4 @@
-# MandirSync - Temple Management System - Product Requirements Document
+# MandirMitra - Temple Management System - Product Requirements Document
 
 **Version:** 1.0  
 **Date:** November 17, 2025  
@@ -27,10 +27,10 @@
 
 ## Executive Summary
 
-**Project:** MandirSync Temple Management System (MTMS)  
+**Project:** MandirMitra Temple Management System (MTMS)  
 **Purpose:** Digitize and streamline temple administration, devotee services, and financial management  
 **Target Market:** Hindu temples in India (2M+ potential customers)  
-**Business Model:** SaaS subscription (₹5K-50K/month based on temple size)
+**Business Model:** SaaS subscription (â‚¹5K-50K/month based on temple size)
 
 **Core Value Proposition:**
 - Increase operational efficiency by 50-70%
@@ -82,34 +82,34 @@
 ### Current State Issues
 
 **1. Manual, Paper-Based Processes**
-- Handwritten donation receipts → errors, illegible
-- Paper-based booking registers → lost records
-- Manual accounting ledgers → time-consuming, error-prone
-- File cabinet storage → data loss risk
+- Handwritten donation receipts â†’ errors, illegible
+- Paper-based booking registers â†’ lost records
+- Manual accounting ledgers â†’ time-consuming, error-prone
+- File cabinet storage â†’ data loss risk
 
 **2. Lack of Transparency**
-- Cash-heavy operations → audit difficulties
+- Cash-heavy operations â†’ audit difficulties
 - No real-time visibility into finances
-- Manual reconciliation → delayed discrepancy detection
+- Manual reconciliation â†’ delayed discrepancy detection
 - Trust issues among devotees
 
 **3. Devotee Inconvenience**
-- No online booking → must visit in person
+- No online booking â†’ must visit in person
 - Long queues during festivals
 - No donation tracking for tax purposes
 - NRIs cannot contribute easily
 
 **4. Compliance Challenges**
-- Manual 80G certificate generation → time-consuming
-- FCRA reporting → complex, error-prone
-- No audit trail → regulatory issues
-- Income tax audits → stressful, slow
+- Manual 80G certificate generation â†’ time-consuming
+- FCRA reporting â†’ complex, error-prone
+- No audit trail â†’ regulatory issues
+- Income tax audits â†’ stressful, slow
 
 **5. Operational Inefficiencies**
-- No inventory tracking → wastage
-- Manual staff scheduling → conflicts
-- No analytics → poor decision-making
-- Duplicate data entry → wasted time
+- No inventory tracking â†’ wastage
+- Manual staff scheduling â†’ conflicts
+- No analytics â†’ poor decision-making
+- Duplicate data entry â†’ wasted time
 
 ### Impact of Problems
 
@@ -390,11 +390,11 @@ So that I can generate category-wise reports easily
 - SMS sent within 60 seconds
 - Works offline (syncs when online)
 - Duplicate detection (same amount, devotee, time)
-- Supports Indian currency formatting (₹1,23,456.00)
+- Supports Indian currency formatting (â‚¹1,23,456.00)
 
 **Business Rules:**
-- Minimum donation: ₹1
-- Maximum cash donation: ₹2,00,000 (as per IT rules)
+- Minimum donation: â‚¹1
+- Maximum cash donation: â‚¹2,00,000 (as per IT rules)
 - Receipt number format: {TEMPLE_CODE}-{YEAR}-{SEQUENCE}
 - Example: TMP001-2025-00123
 
@@ -718,42 +718,42 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed technical specifications.
 ### High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     Client Layer                         │
-├──────────────────┬──────────────────┬───────────────────┤
-│  Web Admin       │  Public Website  │  Mobile App       │
-│  (React)         │  (React)         │  (Flutter)        │
-└──────────────────┴──────────────────┴───────────────────┘
-                           │
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│                    API Gateway (NGINX)                   │
-└─────────────────────────────────────────────────────────┘
-                           │
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│                  Backend Services (FastAPI)              │
-├──────────────────┬──────────────────┬───────────────────┤
-│  Auth Service    │  Donation Svc    │  Booking Service  │
-│  User Mgmt       │  Payment Svc     │  Notification Svc │
-│  Accounting Svc  │  Report Svc      │  Analytics Svc    │
-└──────────────────┴──────────────────┴───────────────────┘
-                           │
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│                   Data Layer                             │
-├──────────────────┬──────────────────┬───────────────────┤
-│  PostgreSQL      │  Redis Cache     │  S3 (Files)       │
-│  (Primary DB)    │  (Sessions)      │  (Images, PDFs)   │
-└──────────────────┴──────────────────┴───────────────────┘
-                           │
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│              External Integrations                       │
-├──────────────────┬──────────────────┬───────────────────┤
-│  Razorpay        │  Twilio (SMS)    │  WhatsApp API     │
-│  (Payments)      │  SendGrid (Email)│  AWS SES          │
-└──────────────────┴──────────────────┴───────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                     Client Layer                         â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚  Web Admin       â”‚  Public Website  â”‚  Mobile App       â”‚
+â”‚  (React)         â”‚  (React)         â”‚  (Flutter)        â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                           â”‚
+                           â†“
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                    API Gateway (NGINX)                   â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                           â”‚
+                           â†“
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                  Backend Services (FastAPI)              â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚  Auth Service    â”‚  Donation Svc    â”‚  Booking Service  â”‚
+â”‚  User Mgmt       â”‚  Payment Svc     â”‚  Notification Svc â”‚
+â”‚  Accounting Svc  â”‚  Report Svc      â”‚  Analytics Svc    â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                           â”‚
+                           â†“
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                   Data Layer                             â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚  PostgreSQL      â”‚  Redis Cache     â”‚  S3 (Files)       â”‚
+â”‚  (Primary DB)    â”‚  (Sessions)      â”‚  (Images, PDFs)   â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                           â”‚
+                           â†“
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚              External Integrations                       â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚  Razorpay        â”‚  Twilio (SMS)    â”‚  WhatsApp API     â”‚
+â”‚  (Payments)      â”‚  SendGrid (Email)â”‚  AWS SES          â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ### Technology Stack
@@ -1056,9 +1056,9 @@ PUT    /api/v1/devotees/{id}
 
 | Metric | Target (Year 1) |
 |--------|-----------------|
-| Monthly Recurring Revenue | ₹15 lakhs |
-| Customer Acquisition Cost | <₹5,000 |
-| Customer Lifetime Value | >₹3 lakhs |
+| Monthly Recurring Revenue | â‚¹15 lakhs |
+| Customer Acquisition Cost | <â‚¹5,000 |
+| Customer Lifetime Value | >â‚¹3 lakhs |
 | Churn rate | <5% annually |
 
 ### Operational Metrics

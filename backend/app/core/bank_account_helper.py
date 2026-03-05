@@ -14,7 +14,7 @@ def get_bank_account_for_payment(
     temple_id: int, 
     payment_mode: str,
     bank_account_id: Optional[int] = None
-) -> Tuple[Optional[Account], str]:
+) -> Tuple[Optional[Account], Optional[str]]:
     """
     Get the appropriate bank account for a payment mode
     
@@ -37,7 +37,8 @@ def get_bank_account_for_payment(
     bank_payment_modes = ['BANK', 'CARD', 'UPI', 'ONLINE', 'NETBANKING', 'CHEQUE', 'DD']
     
     # Check if this is a bank-related payment
-    is_bank_payment = payment_mode.upper() in bank_payment_modes
+    payment_mode_upper = (payment_mode or "").strip().upper()
+    is_bank_payment = payment_mode_upper in bank_payment_modes
     
     if not is_bank_payment:
         return None, None
@@ -87,6 +88,25 @@ def get_bank_account_for_payment(
         if account:
             return account, account.account_code
     
+    # Fallback to default chart-of-accounts bank ledgers when BankAccount master is not configured
+    for account_code in ["12001", "12002", "12003"]:
+        account = db.query(Account).filter(
+            Account.temple_id == temple_id,
+            Account.account_code == account_code,
+            Account.is_active == True
+        ).first()
+        if account:
+            return account, account.account_code
+
+    # Last fallback: any active account under 12xxx (bank group)
+    account = db.query(Account).filter(
+        Account.temple_id == temple_id,
+        Account.account_code.like("12%"),
+        Account.is_active == True
+    ).order_by(Account.account_code.asc()).first()
+    if account:
+        return account, account.account_code
+
     # No bank account found
     return None, None
 

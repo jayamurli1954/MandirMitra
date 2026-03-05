@@ -1,4 +1,4 @@
--- MandirSync - Database Creation Script
+-- MandirMitra - Database Creation Script
 -- Run this in PostgreSQL
 
 -- Create database

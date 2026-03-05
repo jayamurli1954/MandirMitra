@@ -230,41 +230,68 @@ def post_inventory_purchase_to_accounting(db: Session, movement: StockMovement, 
         if not item:
             return None
 
-        # Determine inventory account
-        # Priority: Store inventory account > Item inventory account > Default inventory account
-        inventory_account = None
+        # Priority: Check if inventory module is enabled for this temple
+        from app.models.temple import Temple
+        temple = db.query(Temple).filter(Temple.id == temple_id).first()
+        is_inventory_enabled = temple.module_inventory_enabled if temple else True
 
-        if movement.store_id:
-            store = db.query(Store).filter(Store.id == movement.store_id).first()
-            if store and store.inventory_account_id:
-                inventory_account = (
-                    db.query(Account).filter(Account.id == store.inventory_account_id).first()
+        # Determine target account (Inventory Asset or Expense)
+        target_account = None
+
+        if not is_inventory_enabled:
+            # INTEGRATION POINT: If inventory module is disabled, all items are directly accounted to expense
+            # Priority: Item expense account > Default purchase account (5202 Pooja Materials)
+            if item.expense_account_id:
+                target_account = db.query(Account).filter(Account.id == item.expense_account_id).first()
+            
+            if not target_account:
+                # Fallback to general pooja materials expense
+                target_account = (
+                    db.query(Account)
+                    .filter(
+                        Account.temple_id == temple_id,
+                        Account.account_code == "5202",  # Pooja Materials Expense
+                    )
+                    .first()
+                )
+            
+            if not target_account:
+                # Last resort - find any expense account or stay with 5202
+                print(f"ERROR: No target expense account found for item {item.name} in simple mode")
+                return None
+        else:
+            # COMPREHENSIVE INVENTORY MODE (Default)
+            # Priority: Store inventory account > Item inventory account > Default inventory account
+            if movement.store_id:
+                store = db.query(Store).filter(Store.id == movement.store_id).first()
+                if store and store.inventory_account_id:
+                    target_account = (
+                        db.query(Account).filter(Account.id == store.inventory_account_id).first()
+                    )
+
+            if not target_account and item.inventory_account_id:
+                target_account = (
+                    db.query(Account).filter(Account.id == item.inventory_account_id).first()
                 )
 
-        if not inventory_account and item.inventory_account_id:
-            inventory_account = (
-                db.query(Account).filter(Account.id == item.inventory_account_id).first()
-            )
-
-        # Fallback to default inventory account (14003 - Inventory Assets)
-        # Use 14003 (Inventory Assets) not 14001 (Stock-in-Trade) for temple inventory
-        if not inventory_account:
-            inventory_account = (
-                db.query(Account)
-                .filter(
-                    Account.temple_id == temple_id,
-                    Account.account_code == "14003",  # Inventory Assets (not 14001 Stock-in-Trade)
+            # Fallback to default inventory account (14003 - Inventory Assets)
+            if not target_account:
+                target_account = (
+                    db.query(Account)
+                    .filter(
+                        Account.temple_id == temple_id,
+                        Account.account_code == "14003",  # Inventory Assets
+                    )
+                    .first()
                 )
-                .first()
-            )
 
-        if not inventory_account:
-            print(f"ERROR: Inventory account not found for purchase. Item: {item.name}")
+        if not target_account:
+            print(f"ERROR: No target account (Asset or Expense) found for purchase. Item: {item.name}")
             return None
 
-        # Determine credit account (payment method - assume cash for now, can be enhanced)
-        # For now, default to cash
-        credit_account_code = "11001"  # Cash in Hand - Counter
+        # Determine credit account (payment method)
+        # Default to cash counter
+        credit_account_code = "11001"
         credit_account = (
             db.query(Account)
             .filter(Account.temple_id == temple_id, Account.account_code == credit_account_code)
@@ -318,7 +345,7 @@ def post_inventory_purchase_to_accounting(db: Session, movement: StockMovement, 
         # Create journal lines
         debit_line = JournalLine(
             journal_entry_id=journal_entry.id,
-            account_id=inventory_account.id,
+            account_id=target_account.id,
             debit_amount=movement.total_value,
             credit_amount=0,
             description=f"Purchase - {item.name} ({movement.quantity} {item.unit.value})",
@@ -352,6 +379,17 @@ def post_inventory_issue_to_accounting(db: Session, movement: StockMovement, tem
     Cr: Inventory Account (Asset decreases)
     """
     try:
+        # Priority: Check if inventory module is enabled for this temple
+        from app.models.temple import Temple
+        temple = db.query(Temple).filter(Temple.id == temple_id).first()
+        is_inventory_enabled = temple.module_inventory_enabled if temple else True
+
+        if not is_inventory_enabled:
+            # If inventory module is disabled, we don't post issues because the 
+            # purchase was already directly expensed.
+            print(f"Skipping accounting post for inventory issue: Module disabled for temple {temple_id}")
+            return None
+
         # Get item
         item = db.query(Item).filter(Item.id == movement.item_id).first()
         if not item:

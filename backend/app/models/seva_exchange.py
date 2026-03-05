@@ -59,13 +59,14 @@ class SevaExchangeRequest(Base):
     requested_by = relationship(
         "User",
         foreign_keys=[requested_by_id],
-        primaryjoin="SevaExchangeRequest.requested_by_id == foreign(User.id)"
+        primaryjoin="SevaExchangeRequest.requested_by_id == foreign(User.id)",
+        overlaps="priest,reschedule_approved_by_user,user,approved_by",
     )
     approved_by = relationship(
         "User",
         foreign_keys=[approved_by_id],
         primaryjoin="SevaExchangeRequest.approved_by_id == foreign(User.id)",
-        overlaps="requested_by"
+        overlaps="requested_by,priest,reschedule_approved_by_user,user",
     )
 
 

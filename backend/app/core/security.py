@@ -10,13 +10,19 @@ DO NOT modify the following functions without thorough testing:
 - hash_password() - Used for password hashing
 
 Last verified working: 2024-12-XX
-Login credentials: admin@temple.com / admin123
 
 IMPORTANT NOTES:
 - Bcrypt has a 72-byte password limit
 - Passlib's internal bug detection can cause issues, so we use bcrypt directly as fallback
 - All password functions truncate to 72 bytes to prevent errors
 """
+
+import bcrypt
+# Monkey patch for passlib 1.7.4 compatibility with bcrypt 4.0.0+
+if not hasattr(bcrypt, "__about__"):
+    class MockAbout:
+        __version__ = bcrypt.__version__
+    bcrypt.__about__ = MockAbout()
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -67,7 +73,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     It includes fallback to direct bcrypt verification to handle passlib's bug detection.
 
     Test before modifying:
-    1. Login with admin@temple.com / admin123
+    1. Login with a known valid user in your environment
     2. Verify existing users can still log in
     3. Verify new password hashes work correctly
     """
@@ -125,7 +131,14 @@ def get_password_hash(password: str) -> str:
     password_bytes = password.encode("utf-8")
     if len(password_bytes) > 72:
         password = password_bytes[:72].decode("utf-8", errors="ignore")
-    return pwd_context.hash(password)
+        
+    try:
+        return pwd_context.hash(password)
+    except Exception:
+        # Fallback to direct bcrypt if passlib fails
+        import bcrypt
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

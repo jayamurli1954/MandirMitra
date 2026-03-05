@@ -49,6 +49,21 @@ function PanchangDisplay({ data, settings, compact = false }) {
   };
 
   const displaySettings = settings || defaultSettings;
+  const hinduDate = data?.date?.hindu || {};
+  const vikramSamvat = hinduDate.samvat_vikram || hinduDate.vikram_samvat || '';
+  const shakaSamvat = hinduDate.samvat_shaka || hinduDate.shaka_samvat || '';
+  const monthPaksha = [hinduDate.month, hinduDate.paksha && `${hinduDate.paksha} Paksha`]
+    .filter(Boolean)
+    .join(' ');
+  // Panchang calculation module is frozen; hide Amrita/Varjyam display in UI.
+  const showAmrita = false;
+  const showVarjyam = false;
+  const amritaPreviewOnly =
+    data?.calculation_metadata?.amrita_kalam_verified !== true
+    && data?.calculation_metadata?.amrita_kalam_preview === true;
+  const varjyamPreviewOnly =
+    data?.calculation_metadata?.varjyam_verified !== true
+    && data?.calculation_metadata?.varjyam_preview === true;
 
   // Live countdown timer for tithi/nakshatra transitions
   useEffect(() => {
@@ -108,7 +123,12 @@ function PanchangDisplay({ data, settings, compact = false }) {
   }
 
   const formatTime = (timeString) => {
-    if (!timeString) return 'N/A';
+    if (!timeString || timeString === 'N/A') return 'N/A';
+
+    // If already formatted with AM/PM (e.g., from backend moonrise calculation)
+    if (typeof timeString === 'string' && (timeString.includes('AM') || timeString.includes('PM'))) {
+      return timeString;
+    }
 
     if (timeString.match(/^\d{2}:\d{2}:\d{2}$/)) {
       const [hours, minutes] = timeString.split(':');
@@ -300,18 +320,18 @@ function PanchangDisplay({ data, settings, compact = false }) {
                 sx={{ bgcolor: '#4CAF50', color: '#fff', fontWeight: 600 }}
               />
               <Chip
-                label={`🎯 Lahiri Ayanamsa (${data.calculation_metadata?.ayanamsa_value?.toFixed(2)}°)`}
+                label={`🎯 Lahiri Ayanamsa (${data.calculation_metadata?.ayanamsa_value ? data.calculation_metadata.ayanamsa_value.toFixed(2) : 'N/A'}°)`}
                 size="small"
                 sx={{ bgcolor: '#2196F3', color: '#fff', fontWeight: 600 }}
               />
               <Chip
-                label={`⏱️ Calculated: ${getTimeAgo(data.calculation_metadata?.generated_at)}`}
+                label={`⏱️ Calculated: ${data.calculation_metadata?.generated_at ? getTimeAgo(data.calculation_metadata.generated_at) : 'recently'}`}
                 size="small"
                 sx={{ bgcolor: '#FF9800', color: '#fff', fontWeight: 600 }}
               />
               {data.location && (
                 <Chip
-                  label={`📍 ${data.location.city} (${parseFloat(data.location.latitude).toFixed(2)}°N, ${parseFloat(data.location.longitude).toFixed(2)}°E)`}
+                  label={`📍 ${data.location.city || 'Location'} (${data.location.latitude ? parseFloat(data.location.latitude).toFixed(2) : '0'}°N, ${data.location.longitude ? parseFloat(data.location.longitude).toFixed(2) : '0'}°E)`}
                   size="small"
                   sx={{ bgcolor: '#9C27B0', color: '#fff', fontWeight: 600 }}
                 />
@@ -360,16 +380,27 @@ function PanchangDisplay({ data, settings, compact = false }) {
             </Typography>
             {data.date?.hindu && (
               <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ gap: 0.5 }}>
-                <Chip
-                  label={`Vikram Samvat ${data.date.hindu.samvat_vikram}`}
-                  size="small"
-                  sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 500 }}
-                />
-                <Chip
-                  label={`${data.date.hindu.month} ${data.date.hindu.paksha} Paksha`}
-                  size="small"
-                  sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 500 }}
-                />
+                {vikramSamvat && (
+                  <Chip
+                    label={`Vikram Samvat ${vikramSamvat}`}
+                    size="small"
+                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 500 }}
+                  />
+                )}
+                {shakaSamvat && (
+                  <Chip
+                    label={`Shaka Samvat ${shakaSamvat}`}
+                    size="small"
+                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 500 }}
+                  />
+                )}
+                {monthPaksha && (
+                  <Chip
+                    label={monthPaksha}
+                    size="small"
+                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 500 }}
+                  />
+                )}
                 {data.date.hindu.samvatsara && (
                   <Chip
                     label={`${data.date.hindu.samvatsara.name} (${data.date.hindu.samvatsara.cycle_year}/60)`}
@@ -892,11 +923,12 @@ function PanchangDisplay({ data, settings, compact = false }) {
                     </Typography>
                   </Box>
                 )}
-                {data.auspicious_times.amrita_kalam && (
+                {showAmrita && data.auspicious_times.amrita_kalam && (
                   <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         🍯 Amrita Kalam
+                        {amritaPreviewOnly ? ' (Preview)' : ''}
                       </Typography>
                       <Typography variant="body1" sx={{ fontWeight: 700, color: '#2E7D32' }}>
                         {formatTime(data.auspicious_times.amrita_kalam.start)} - {formatTime(data.auspicious_times.amrita_kalam.end)}
@@ -974,11 +1006,12 @@ function PanchangDisplay({ data, settings, compact = false }) {
                     </Typography>
                   </Box>
                 ))}
-                {data.additional_inauspicious_times?.varjyam && data.additional_inauspicious_times.varjyam.map((varj, idx) => (
+                {showVarjyam && data.additional_inauspicious_times?.varjyam && data.additional_inauspicious_times.varjyam.map((varj, idx) => (
                   <Box key={idx} sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         🚫 Varjyam
+                        {varjyamPreviewOnly ? ' (Preview)' : ''}
                       </Typography>
                       <Typography variant="body1" sx={{ fontWeight: 700, color: '#C62828' }}>
                         {formatTime(varj.start)} - {formatTime(varj.end)}
@@ -1087,7 +1120,7 @@ function PanchangDisplay({ data, settings, compact = false }) {
                   <List dense>
                     {data.special_notes.recommendations.map((rec, idx) => (
                       <ListItem key={idx} sx={{ py: 0.5 }}>
-                        <ListItemText 
+                        <ListItemText
                           primary={rec}
                           primaryTypographyProps={{ variant: 'body2' }}
                         />
@@ -1104,7 +1137,7 @@ function PanchangDisplay({ data, settings, compact = false }) {
                   <List dense>
                     {data.special_notes.avoid.map((item, idx) => (
                       <ListItem key={idx} sx={{ py: 0.5 }}>
-                        <ListItemText 
+                        <ListItemText
                           primary={item}
                           primaryTypographyProps={{ variant: 'body2' }}
                         />

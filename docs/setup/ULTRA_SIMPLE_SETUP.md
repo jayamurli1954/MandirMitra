@@ -1,12 +1,12 @@
-# Ultra Simple Setup - Just 2 Commands! 🚀
+# Ultra Simple Setup - Just 2 Commands! ðŸš€
 
-## ✅ Super Easy - No Copying/Pasting Needed!
+## âœ… Super Easy - No Copying/Pasting Needed!
 
 I've created a **single script** that does everything automatically!
 
 ---
 
-## 📋 Just Follow These 2 Steps:
+## ðŸ“‹ Just Follow These 2 Steps:
 
 ### Step 1: Activate Your Environment
 
@@ -29,7 +29,7 @@ conda activate base
 
 ```bash
 # Make sure you're in the backend folder
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 
 # Run the setup script
 python -m scripts.setup_multi_user
@@ -37,18 +37,18 @@ python -m scripts.setup_multi_user
 
 ---
 
-## 🎯 That's It!
+## ðŸŽ¯ That's It!
 
 The script will automatically:
-1. ✅ Create the audit_logs table
-2. ✅ Create 3 clerk users (clerk1, clerk2, clerk3)
-3. ✅ Show you everything that was created
+1. âœ… Create the audit_logs table
+2. âœ… Create 3 clerk users (clerk1, clerk2, clerk3)
+3. âœ… Show you everything that was created
 
 **No copying, no pasting, no SQL - just run the script!**
 
 ---
 
-## 📺 What You'll See:
+## ðŸ“º What You'll See:
 
 ```
 ============================================================
@@ -56,25 +56,25 @@ MULTI-USER & AUDIT TRAIL SETUP
 ============================================================
 
 STEP 1: Creating Audit Logs Table...
-✅ Audit logs table created successfully!
+âœ… Audit logs table created successfully!
 
 STEP 2: Creating Clerk Users...
-✅ Created: Clerk 1
+âœ… Created: Clerk 1
    Email: clerk1@temple.local
    Password: clerk123
 
-✅ SETUP COMPLETE!
+âœ… SETUP COMPLETE!
 ```
 
 ---
 
-## ❓ Need Help?
+## â“ Need Help?
 
 If you get an error, just tell me what the error message says and I'll help you fix it!
 
 ---
 
-**Just 2 commands and you're done!** 🎉
+**Just 2 commands and you're done!** ðŸŽ‰
 
 
 

@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.coa_bootstrap import ensure_default_coa_for_temple
 from app.core.audit import log_action, get_entity_dict
 from fastapi import Request
 from app.models.donation import Donation, DonationCategory, DonationType, InKindDonationSubType
@@ -34,12 +35,14 @@ from app.models.temple import Temple
 from app.models.user import User
 from app.models.accounting import (
     Account,
+    AccountSubType,
     JournalEntry,
     JournalLine,
     JournalEntryStatus,
     TransactionType,
 )
-from app.services.printer import get_print_queue
+from app.services.printer import get_print_queue, get_printer_manager
+from app.services.notification_service import notification_service
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/donations", tags=["donations"])
@@ -66,6 +69,116 @@ def get_donation_categories(
     ]
 
 
+def _get_payment_accounts_for_temple(db: Session, temple_id: Optional[int]) -> dict:
+    """Fetch active cash and bank accounts for payment selection."""
+    from app.models.upi_banking import BankAccount
+
+    # Standalone fallback: resolve first temple when user.temple_id is null.
+    if not temple_id:
+        first_temple = db.query(Temple.id).order_by(Temple.id.asc()).first()
+        temple_id = first_temple.id if first_temple else None
+    if not temple_id:
+        return {"cash_accounts": [], "bank_accounts": []}
+
+    cash_accounts = (
+        db.query(Account)
+        .filter(
+            Account.temple_id == temple_id,
+            Account.is_active == True,
+            Account.account_subtype == AccountSubType.CASH_BANK,
+            Account.account_code.like("11%"),
+        )
+        .order_by(Account.account_code.asc())
+        .all()
+    )
+    # Fallback for legacy COA rows without account_subtype.
+    if not cash_accounts:
+        cash_accounts = (
+            db.query(Account)
+            .filter(
+                Account.temple_id == temple_id,
+                Account.is_active == True,
+                Account.account_code.like("11%"),
+            )
+            .order_by(Account.account_code.asc())
+            .all()
+        )
+
+    bank_accounts = (
+        db.query(BankAccount)
+        .filter(BankAccount.temple_id == temple_id, BankAccount.is_active == True)
+        .order_by(BankAccount.is_primary.desc(), BankAccount.account_name.asc())
+        .all()
+    )
+
+    bank_results = []
+    for bank_acc in bank_accounts:
+        chart_account = (
+            db.query(Account)
+            .filter(
+                Account.id == bank_acc.chart_account_id,
+                Account.temple_id == temple_id,
+                Account.is_active == True,
+            )
+            .first()
+        )
+        if not chart_account:
+            continue
+        bank_results.append(
+            {
+                "id": bank_acc.id,  # BankAccount.id (backward-compatible)
+                "bank_account_id": bank_acc.id,
+                "account_id": chart_account.id,  # Account.id for accounting selection
+                "account_code": chart_account.account_code,
+                "account_name": chart_account.account_name,
+                "name": bank_acc.account_name,
+                "bank_name": bank_acc.bank_name,
+                "account_number": bank_acc.account_number,
+                "ifsc_code": bank_acc.ifsc_code,
+                "is_primary": bank_acc.is_primary,
+            }
+        )
+
+    # Fallback: if BankAccount master is not configured, use bank ledgers directly from COA.
+    if not bank_results:
+        fallback_bank_ledgers = (
+            db.query(Account)
+            .filter(
+                Account.temple_id == temple_id,
+                Account.is_active == True,
+                Account.account_code.like("12%"),
+            )
+            .order_by(Account.account_code.asc())
+            .all()
+        )
+        for ledger in fallback_bank_ledgers:
+            bank_results.append(
+                {
+                    "id": f"coa-{ledger.id}",
+                    "bank_account_id": None,
+                    "account_id": ledger.id,
+                    "account_code": ledger.account_code,
+                    "account_name": ledger.account_name,
+                    "name": ledger.account_name,
+                    "bank_name": None,
+                    "account_number": None,
+                    "ifsc_code": None,
+                    "is_primary": False,
+                }
+            )
+
+    cash_results = [
+        {
+            "account_id": acc.id,
+            "account_code": acc.account_code,
+            "account_name": acc.account_name,
+        }
+        for acc in cash_accounts
+    ]
+
+    return {"cash_accounts": cash_results, "bank_accounts": bank_results}
+
+
 def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int):
     """
     Create journal entry for donation in accounting system
@@ -87,6 +200,17 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
     while still allowing detailed category-wise accounts for temples that link them.
     """
     try:
+        # Ensure base COA exists before posting entries.
+        seed_result = ensure_default_coa_for_temple(db, temple_id, raise_on_error=False)
+        if seed_result.get("created", 0) > 0:
+            print(
+                f"  INFO: Initialized {seed_result['created']} default COA account(s) for temple {temple_id}"
+            )
+        if seed_result.get("error"):
+            print(
+                f"  WARNING: Could not auto-initialize COA for temple {temple_id}: {seed_result['error']}"
+            )
+
         # Handle in-kind donations differently
         if donation.donation_type == DonationType.IN_KIND:
             # Determine debit account based on in-kind subtype
@@ -147,9 +271,48 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
         else:
             # Cash donation - determine debit account (payment method)
             debit_account = None
+            payment_mode_upper = (donation.payment_mode or "").strip().upper()
+            bank_payment_modes = {"UPI", "ONLINE", "CARD", "NETBANKING", "BANK", "CHEQUE", "DD"}
+
+            # First priority: explicitly selected chart account from UI.
+            selected_payment_account_id = getattr(donation, "payment_account_id", None)
+            if selected_payment_account_id:
+                selected_account = (
+                    db.query(Account)
+                    .filter(
+                        Account.id == selected_payment_account_id,
+                        Account.temple_id == temple_id,
+                        Account.is_active == True,
+                    )
+                    .first()
+                )
+                if not selected_account:
+                    raise ValueError(
+                        f"Selected payment account {selected_payment_account_id} was not found."
+                    )
+
+                is_cash_mode = payment_mode_upper in {"CASH", "COUNTER"} or "HUNDI" in payment_mode_upper
+                is_bank_mode = payment_mode_upper in bank_payment_modes
+                if is_cash_mode and not selected_account.account_code.startswith("11"):
+                    raise ValueError(
+                        "Selected payment account is not a cash account (expected code starting with 11)."
+                    )
+                if is_bank_mode and not selected_account.account_code.startswith("12"):
+                    raise ValueError(
+                        "Selected payment account is not a bank account (expected code starting with 12)."
+                    )
+
+                debit_account = selected_account
+                print(
+                    f"  Using selected payment account: {debit_account.account_code} - {debit_account.account_name}"
+                )
 
             # If bank_account_id is provided, use that account (for Card, UPI, Online, Cheque)
-            if hasattr(donation, "bank_account_id") and donation.bank_account_id:
+            if (
+                not debit_account
+                and hasattr(donation, "bank_account_id")
+                and donation.bank_account_id
+            ):
                 from app.models.upi_banking import BankAccount
 
                 bank_account = (
@@ -181,7 +344,7 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
             # If no bank account selected or not found, fall back to payment mode logic
             if not debit_account:
                 debit_account_code = None
-                if donation.payment_mode and donation.payment_mode.upper() in ["CASH", "COUNTER"]:
+                if payment_mode_upper in ["CASH", "COUNTER"]:
                     from app.core.bank_account_helper import get_cash_account_for_payment
 
                     debit_account = get_cash_account_for_payment(db, temple_id, "CASH", hundi=False)
@@ -195,22 +358,14 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
                             )
                             .first()
                         )
-                elif donation.payment_mode and donation.payment_mode.upper() in [
-                    "UPI",
-                    "ONLINE",
-                    "CARD",
-                    "NETBANKING",
-                    "BANK",
-                    "CHEQUE",
-                    "DD",
-                ]:
+                elif payment_mode_upper in bank_payment_modes:
                     # Use helper function to get bank account from BankAccount model
                     from app.core.bank_account_helper import get_bank_account_for_payment
 
                     debit_account, fallback_code = get_bank_account_for_payment(
                         db,
                         temple_id,
-                        donation.payment_mode.upper(),
+                        payment_mode_upper,
                         bank_account_id=getattr(donation, "bank_account_id", None),
                     )
                     if debit_account:
@@ -231,11 +386,11 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
                         print(
                             f"  WARNING: No bank account found for payment mode {donation.payment_mode}. Please create a bank account in Bank Account Management."
                         )
-                elif donation.payment_mode and "HUNDI" in donation.payment_mode.upper():
+                elif "HUNDI" in payment_mode_upper:
                     from app.core.bank_account_helper import get_cash_account_for_payment
 
                     debit_account = get_cash_account_for_payment(
-                        db, temple_id, donation.payment_mode.upper(), hundi=True
+                        db, temple_id, payment_mode_upper, hundi=True
                     )
                     if not debit_account:
                         debit_account_code = (
@@ -255,7 +410,7 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
                     debit_account = get_cash_account_for_payment(
                         db,
                         temple_id,
-                        donation.payment_mode.upper() if donation.payment_mode else "CASH",
+                        payment_mode_upper if payment_mode_upper else "CASH",
                         hundi=False,
                     )
                     if not debit_account:
@@ -308,17 +463,50 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
                 )
 
         if not debit_account:
-            # Try to find the account using helper functions as last resort
-            from app.core.bank_account_helper import get_cash_account_for_payment
+            # Final safety resolution:
+            # Do not force non-cash donations into Cash in Hand (11001).
+            from app.core.bank_account_helper import (
+                get_bank_account_for_payment,
+                get_cash_account_for_payment,
+            )
 
-            if donation.payment_mode and "HUNDI" in donation.payment_mode.upper():
+            payment_mode_upper = (donation.payment_mode or "CASH").strip().upper()
+            if payment_mode_upper in bank_payment_modes:
+                debit_account, fallback_code = get_bank_account_for_payment(
+                    db,
+                    temple_id,
+                    payment_mode_upper,
+                    bank_account_id=getattr(donation, "bank_account_id", None),
+                )
+                if not debit_account and fallback_code:
+                    debit_account = (
+                        db.query(Account)
+                        .filter(
+                            Account.temple_id == temple_id,
+                            Account.account_code == fallback_code,
+                        )
+                        .first()
+                    )
+                if not debit_account:
+                    raise ValueError(
+                        f"Debit account not found for non-cash payment mode '{donation.payment_mode}' "
+                        f"for temple {temple_id}. Please configure Bank Account Management or "
+                        "ensure bank ledgers (e.g., 12001/12002/12003) exist."
+                    )
+            elif "HUNDI" in payment_mode_upper:
                 debit_account = get_cash_account_for_payment(db, temple_id, "HUNDI", hundi=True)
+                if not debit_account:
+                    raise ValueError(
+                        f"Debit account not found for hundi payment mode '{donation.payment_mode}' "
+                        f"for temple {temple_id}. Please create '11002 - Cash in Hand - Hundi'."
+                    )
             else:
                 debit_account = get_cash_account_for_payment(db, temple_id, "CASH", hundi=False)
-
-            if not debit_account:
-                error_msg = f"Debit account not found for payment mode '{donation.payment_mode}' for temple {temple_id}. Please create the account (Cash: 11001, Hundi: 11002) in Chart of Accounts or configure a bank account in Bank Account Management."
-                raise ValueError(error_msg)
+                if not debit_account:
+                    raise ValueError(
+                        f"Debit account not found for cash payment mode '{donation.payment_mode}' "
+                        f"for temple {temple_id}. Please create '11001 - Cash in Hand - Counter'."
+                    )
 
         if not credit_account:
             error_msg = f"Credit account not found for donation category '{donation.category.name if donation.category else 'Unknown'}'. Please link an account to the donation category or create default income accounts."
@@ -450,7 +638,7 @@ def post_donation_to_accounting(db: Session, donation: Donation, temple_id: int)
 
 # Pydantic Schemas
 class DonationBase(BaseModel):
-    devotee_first_name: str  # First name
+    devotee_first_name: Optional[str] = None  # First name
     devotee_last_name: Optional[str] = None  # Last name (optional)
     devotee_name: Optional[
         str
@@ -463,6 +651,8 @@ class DonationBase(BaseModel):
     category: str
     donation_type: DonationType = DonationType.CASH  # Default to cash donation
     payment_mode: Optional[str] = "Cash"  # Required for cash donations, optional for in-kind
+    payment_sub_mode: Optional[str] = None  # Required when payment_mode is 'Bank'
+    payment_account_id: Optional[int] = None  # Selected chart account (cash/bank) for debit
     bank_account_id: Optional[
         int
     ] = None  # Bank account ID for non-cash payments (Card, UPI, Online, Cheque)
@@ -804,7 +994,38 @@ def create_donation(
                 status_code=400, detail="payment_mode is required for cash donations"
             )
         # Normalize payment_mode to handle case variations
-        payment_mode = donation.payment_mode.lower() if donation.payment_mode else None
+        payment_mode = donation.payment_mode.strip().lower() if donation.payment_mode else None
+        # If UI sends top-level 'Bank', require a bank sub-mode and map it to actual payment mode
+        if payment_mode == "bank":
+            payment_sub_mode = (
+                donation.payment_sub_mode.strip().lower() if donation.payment_sub_mode else None
+            )
+            if not payment_sub_mode:
+                raise HTTPException(
+                    status_code=400,
+                    detail="payment_sub_mode is required when payment_mode is 'Bank'",
+                )
+
+            # Normalize aliases to existing supported modes
+            bank_mode_aliases = {
+                "online transfer": "online",
+                "online_transfer": "online",
+                "bank transfer": "online",
+                "bank_transfer": "online",
+                "net banking": "netbanking",
+            }
+            payment_sub_mode = bank_mode_aliases.get(payment_sub_mode, payment_sub_mode)
+
+            valid_bank_modes = {"upi", "online", "cheque", "dd", "card", "netbanking"}
+            if payment_sub_mode not in valid_bank_modes:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Invalid payment_sub_mode for Bank. Use one of: "
+                        "UPI, Online, Cheque, DD, Card, Netbanking"
+                    ),
+                )
+            payment_mode = payment_sub_mode
         assessed_value = None
 
     # Duplicate detection: Check for similar donation within last 5 minutes
@@ -1227,6 +1448,9 @@ def create_donation(
     # Post to accounting system BEFORE final commit
     # This ensures strict double-entry accounting - if accounting fails, donation fails
     try:
+        # Transient attributes used by accounting posting logic (not persisted in Donation table).
+        db_donation.payment_account_id = getattr(donation, "payment_account_id", None)
+        db_donation.bank_account_id = getattr(donation, "bank_account_id", None)
         journal_entry = post_donation_to_accounting(
             db, db_donation, current_user.temple_id if current_user else None
         )
@@ -1243,10 +1467,16 @@ def create_donation(
     db.commit()
     db.refresh(db_donation)
 
-    # Auto-print is DISABLED in this setup because no physical printer is attached.
-    # We always treat printer as not configured so that the frontend only downloads PDFs
-    # and never tries to invoke any OS-level printing (which was triggering Foxit errors).
+    # Detect whether a printer is configured and initialized.
     printer_configured = False
+    try:
+        printer_manager = get_printer_manager()
+        default_printer_id = printer_manager.get_default_printer_id()
+        printer_configured = bool(
+            default_printer_id and printer_manager.get_printer(default_printer_id)
+        )
+    except Exception:
+        printer_configured = False
 
     # Audit log
     log_action(
@@ -1262,18 +1492,28 @@ def create_donation(
     )
 
     # Auto-send SMS/Email receipt (if enabled and devotee preferences allow)
+    notification_results = None
     try:
-        if devotee.receive_sms and devotee.phone:
-            # Send SMS receipt (async - don't block response)
-            # TODO: Implement SMS service integration
-            pass
-        if devotee.receive_email and devotee.email:
-            # Send Email receipt (async - don't block response)
-            # TODO: Implement Email service integration
-            pass
+        if devotee and (
+            (devotee.receive_sms and devotee.phone) or (devotee.receive_email and devotee.email)
+        ):
+            notification_results = notification_service.send_donation_receipt(
+                {
+                    "devotee_name": devotee.name,
+                    "phone": devotee.phone,
+                    "email": devotee.email,
+                    "receipt_number": db_donation.receipt_number,
+                    "amount": db_donation.amount,
+                    "date": db_donation.donation_date.strftime("%d-%m-%Y")
+                    if db_donation.donation_date
+                    else "",
+                    "category": category.name if category else "General Donation",
+                }
+            )
     except Exception as e:
         # Don't fail donation creation if SMS/Email fails
         print(f"Failed to send receipt notification: {str(e)}")
+        notification_results = {"error": str(e)}
 
     # Format response similar to get_donations endpoint
     donation_type_value = db_donation.donation_type
@@ -1291,6 +1531,7 @@ def create_donation(
         "payment_mode": db_donation.payment_mode,
         "donation_date": db_donation.donation_date,
         "printer_configured": printer_configured,  # Indicate if printer is available
+        "notification_results": notification_results,
         "devotee": {
             "id": devotee.id if devotee else None,
             "name": devotee.name if devotee else None,
@@ -1831,43 +2072,23 @@ def _number_to_words(n):
     return result.strip()
 
 
+@router.get("/payment-accounts")
+def get_payment_accounts_for_donations(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Get active cash and bank accounts for donation/seva payment selection."""
+    temple_id = current_user.temple_id if current_user else None
+    return _get_payment_accounts_for_temple(db, temple_id)
+
+
 @router.get("/bank-accounts")
 def get_bank_accounts_for_donations(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    """Get list of active bank accounts for donation form"""
-    from app.models.upi_banking import BankAccount
-    from app.models.accounting import Account
-
+    """Get list of active bank accounts for donation form (backward-compatible route)."""
     temple_id = current_user.temple_id if current_user else None
-
-    # Get active bank accounts
-    bank_accounts = (
-        db.query(BankAccount)
-        .filter(BankAccount.temple_id == temple_id, BankAccount.is_active == True)
-        .all()
-    )
-
-    result = []
-    for bank_acc in bank_accounts:
-        # Get the linked chart account
-        chart_account = db.query(Account).filter(Account.id == bank_acc.chart_account_id).first()
-        result.append(
-            {
-                "id": bank_acc.id,
-                "name": bank_acc.account_name,
-                "bank_name": bank_acc.bank_name,
-                "account_number": bank_acc.account_number,
-                "ifsc_code": bank_acc.ifsc_code,
-                "is_primary": bank_acc.is_primary,
-                "account_code": chart_account.account_code if chart_account else None,
-                "account_name": chart_account.account_name
-                if chart_account
-                else bank_acc.account_name,
-            }
-        )
-
-    return result
+    data = _get_payment_accounts_for_temple(db, temple_id)
+    return data["bank_accounts"]
 
 
 @router.get("/", response_model=List[DonationResponse])

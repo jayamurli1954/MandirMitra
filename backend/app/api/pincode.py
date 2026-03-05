@@ -21,14 +21,19 @@ def load_pincode_data():
     if _pincode_cache is not None:
         return _pincode_cache
     
-    # Find the CSV file in project root
-    project_root = Path(__file__).parent.parent.parent.parent
-    csv_file = project_root / "All_India_PINCode_master.csv"
-    
-    if not csv_file.exists():
+    # Find the CSV file in known locations
+    project_root = Path(__file__).resolve().parents[3]
+    candidate_files = [
+        project_root / "data" / "All_India_PINCode_master.csv",
+        project_root / "All_India_PINCode_master.csv",
+        project_root / "backend" / "All_India_PINCode_master.csv",
+    ]
+    csv_file = next((path for path in candidate_files if path.exists()), None)
+
+    if not csv_file:
         raise HTTPException(
             status_code=500,
-            detail="Pincode data file not found. Please ensure All_India_PINCode_master.csv is in the project root."
+            detail="Pincode data file not found. Please ensure All_India_PINCode_master.csv exists in the data directory."
         )
     
     try:

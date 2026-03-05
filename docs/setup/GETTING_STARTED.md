@@ -1,20 +1,20 @@
-# 🚀 Getting Started with MandirSync
+# ðŸš€ Getting Started with MandirMitra
 
 **Complete guide to get your development environment ready**
 
 ---
 
-## ⚡ Quick Setup (15 minutes)
+## âš¡ Quick Setup (15 minutes)
 
 ### Step 1: Install Prerequisites
 
 Make sure you have these installed:
 
-- ✅ **Python 3.11+** - [Download](https://www.python.org/downloads/)
-- ✅ **Node.js 18+** - [Download](https://nodejs.org/)
-- ✅ **PostgreSQL 14+** - [Download](https://www.postgresql.org/download/windows/)
-- ✅ **Git** - [Download](https://git-scm.com/download/win)
-- ✅ **VS Code** (recommended) - [Download](https://code.visualstudio.com/)
+- âœ… **Python 3.11+** - [Download](https://www.python.org/downloads/)
+- âœ… **Node.js 18+** - [Download](https://nodejs.org/)
+- âœ… **PostgreSQL 14+** - [Download](https://www.postgresql.org/download/windows/)
+- âœ… **Git** - [Download](https://git-scm.com/download/win)
+- âœ… **VS Code** (recommended) - [Download](https://code.visualstudio.com/)
 
 **Detailed installation instructions**: See [scripts/setup_windows.md](scripts/setup_windows.md)
 
@@ -46,7 +46,7 @@ CREATE DATABASE temple_db;
 
 ```powershell
 # Navigate to project
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 
 # Create virtual environment
 python -m venv venv
@@ -98,41 +98,41 @@ Open your browser and visit:
 - **API Docs**: http://localhost:8000/docs (Interactive!)
 - **Health Check**: http://localhost:8000/health
 
-**If you see the API documentation page, congratulations! 🎉**
+**If you see the API documentation page, congratulations! ðŸŽ‰**
 
 Press `Ctrl+C` in terminal to stop the server.
 
 ---
 
-## 📁 What's Been Created
+## ðŸ“ What's Been Created
 
 Your project now has:
 
 ```
-MandirSync/
-├── backend/
-│   ├── app/
-│   │   ├── core/
-│   │   │   ├── config.py        ✅ Configuration system
-│   │   │   ├── database.py      ✅ Database connection
-│   │   │   └── security.py      ✅ Auth utilities
-│   │   ├── models/
-│   │   │   ├── temple.py        ✅ Temple model
-│   │   │   ├── user.py          ✅ User model
-│   │   │   ├── devotee.py       ✅ Devotee model
-│   │   │   └── donation.py      ✅ Donation models
-│   │   └── main.py              ✅ FastAPI app
-│   ├── .env                     ✅ Your config
-│   ├── .env.example             ✅ Template
-│   ├── requirements.txt         ✅ Dependencies
-│   └── venv/                    ✅ Virtual environment
-├── docs/                        ✅ Documentation
-└── scripts/                     ✅ Setup guides
+MandirMitra/
+â”œâ”€â”€ backend/
+â”‚   â”œâ”€â”€ app/
+â”‚   â”‚   â”œâ”€â”€ core/
+â”‚   â”‚   â”‚   â”œâ”€â”€ config.py        âœ… Configuration system
+â”‚   â”‚   â”‚   â”œâ”€â”€ database.py      âœ… Database connection
+â”‚   â”‚   â”‚   â””â”€â”€ security.py      âœ… Auth utilities
+â”‚   â”‚   â”œâ”€â”€ models/
+â”‚   â”‚   â”‚   â”œâ”€â”€ temple.py        âœ… Temple model
+â”‚   â”‚   â”‚   â”œâ”€â”€ user.py          âœ… User model
+â”‚   â”‚   â”‚   â”œâ”€â”€ devotee.py       âœ… Devotee model
+â”‚   â”‚   â”‚   â””â”€â”€ donation.py      âœ… Donation models
+â”‚   â”‚   â””â”€â”€ main.py              âœ… FastAPI app
+â”‚   â”œâ”€â”€ .env                     âœ… Your config
+â”‚   â”œâ”€â”€ .env.example             âœ… Template
+â”‚   â”œâ”€â”€ requirements.txt         âœ… Dependencies
+â”‚   â””â”€â”€ venv/                    âœ… Virtual environment
+â”œâ”€â”€ docs/                        âœ… Documentation
+â””â”€â”€ scripts/                     âœ… Setup guides
 ```
 
 ---
 
-## 🎯 Next Steps - Build Donation Module!
+## ðŸŽ¯ Next Steps - Build Donation Module!
 
 Now that setup is complete, let's build our first feature: **Donation Management**
 
@@ -147,41 +147,41 @@ Now that setup is complete, let's build our first feature: **Donation Management
 
 ```
 backend/app/
-├── schemas/
-│   ├── __init__.py
-│   ├── donation.py         ← Validation schemas
-│   └── devotee.py
-├── services/
-│   ├── __init__.py
-│   ├── donation_service.py ← Business logic
-│   └── devotee_service.py
-└── api/
-    ├── __init__.py
-    ├── auth.py             ← Authentication
-    ├── donations.py        ← Donation endpoints
-    └── devotees.py
+â”œâ”€â”€ schemas/
+â”‚   â”œâ”€â”€ __init__.py
+â”‚   â”œâ”€â”€ donation.py         â† Validation schemas
+â”‚   â””â”€â”€ devotee.py
+â”œâ”€â”€ services/
+â”‚   â”œâ”€â”€ __init__.py
+â”‚   â”œâ”€â”€ donation_service.py â† Business logic
+â”‚   â””â”€â”€ devotee_service.py
+â””â”€â”€ api/
+    â”œâ”€â”€ __init__.py
+    â”œâ”€â”€ auth.py             â† Authentication
+    â”œâ”€â”€ donations.py        â† Donation endpoints
+    â””â”€â”€ devotees.py
 ```
 
 ---
 
-## 📚 Learning Resources
+## ðŸ“š Learning Resources
 
 If you're new to any of these technologies:
 
 ### FastAPI (Recommended!)
-- 📖 [Official Tutorial](https://fastapi.tiangolo.com/tutorial/)
-- 🎥 [FastAPI in 45 minutes](https://www.youtube.com/watch?v=0sOvCWFmrtA)
+- ðŸ“– [Official Tutorial](https://fastapi.tiangolo.com/tutorial/)
+- ðŸŽ¥ [FastAPI in 45 minutes](https://www.youtube.com/watch?v=0sOvCWFmrtA)
 
 ### SQLAlchemy
-- 📖 [SQLAlchemy Tutorial](https://docs.sqlalchemy.org/en/20/tutorial/)
-- 🎥 [SQLAlchemy Basics](https://www.youtube.com/watch?v=AKQ3XEDI9Mw)
+- ðŸ“– [SQLAlchemy Tutorial](https://docs.sqlalchemy.org/en/20/tutorial/)
+- ðŸŽ¥ [SQLAlchemy Basics](https://www.youtube.com/watch?v=AKQ3XEDI9Mw)
 
 ### Pydantic
-- 📖 [Pydantic Docs](https://docs.pydantic.dev/)
+- ðŸ“– [Pydantic Docs](https://docs.pydantic.dev/)
 
 ---
 
-## 🐛 Troubleshooting
+## ðŸ› Troubleshooting
 
 ### "python is not recognized"
 
@@ -218,13 +218,13 @@ venv\Scripts\activate
 
 ---
 
-## 💡 Development Tips
+## ðŸ’¡ Development Tips
 
 ### 1. Keep Virtual Environment Active
 
 Always work with `(venv)` showing in your prompt:
 ```powershell
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 venv\Scripts\activate
 ```
 
@@ -247,7 +247,7 @@ Use a database GUI to see your data:
 
 ---
 
-## ✅ Checklist
+## âœ… Checklist
 
 Before moving forward, make sure:
 
@@ -260,11 +260,11 @@ Before moving forward, make sure:
 - [ ] Backend server runs successfully
 - [ ] Can access http://localhost:8000/docs
 
-**All checked? Awesome! You're ready to build! 🎉**
+**All checked? Awesome! You're ready to build! ðŸŽ‰**
 
 ---
 
-## 🚀 Ready for Next Step?
+## ðŸš€ Ready for Next Step?
 
 **What to do next:**
 
@@ -280,25 +280,25 @@ Before moving forward, make sure:
    - I'll explain each file
    - Show how everything connects
 
-Just let me know and I'll guide you step-by-step! 💪
+Just let me know and I'll guide you step-by-step! ðŸ’ª
 
 ---
 
-## 📞 Need Help?
+## ðŸ“ž Need Help?
 
 - **Documentation Error?** Let me know, I'll fix it
 - **Setup Issue?** Share the error message
 - **Concept Unclear?** Ask for explanation
 - **Want to Try Something?** I'll help you experiment
 
-**Remember: No question is too basic! We're here to learn and build together.** 🙌
+**Remember: No question is too basic! We're here to learn and build together.** ðŸ™Œ
 
 ---
 
-**Current Status**: ✅ Development environment ready!  
+**Current Status**: âœ… Development environment ready!  
 **Next**: Build your first feature (Donation Management)  
 **Time to build**: ~2 hours for basic donation API
 
-**Let's code!** 🚀
+**Let's code!** ðŸš€
 
 

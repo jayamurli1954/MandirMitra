@@ -26,6 +26,7 @@ import { useNotification } from '../contexts/NotificationContext';
 function SevaRescheduleApproval() {
   const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [pendingRequests, setPendingRequests] = useState([]);
   const [approvalDialog, setApprovalDialog] = useState({ open: false, booking: null, action: null });
 
@@ -36,19 +37,15 @@ function SevaRescheduleApproval() {
   const fetchPendingRequests = async () => {
     try {
       setLoading(true);
+      setError('');
       // Get all bookings with pending reschedule requests
-      const response = await api.get('/api/v1/sevas/bookings/', {
-        params: { limit: 1000 }
-      });
-      
-      // Filter for pending reschedule requests
-      const pending = response.data.filter(
-        booking => booking.reschedule_requested_date && booking.reschedule_approved === null
-      );
-      
-      setPendingRequests(pending);
+      const response = await api.get('/api/v1/sevas/reschedule/pending');
+      setPendingRequests(response.data);
     } catch (err) {
       console.error('Failed to load reschedule requests:', err);
+      const msg = err.response?.data?.detail || 'Failed to load pending reschedule requests';
+      setError(msg);
+      setPendingRequests([]);
     } finally {
       setLoading(false);
     }
@@ -67,13 +64,13 @@ function SevaRescheduleApproval() {
           params: { approve: approvalDialog.action === 'approve' }
         }
       );
-      
+
       showSuccess(
         approvalDialog.action === 'approve'
           ? 'Reschedule approved successfully'
           : 'Reschedule request rejected'
       );
-      
+
       setApprovalDialog({ open: false, booking: null, action: null });
       fetchPendingRequests();
     } catch (err) {
@@ -87,6 +84,12 @@ function SevaRescheduleApproval() {
         <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
           Seva Reschedule Approval
         </Typography>
+
+        {error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        )}
 
         {pendingRequests.length === 0 && !loading && (
           <Alert severity="info" sx={{ mt: 2 }}>

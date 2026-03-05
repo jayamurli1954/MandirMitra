@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from typing import List, Optional
 from datetime import date, datetime
+from pathlib import Path
+from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
@@ -17,6 +19,7 @@ from app.models.asset import Tender, TenderBid
 from app.models.vendor import Vendor
 
 router = APIRouter(prefix="/api/v1/tenders", tags=["tenders"])
+UPLOAD_ROOT = Path(__file__).resolve().parents[2] / "uploads"
 
 
 # ===== ENUMS =====
@@ -144,6 +147,30 @@ class BidComparisonResponse(BaseModel):
     recommended_bid_id: Optional[int]
     recommended_vendor: Optional[str]
     comparison_details: List[dict] = []
+
+
+def _safe_upload_filename(filename: str, document_prefix: str = "doc") -> str:
+    if not filename:
+        raise HTTPException(status_code=400, detail="File name is required")
+    base_name = Path(filename).name
+    extension = Path(base_name).suffix.lower()
+    allowed_extensions = {
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".txt",
+    }
+    if extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type for tender document",
+        )
+    return f"{document_prefix}_{uuid4().hex}{extension}"
 
 
 # ===== TENDER ENDPOINTS =====
@@ -368,18 +395,24 @@ async def upload_tender_document(
     if not tender:
         raise HTTPException(status_code=404, detail="Tender not found")
 
-    # In production, save file to storage (S3, local filesystem, etc.)
-    # For now, create placeholder path
-    file_path = f"/uploads/tenders/{tender_id}/{file.filename}"
+    safe_filename = _safe_upload_filename(file.filename, "tender")
+    upload_dir = UPLOAD_ROOT / "tenders" / str(tender_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    file_path = upload_dir / safe_filename
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+    relative_path = f"/uploads/tenders/{tender_id}/{safe_filename}"
 
-    tender.tender_document_path = file_path
+    tender.tender_document_path = relative_path
     tender.updated_at = datetime.utcnow()
     db.commit()
 
     return {
         "tender_id": tender_id,
-        "document_path": file_path,
-        "filename": file.filename,
+        "document_path": relative_path,
+        "filename": safe_filename,
+        "file_size": len(content),
         "uploaded_at": datetime.utcnow(),
     }
 
@@ -540,22 +573,19 @@ async def upload_bid_document(
     if not bid:
         raise HTTPException(status_code=404, detail="Bid not found")
 
-    # In production, save file to storage
-    import os
-    from pathlib import Path
-
     # Create upload directory structure
-    upload_dir = Path(f"uploads/tenders/bids/{bid_id}")
+    safe_filename = _safe_upload_filename(file.filename, "bid")
+    upload_dir = UPLOAD_ROOT / "tenders" / "bids" / str(bid_id)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     # Save file
-    file_path = upload_dir / file.filename
+    file_path = upload_dir / safe_filename
     content = await file.read()
     with open(file_path, "wb") as f:
         f.write(content)
 
     # Store relative path in database
-    relative_path = f"/uploads/tenders/bids/{bid_id}/{file.filename}"
+    relative_path = f"/uploads/tenders/bids/{bid_id}/{safe_filename}"
 
     # Update bid document path (could be enhanced to support multiple documents)
     bid.bid_document_path = relative_path
@@ -564,7 +594,7 @@ async def upload_bid_document(
     return {
         "bid_id": bid_id,
         "document_path": relative_path,
-        "filename": file.filename,
+        "filename": safe_filename,
         "file_size": len(content),
         "mime_type": file.content_type,
         "document_type": document_type or "main",

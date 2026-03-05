@@ -11,7 +11,9 @@ from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.coa_bootstrap import ensure_default_coa_for_temple
 from app.models.user import User
+from app.models.temple import Temple
 from app.models.accounting import Account, AccountType, JournalLine, JournalEntry
 from app.schemas.accounting import (
     AccountCreate,
@@ -94,6 +96,35 @@ def get_account_balance(db: Session, account_id: int, as_of_date: Optional[date]
     }
 
 
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    """
+    Resolve temple_id for current user.
+    In standalone scenarios where user.temple_id may be null, fall back to first temple.
+    """
+    if current_user.temple_id is not None:
+        return current_user.temple_id
+
+    first_temple = db.query(Temple.id).order_by(Temple.id.asc()).first()
+    if first_temple:
+        return first_temple.id
+
+    return 0
+
+
+def _seed_default_accounts_for_temple(
+    db: Session, temple_id: int, raise_on_error: bool = False
+) -> dict:
+    """
+    Seed missing default COA accounts for a temple.
+    Safe to call repeatedly; it only adds missing account codes for the same temple.
+    """
+    return ensure_default_coa_for_temple(
+        db=db,
+        temple_id=temple_id,
+        raise_on_error=raise_on_error,
+    )
+
+
 # ===== ACCOUNT CRUD =====
 
 
@@ -111,7 +142,9 @@ def list_accounts(
     """
     Get list of accounts with optional filters
     """
-    query = db.query(Account).filter(Account.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    _seed_default_accounts_for_temple(db, temple_id)
+    query = db.query(Account).filter(Account.temple_id == temple_id)
 
     if account_type:
         query = query.filter(Account.account_type == account_type)
@@ -146,8 +179,10 @@ def get_account_hierarchy(
     """
     Get accounts in hierarchical tree structure
     """
+    temple_id = _resolve_temple_id(db, current_user)
+    _seed_default_accounts_for_temple(db, temple_id)
     query = db.query(Account).filter(
-        Account.temple_id == current_user.temple_id, Account.is_active == True
+        Account.temple_id == temple_id, Account.is_active == True
     )
 
     if account_type:
@@ -158,6 +193,37 @@ def get_account_hierarchy(
     return hierarchy
 
 
+@router.post("/initialize-default", response_model=dict)
+def initialize_default_accounts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Initialize default chart of accounts for current temple.
+    Safe to run multiple times; only missing accounts are created.
+    """
+    is_admin = (
+        current_user.role == "admin"
+        or current_user.role == "temple_manager"
+        or current_user.is_superuser
+    )
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin users can initialize default accounts",
+        )
+
+    temple_id = _resolve_temple_id(db, current_user)
+    result = _seed_default_accounts_for_temple(db, temple_id, raise_on_error=True)
+    result["temple_id"] = temple_id
+    result["message"] = (
+        "Default chart of accounts initialized"
+        if result["created"] > 0
+        else "Default chart of accounts already initialized"
+    )
+    return result
+
+
 @router.get("/{account_id}", response_model=AccountResponse)
 def get_account(
     account_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
@@ -165,9 +231,10 @@ def get_account(
     """
     Get account by ID
     """
+    temple_id = _resolve_temple_id(db, current_user)
     account = (
         db.query(Account)
-        .filter(Account.id == account_id, Account.temple_id == current_user.temple_id)
+        .filter(Account.id == account_id, Account.temple_id == temple_id)
         .first()
     )
 
@@ -199,11 +266,10 @@ def create_account(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only admin users can create accounts"
         )
 
-    # Handle standalone mode (temple_id = None or 0)
-    temple_id = current_user.temple_id if current_user.temple_id is not None else 0
-    
-    # Verify temple_id matches current user (allow None/0 for standalone)
-    if account_data.temple_id != temple_id:
+    temple_id = _resolve_temple_id(db, current_user)
+
+    # Verify temple_id matches current user, when explicitly provided by client.
+    if account_data.temple_id is not None and account_data.temple_id != temple_id:
         raise HTTPException(status_code=403, detail="Cannot create account for different temple")
 
     # Check if account code already exists
@@ -227,7 +293,7 @@ def create_account(
             db.query(Account)
             .filter(
                 Account.id == account_data.parent_account_id,
-                Account.temple_id == current_user.temple_id,
+                Account.temple_id == temple_id,
             )
             .first()
         )
@@ -235,7 +301,9 @@ def create_account(
             raise HTTPException(status_code=404, detail="Parent account not found")
 
     # Create account
-    account = Account(**account_data.dict())
+    account_payload = account_data.dict()
+    account_payload["temple_id"] = temple_id
+    account = Account(**account_payload)
     db.add(account)
     db.flush()  # Get account.id for audit log
 
@@ -278,8 +346,7 @@ def update_account(
     """
     Update account
     Only admin users can update accounts
-    System accounts cannot be modified
-    Account name cannot be changed if account has transactions
+    System accounts can be updated only for nomenclature/description/opening balances
     Account code can NEVER be changed
     Reason required for audit trail when making significant changes
     """
@@ -309,40 +376,63 @@ def update_account(
     # Update fields - get update data first
     update_data = account_data.dict(exclude_unset=True)
 
-    # Allow opening balance updates even for system accounts (needed for mid-year setup)
-    is_opening_balance_update = (
-        "opening_balance_debit" in update_data or "opening_balance_credit" in update_data
-    )
-
-    if account.is_system_account and not is_opening_balance_update:
-        raise HTTPException(
-            status_code=400, detail="System accounts cannot be modified (except opening balances)"
-        )
-
-    # Check if account has transactions (JournalLine entries)
-    from app.models.accounting import JournalEntry
-
-    has_transactions = (
-        db.query(JournalLine).filter(JournalLine.account_id == account_id).first() is not None
-    )
-
-    # Get old values for audit log
-    from app.core.audit import get_entity_dict
-
-    old_values = get_entity_dict(account) if hasattr(account, "__table__") else {}
-
     # Account code can NEVER be changed
     if "account_code" in update_data:
         raise HTTPException(
             status_code=400, detail="Account code cannot be changed. Account codes are permanent."
         )
 
-    # Account name CAN be changed even with transactions (for nomenclature updates)
-    # Account code is immutable, but name can be updated for clarity
-    # This allows renaming accounts like "Advance from Devotees" to "Advance booking for Seva"
+    # Normalize account nomenclature fields
+    if "account_name" in update_data:
+        cleaned_name = (update_data.get("account_name") or "").strip()
+        if not cleaned_name:
+            raise HTTPException(status_code=400, detail="Account name cannot be empty")
+        update_data["account_name"] = cleaned_name
+
+    if "account_name_kannada" in update_data:
+        kannada_name = update_data.get("account_name_kannada")
+        if kannada_name is not None:
+            update_data["account_name_kannada"] = kannada_name.strip() or None
+
+    if "description" in update_data:
+        description_value = update_data.get("description")
+        if description_value is not None:
+            update_data["description"] = description_value.strip() or None
+
+    # For system accounts, allow only nomenclature/description/opening balance updates.
+    if account.is_system_account:
+        allowed_system_fields = {
+            "account_name",
+            "account_name_kannada",
+            "description",
+            "opening_balance_debit",
+            "opening_balance_credit",
+        }
+        disallowed_fields = set(update_data.keys()) - allowed_system_fields
+        if disallowed_fields:
+            blocked = ", ".join(sorted(disallowed_fields))
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "System account update restricted. Allowed fields: account_name, "
+                    "account_name_kannada, description, opening balances. "
+                    f"Blocked fields: {blocked}"
+                ),
+            )
+
+    # Get old values for audit log
+    from app.core.audit import get_entity_dict
+
+    old_values = get_entity_dict(account) if hasattr(account, "__table__") else {}
 
     # Require reason for significant changes (account name, parent, active status)
-    significant_changes = ["account_name", "parent_account_id", "is_active", "account_subtype"]
+    significant_changes = [
+        "account_name",
+        "account_name_kannada",
+        "parent_account_id",
+        "is_active",
+        "account_subtype",
+    ]
     if any(field in update_data for field in significant_changes):
         if not reason or not reason.strip():
             raise HTTPException(
@@ -411,9 +501,10 @@ def check_account_transactions(
     Check if account has any transactions
     Used to determine if account name can be edited
     """
+    temple_id = _resolve_temple_id(db, current_user)
     account = (
         db.query(Account)
-        .filter(Account.id == account_id, Account.temple_id == current_user.temple_id)
+        .filter(Account.id == account_id, Account.temple_id == temple_id)
         .first()
     )
 
@@ -431,11 +522,11 @@ def check_account_transactions(
     return {
         "has_transactions": has_transactions,
         "transaction_count": transaction_count,
-        "can_edit_name": not has_transactions,
+        "can_edit_name": True,
         "can_delete": False,  # Accounts can never be deleted, only deactivated
-        "message": "Account has transaction history. Name cannot be edited. Create a new account and transfer balance via Journal Voucher."
+        "message": "Account has transaction history. Nomenclature can still be edited, but account code remains immutable."
         if has_transactions
-        else "Account has no transactions. Name can be edited.",
+        else "Account has no transactions. Nomenclature can be edited.",
     }
 
 
@@ -465,9 +556,10 @@ def get_balance(
     """
     Get current balance for an account
     """
+    temple_id = _resolve_temple_id(db, current_user)
     account = (
         db.query(Account)
-        .filter(Account.id == account_id, Account.temple_id == current_user.temple_id)
+        .filter(Account.id == account_id, Account.temple_id == temple_id)
         .first()
     )
 

@@ -25,8 +25,8 @@ router = APIRouter(prefix="/api/v1/certificates", tags=["certificates"])
 
 
 # Certificate storage directory
-CERTIFICATES_DIR = Path("uploads/certificates")
-CERTIFICATES_DIR.mkdir(parents=True, exist_ok=True)
+UPLOAD_ROOT = Path(__file__).resolve().parents[2] / "uploads"
+CERTIFICATES_DIR = UPLOAD_ROOT / "certificates"
 
 
 class CertificateResponse(BaseModel):
@@ -54,6 +54,14 @@ def upload_certificate(
     Requires permission: UPLOAD_CERTIFICATES
     """
     check_permission(current_user, Permission.UPLOAD_CERTIFICATES)
+
+    try:
+        CERTIFICATES_DIR.mkdir(parents=True, exist_ok=True)
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Certificate storage directory is not writable: {exc}",
+        ) from exc
 
     # Validate file type (PDF, images)
     allowed_types = ["application/pdf", "image/jpeg", "image/png", "image/jpg"]

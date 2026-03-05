@@ -22,11 +22,12 @@ import {
 } from '@mui/material';
 import Layout from '../../components/Layout';
 import SummarizeIcon from '@mui/icons-material/Summarize';
-import DownloadIcon from '@mui/icons-material/Download';
 import BalanceSheetReport from './BalanceSheetReport';
 import DayBookReport from './DayBookReport';
 import CashBookReport from './CashBookReport';
 import BankBookReport from './BankBookReport';
+
+const ALL_GT_ZERO_OPTION = '__ALL_GT_ZERO__';
 
 function TabPanel({ children, value, index }) {
   return (
@@ -40,6 +41,7 @@ function AccountingReports() {
   const [activeTab, setActiveTab] = useState(0);
   const [trialBalance, setTrialBalance] = useState(null);
   const [ledger, setLedger] = useState(null);
+  const [bulkLedgers, setBulkLedgers] = useState([]);
   const [profitLoss, setProfitLoss] = useState(null);
   const [categoryIncome, setCategoryIncome] = useState(null);
   const [topDonors, setTopDonors] = useState(null);
@@ -48,6 +50,12 @@ function AccountingReports() {
   const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), 3, 1)); // April 1st
   const [toDate, setToDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
+  const getLedgerEntries = (ledgerData) => {
+    if (!ledgerData) return [];
+    if (Array.isArray(ledgerData.entries)) return ledgerData.entries;
+    if (Array.isArray(ledgerData.transactions)) return ledgerData.transactions; // backward compatibility
+    return [];
+  };
 
   React.useEffect(() => {
     fetchAccounts();
@@ -62,9 +70,10 @@ function AccountingReports() {
         },
       });
       const data = await response.json();
-      setAccounts(data);
+      setAccounts(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setAccounts([]);
     }
   };
 
@@ -96,23 +105,68 @@ function AccountingReports() {
       return;
     }
 
+    if (fromDate > toDate) {
+      alert('From Date cannot be later than To Date');
+      return;
+    }
+
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/ledger/${selectedAccount}?from_date=${fromDateStr}&to_date=${toDateStr}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
-      const data = await response.json();
-      setLedger(data);
+
+      if (selectedAccount === ALL_GT_ZERO_OPTION) {
+        const ledgerResults = await Promise.all(
+          accounts.map(async (account) => {
+            try {
+              const response = await fetch(
+                `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/ledger/${account.id}?from_date=${fromDateStr}&to_date=${toDateStr}`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                  },
+                }
+              );
+              if (!response.ok) return null;
+              const data = await response.json();
+              const entries = getLedgerEntries(data);
+              const opening = Number(data.opening_balance || 0);
+              const closing = Number(data.closing_balance || 0);
+              const hasNonZero =
+                Math.abs(opening) > 0.01 ||
+                Math.abs(closing) > 0.01 ||
+                entries.length > 0;
+              return hasNonZero ? data : null;
+            } catch (error) {
+              return null;
+            }
+          })
+        );
+
+        const filteredLedgers = ledgerResults
+          .filter(Boolean)
+          .sort((a, b) => String(a.account_code).localeCompare(String(b.account_code)));
+
+        setBulkLedgers(filteredLedgers);
+        setLedger(null);
+      } else {
+        const response = await fetch(
+          `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/ledger/${selectedAccount}?from_date=${fromDateStr}&to_date=${toDateStr}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          }
+        );
+        const data = await response.json();
+        setLedger(data);
+        setBulkLedgers([]);
+      }
     } catch (error) {
       console.error('Error fetching ledger:', error);
+      setLedger(null);
+      setBulkLedgers([]);
     } finally {
       setLoading(false);
     }
@@ -300,9 +354,16 @@ function AccountingReports() {
                   <InputLabel>Select Account</InputLabel>
                   <Select
                     value={selectedAccount}
-                    onChange={(e) => setSelectedAccount(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedAccount(e.target.value);
+                      setLedger(null);
+                      setBulkLedgers([]);
+                    }}
                     label="Select Account"
                   >
+                    <MenuItem value={ALL_GT_ZERO_OPTION}>
+                      All Accounts (&gt;0)
+                    </MenuItem>
                     {accounts.map((account) => (
                       <MenuItem key={account.id} value={account.id}>
                         {account.account_code} - {account.account_name}
@@ -344,7 +405,7 @@ function AccountingReports() {
               </Grid>
             </Grid>
 
-            {ledger && (
+            {ledger && selectedAccount !== ALL_GT_ZERO_OPTION && (
               <>
                 <Alert severity="info" sx={{ mb: 2 }}>
                   Ledger for {ledger.account_code} - {ledger.account_name}
@@ -374,11 +435,11 @@ function AccountingReports() {
                       </TableRow>
 
                       {/* Transactions */}
-                      {ledger.transactions.map((txn, index) => (
+                      {getLedgerEntries(ledger).map((txn, index) => (
                         <TableRow key={index}>
                           <TableCell>{new Date(txn.entry_date).toLocaleDateString()}</TableCell>
                           <TableCell>{txn.entry_number}</TableCell>
-                          <TableCell>{txn.description}</TableCell>
+                          <TableCell>{txn.narration || txn.description}</TableCell>
                           <TableCell align="right">
                             {txn.debit_amount > 0 ? txn.debit_amount.toFixed(2) : '-'}
                           </TableCell>
@@ -399,6 +460,70 @@ function AccountingReports() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+              </>
+            )}
+
+            {selectedAccount === ALL_GT_ZERO_OPTION && bulkLedgers.length > 0 && (
+              <>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Ledger for all accounts with non-zero balance/transactions
+                  <br />
+                  Period: {fromDate.toLocaleDateString()} to {toDate.toLocaleDateString()}
+                  <br />
+                  Accounts: {bulkLedgers.length}
+                </Alert>
+
+                {bulkLedgers.map((accountLedger) => (
+                  <Box key={accountLedger.account_id} sx={{ mb: 4 }}>
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                      {accountLedger.account_code} - {accountLedger.account_name}
+                    </Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableCell><strong>Date</strong></TableCell>
+                            <TableCell><strong>Entry #</strong></TableCell>
+                            <TableCell><strong>Description</strong></TableCell>
+                            <TableCell align="right"><strong>Debit (₹)</strong></TableCell>
+                            <TableCell align="right"><strong>Credit (₹)</strong></TableCell>
+                            <TableCell align="right"><strong>Balance (₹)</strong></TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          <TableRow sx={{ bgcolor: '#FFF3E0' }}>
+                            <TableCell colSpan={5}><strong>Opening Balance</strong></TableCell>
+                            <TableCell align="right">
+                              <strong>₹{Number(accountLedger.opening_balance || 0).toFixed(2)}</strong>
+                            </TableCell>
+                          </TableRow>
+
+                          {getLedgerEntries(accountLedger).map((txn, index) => (
+                            <TableRow key={`${accountLedger.account_id}-${index}`}>
+                              <TableCell>{new Date(txn.entry_date).toLocaleDateString()}</TableCell>
+                              <TableCell>{txn.entry_number}</TableCell>
+                              <TableCell>{txn.narration || txn.description}</TableCell>
+                              <TableCell align="right">
+                                {txn.debit_amount > 0 ? Number(txn.debit_amount).toFixed(2) : '-'}
+                              </TableCell>
+                              <TableCell align="right">
+                                {txn.credit_amount > 0 ? Number(txn.credit_amount).toFixed(2) : '-'}
+                              </TableCell>
+                              <TableCell align="right">{Number(txn.running_balance || 0).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+
+                          <TableRow sx={{ bgcolor: '#FFF3E0' }}>
+                            <TableCell colSpan={5}><strong>Closing Balance</strong></TableCell>
+                            <TableCell align="right">
+                              <strong>₹{Number(accountLedger.closing_balance || 0).toFixed(2)}</strong>
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                ))}
               </>
             )}
           </TabPanel>

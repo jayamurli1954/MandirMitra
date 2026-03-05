@@ -1,6 +1,6 @@
 # UI Design Decisions & History
 
-This file tracks UI/UX decisions and changes made to the MandirSync frontend.
+This file tracks UI/UX decisions and changes made to the MandirMitra frontend.
 
 ## Last Updated: November 22, 2025
 
@@ -21,10 +21,10 @@ This file tracks UI/UX decisions and changes made to the MandirSync frontend.
   - Right: Today's Panchang Widget
 
 **Features:**
-- ✅ Donation entry form directly on dashboard
-- ✅ Panchang display widget on dashboard
-- ✅ Real-time stats from backend API
-- ✅ Temple gopuram icon in sidebar header
+- âœ… Donation entry form directly on dashboard
+- âœ… Panchang display widget on dashboard
+- âœ… Real-time stats from backend API
+- âœ… Temple gopuram icon in sidebar header
 
 ---
 
@@ -33,7 +33,7 @@ This file tracks UI/UX decisions and changes made to the MandirSync frontend.
 ### Sidebar Header
 - **Background Color:** #FF9933 (Saffron)
 - **Logo:** Temple Gopuram SVG icon (32x32px)
-- **Text:** "MandirSync" in white, bold
+- **Text:** "MandirMitra" in white, bold
 - **Location:** Left sidebar top section
 
 ### Temple Gopuram Icon

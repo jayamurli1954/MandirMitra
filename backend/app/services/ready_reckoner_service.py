@@ -19,6 +19,12 @@ class ReadyReckonerService:
     def __init__(self, db: Session):
         self.db = db
         self.panchang_service = PanchangService()
+
+    def _extract_nakshatra_name(self, panchang: Dict) -> str:
+        """Safely read nakshatra name from modular or legacy payload shapes."""
+        panchang_block = panchang.get("panchang", {})
+        nakshatra_data = panchang_block.get("nakshatra", panchang.get("nakshatra", {}))
+        return nakshatra_data.get("name", "Unknown")
     
     def pre_calculate_dates(
         self,
@@ -371,7 +377,10 @@ class ReadyReckonerService:
     def get_dashboard_data(
         self,
         temple_id: Optional[int],
-        start_date: Optional[date] = None
+        start_date: Optional[date] = None,
+        lat: float = 12.9716,
+        lon: float = 77.5946,
+        city: str = "Bengaluru",
     ) -> Dict:
         """
         Get complete dashboard data with all upcoming sacred events
@@ -395,10 +404,10 @@ class ReadyReckonerService:
             # If today's nakshatra not in cache, get from panchang directly
             try:
                 dt = datetime.combine(start_date, datetime.min.time().replace(hour=6, minute=0))
-                panchang = self.panchang_service.calculate_panchang(dt, 12.9716, 77.5946, "Bengaluru")
-                today_nakshatra = panchang.get('nakshatra', {}).get('name', 'Unknown')
-            except:
-                today_nakshatra = 'Unknown'
+                panchang = self.panchang_service.calculate_panchang(dt, lat, lon, city)
+                today_nakshatra = self._extract_nakshatra_name(panchang)
+            except Exception:
+                today_nakshatra = "Unknown"
         
         # Get upcoming events by type
         result = {
@@ -421,7 +430,11 @@ class ReadyReckonerService:
         temple_id: Optional[int],
         nakshatra_name: str,
         limit: int = 5,
-        start_date: Optional[date] = None
+        start_date: Optional[date] = None,
+        lat: float = 12.9716,
+        lon: float = 77.5946,
+        city: str = "Bengaluru",
+        max_search_days: int = 400,
     ) -> Dict:
         """
         Find next occurrences of a specific nakshatra
@@ -442,16 +455,16 @@ class ReadyReckonerService:
         today_nakshatra = None
         try:
             dt = datetime.combine(start_date, datetime.min.time().replace(hour=6, minute=0))
-            panchang = self.panchang_service.calculate_panchang(dt, 12.9716, 77.5946, "Bengaluru")
-            today_nakshatra = panchang.get('nakshatra', {}).get('name', 'Unknown')
-        except:
-            today_nakshatra = 'Unknown'
+            panchang = self.panchang_service.calculate_panchang(dt, lat, lon, city)
+            today_nakshatra = self._extract_nakshatra_name(panchang)
+        except Exception:
+            today_nakshatra = "Unknown"
         
         # Query cache for this nakshatra
         events = self.db.query(SacredEventsCache).filter(
             and_(
                 SacredEventsCache.temple_id == temple_id,
-                SacredEventsCache.event_code == 'NAK',
+                SacredEventsCache.event_code == "NAK",
                 SacredEventsCache.event_name == nakshatra_name,
                 SacredEventsCache.event_date >= start_date
             )
@@ -467,7 +480,35 @@ class ReadyReckonerService:
                 "days_away": days_away,
                 "is_today": days_away == 0
             })
-        
+
+        # Fallback when cache is empty/stale: compute occurrences live from PanchangService
+        if not next_occurrences:
+            canonical_target = (nakshatra_name or "").strip().lower()
+            current_date = start_date
+            end_date = start_date + timedelta(days=max_search_days)
+
+            while current_date <= end_date and len(next_occurrences) < limit:
+                try:
+                    dt = datetime.combine(current_date, datetime.min.time().replace(hour=6, minute=0))
+                    panchang = self.panchang_service.calculate_panchang(dt, lat, lon, city)
+                    found_name = self._extract_nakshatra_name(panchang)
+                    if (found_name or "").strip().lower() == canonical_target:
+                        days_away = (current_date - start_date).days
+                        next_occurrences.append(
+                            {
+                                "event_name": found_name,
+                                "event_date": current_date.isoformat(),
+                                "weekday": current_date.strftime("%A"),
+                                "days_away": days_away,
+                                "is_today": days_away == 0,
+                            }
+                        )
+                except Exception:
+                    # Skip problematic dates and continue searching.
+                    pass
+
+                current_date += timedelta(days=1)
+
         return {
             "nakshatra_name": nakshatra_name,
             "today_nakshatra": today_nakshatra,

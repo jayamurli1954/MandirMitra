@@ -1,7 +1,7 @@
 {
-  "name": "mandirsync-frontend",
+  "name": "MandirMitra-frontend",
   "version": "1.0.1",
-  "description": "MandirSync Temple Management System - Frontend",
+  "description": "MandirMitra Temple Management System - Frontend",
   "private": true,
   "scripts": {
     "start": "react-scripts start",

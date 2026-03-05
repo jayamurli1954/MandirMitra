@@ -61,34 +61,20 @@ def column_exists(db: Session, table_name: str, column_name: str) -> bool:
     """
     Check if a column exists in a table (works with both SQLite and PostgreSQL)
     """
-    from sqlalchemy import text
-    is_sqlite = db_url.startswith("sqlite")
-    
-    if is_sqlite:
-        # SQLite uses PRAGMA table_info
-        result = db.execute(
-            text(f"PRAGMA table_info({table_name})")
-        ).fetchall()
-        # Check if column_name is in the results
-        return any(row[1] == column_name for row in result)
-    else:
-        # PostgreSQL uses information_schema
-        result = db.execute(
-            text(
-                """
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = :table_name AND column_name = :column_name
-                """
-            ),
-            {"table_name": table_name, "column_name": column_name}
-        ).fetchone()
-        return result is not None
+    from sqlalchemy import inspect
+    from sqlalchemy.exc import SQLAlchemyError
+
+    try:
+        inspector = inspect(db.get_bind())
+        columns = inspector.get_columns(table_name)
+        return any(col.get("name") == column_name for col in columns)
+    except SQLAlchemyError:
+        return False
 
 
 def init_db():
     """
-    Initialize database (create tables and create default admin user)
+    Initialize database (create tables and optionally create bootstrap admin user)
     Called on application startup
     """
     # For SQLite, ensure the database file directory exists
@@ -131,43 +117,51 @@ def init_db():
     from app.models.purchase_order import PurchaseOrder
     from app.models.upi_banking import BankAccount, UpiPayment, BankTransaction
     from app.models.token_seva import TokenInventory, TokenSale, TokenReconciliation
+    from app.models.password_reset import PasswordResetToken
     from app.models.budget import Budget
     from app.models.bank_reconciliation import BankReconciliation, BankStatement, BankStatementEntry
     from app.models.financial_period import FinancialPeriod
     from app.models.inkind_sponsorship import InKindDonation, Sponsorship
 
-    from app.core.security import get_password_hash
-
     # Create all tables (checkfirst=True avoids error if tables already exist, e.g. in tests)
     Base.metadata.create_all(bind=engine, checkfirst=True)
 
-    # Create default admin user if not exists (only if not in standalone mode)
-    # In standalone mode (SQLite), admin user will be created by setup_wizard.py
-    # Standalone mode uses SQLite, so skip default admin creation for SQLite databases
+    # Standalone mode (SQLite) admin user is created by setup_wizard.py.
+    # For PostgreSQL, bootstrap credentials must be explicitly provided via env vars.
     is_sqlite = db_url.startswith("sqlite")
 
-    # Only create default admin for PostgreSQL (non-standalone mode)
-    if not is_sqlite:
-        db = SessionLocal()
-        try:
-            admin_user = db.query(User).filter(User.email == "admin@temple.com").first()
-            if not admin_user:
-                admin_user = User(
-                    email="admin@temple.com",
-                    password_hash=get_password_hash("admin123"),
-                    full_name="Admin User",
-                    role="temple_manager",
-                    is_active=True,
-                )
-                db.add(admin_user)
-                db.commit()
-                print("✅ Default admin user created: admin@temple.com / admin123")
-            else:
-                print("ℹ️  Admin user already exists")
-        except Exception as e:
-            print(f"❌ Error creating admin user: {e}")
-            db.rollback()
-        finally:
-            db.close()
-    else:
-        print("ℹ️  Standalone mode detected - admin user will be created from config")
+    if is_sqlite:
+        print("[INFO] Standalone mode detected - admin user will be created from config")
+        return
+
+    from app.core.security import get_password_hash
+
+    db = SessionLocal()
+    try:
+        bootstrap_email = settings.BOOTSTRAP_ADMIN_EMAIL
+        bootstrap_password = settings.BOOTSTRAP_ADMIN_PASSWORD
+        if not (bootstrap_email and bootstrap_password):
+            print(
+                "[INFO] BOOTSTRAP_ADMIN_EMAIL/BOOTSTRAP_ADMIN_PASSWORD not set; "
+                "skipping auto-admin creation."
+            )
+            return
+        admin_user = db.query(User).filter(User.email == bootstrap_email).first()
+        if not admin_user:
+            admin_user = User(
+                email=bootstrap_email,
+                password_hash=get_password_hash(bootstrap_password),
+                full_name="Bootstrap Admin",
+                role="temple_manager",
+                is_active=True,
+            )
+            db.add(admin_user)
+            db.commit()
+            print("[OK] Bootstrap admin user created")
+        else:
+            print("[INFO] Bootstrap admin user already exists")
+    except Exception as e:
+        print(f"[ERROR] Error creating bootstrap admin user: {e}")
+        db.rollback()
+    finally:
+        db.close()

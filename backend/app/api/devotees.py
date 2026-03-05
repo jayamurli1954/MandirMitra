@@ -19,7 +19,7 @@ from app.core.data_masking import mask_phone_for_user, mask_address_for_user, ma
 from app.models.devotee import Devotee
 from app.models.user import User
 from app.models.donation import Donation
-from app.models.seva import SevaBooking
+from app.models.seva import SevaBooking, SevaBookingStatus
 from pydantic import BaseModel, EmailStr
 
 router = APIRouter(prefix="/api/v1/devotees", tags=["devotees"])
@@ -104,6 +104,7 @@ class DevoteeResponse(DevoteeBase):
     total_donations: Optional[float] = 0.0
     donation_count: Optional[int] = 0
     booking_count: Optional[int] = 0
+    total_seva_amount: Optional[float] = 0.0
     last_visit_date: Optional[date] = None
     is_vip: Optional[bool] = False
 
@@ -150,9 +151,19 @@ class DevoteeResponse(DevoteeBase):
 
         # Get booking count
         booking_count = 0
+        total_seva_amount = 0.0
         if db:
             booking_count = (
                 db.query(SevaBooking).filter(SevaBooking.devotee_id == devotee.id).count()
+            )
+            total_seva_amount = (
+                db.query(func.coalesce(func.sum(SevaBooking.amount_paid), 0.0))
+                .filter(
+                    SevaBooking.devotee_id == devotee.id,
+                    SevaBooking.status != SevaBookingStatus.CANCELLED,
+                )
+                .scalar()
+                or 0.0
             )
 
         # Check if VIP (has VIP tag)
@@ -198,6 +209,7 @@ class DevoteeResponse(DevoteeBase):
             total_donations=total_donations,
             donation_count=donation_count,
             booking_count=booking_count,
+            total_seva_amount=total_seva_amount,
             is_vip=is_vip,
         )
 

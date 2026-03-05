@@ -65,6 +65,11 @@ class AssetBase(BaseModel):
     tag_number: Optional[str] = None
     serial_number: Optional[str] = None
     identification_mark: Optional[str] = None
+    # Specialized Fields for Ornaments & Idols
+    weight_grams: Optional[float] = None
+    purity: Optional[str] = None
+    material: Optional[str] = None
+    dimensions: Optional[str] = None
     purchase_date: date
     original_cost: float
     purchase_invoice_number: Optional[str] = None

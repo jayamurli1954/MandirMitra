@@ -6,6 +6,7 @@ Handles settings for both Standalone and SaaS deployments
 from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
+import tempfile
 
 
 class Settings(BaseSettings):
@@ -59,6 +60,8 @@ class Settings(BaseSettings):
     # Database
     # Default to PostgreSQL, but will be overridden to SQLite for standalone packages
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/temple_db"
+    BOOTSTRAP_ADMIN_EMAIL: Optional[str] = None
+    BOOTSTRAP_ADMIN_PASSWORD: Optional[str] = None
 
     # Server
     HOST: str = "0.0.0.0"  # nosec B104
@@ -80,7 +83,11 @@ class Settings(BaseSettings):
     SMS_ENABLED: bool = False
     SMS_API_KEY: Optional[str] = None
     SMS_SENDER_ID: Optional[str] = None
-    SMS_PROVIDER: str = "MSG91"  # MSG91, Twilio, etc.
+    SMS_TEMPLATE_ID: Optional[str] = None
+    SMS_PROVIDER: str = "MSG91"  # MSG91, INFOBIP, Twilio, etc.
+    INFOBIP_BASE_URL: str = "https://api.infobip.com"
+    SMS_TEST_MODE: bool = False
+    SMS_TEST_RECIPIENT: Optional[str] = None
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None
     TWILIO_PHONE_NUMBER: Optional[str] = None
@@ -103,7 +110,7 @@ class Settings(BaseSettings):
 
     # Backup
     BACKUP_ENABLED: bool = True
-    BACKUP_PATH: str = "backups"
+    BACKUP_PATH: str = os.path.join(tempfile.gettempdir(), "mandirmitra", "backups")
     BACKUP_RETENTION_DAYS: int = 30
 
     # Deployment mode helpers

@@ -1,6 +1,6 @@
 # Setup Instructions - Multi-User & Audit Trail
 
-## 📍 Where to Run Each Step
+## ðŸ“ Where to Run Each Step
 
 ### Step 1: Create Audit Logs Table
 
@@ -9,7 +9,7 @@
 #### Option A: From Project Root (Recommended for psql)
 ```bash
 # Navigate to project root
-cd D:\MandirSync
+cd D:\MandirMitra
 
 # Run SQL script using psql
 psql -d temple_db -f backend/scripts/create_audit_logs_table.sql
@@ -21,14 +21,14 @@ psql -h localhost -U postgres -d temple_db -f backend/scripts/create_audit_logs_
 #### Option B: Using Database Client (Easiest)
 1. Open your database client (pgAdmin, DBeaver, DataGrip, etc.)
 2. Connect to your database
-3. Open file: `D:\MandirSync\backend\scripts\create_audit_logs_table.sql`
+3. Open file: `D:\MandirMitra\backend\scripts\create_audit_logs_table.sql`
 4. Copy all SQL content
 5. Paste and execute in your database client
 
 #### Option C: Using Python Script (EASIEST - Recommended)
 ```bash
 # Navigate to backend directory
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 
 # Activate your virtual environment (if using one)
 # conda activate your_env_name
@@ -43,11 +43,11 @@ python -m scripts.create_audit_logs_table
 
 ### Step 2: Create Clerk Users
 
-**Location:** Must be run from **BACKEND DIRECTORY** (`D:\MandirSync\backend`)
+**Location:** Must be run from **BACKEND DIRECTORY** (`D:\MandirMitra\backend`)
 
 ```bash
 # Navigate to backend directory
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 
 # Activate virtual environment (if using one)
 # conda activate your_env_name
@@ -60,14 +60,14 @@ python -m scripts.create_clerk_users --num-clerks 3 --password clerk123
 ```
 
 **Current Directory Check:**
-- If you're in `D:\MandirSync` (project root), run: `cd backend` first
-- If you're in `D:\MandirSync\backend`, run directly
+- If you're in `D:\MandirMitra` (project root), run: `cd backend` first
+- If you're in `D:\MandirMitra\backend`, run directly
 
 **Verify you're in the right directory:**
 ```bash
 # Windows PowerShell
 pwd
-# Should show: D:\MandirSync\backend
+# Should show: D:\MandirMitra\backend
 
 # Or check if scripts folder exists
 ls scripts
@@ -76,7 +76,7 @@ ls scripts
 
 ---
 
-## 🔍 Quick Verification
+## ðŸ” Quick Verification
 
 ### After Step 1 (Audit Logs Table):
 ```sql
@@ -101,7 +101,7 @@ for clerk in clerks:
 
 ---
 
-## 📋 Complete Setup Checklist
+## ðŸ“‹ Complete Setup Checklist
 
 - [ ] **Step 1:** Create audit_logs table (using Option A, B, or C above)
 - [ ] **Step 2:** Create clerk users (from backend directory)
@@ -111,7 +111,7 @@ for clerk in clerks:
 
 ---
 
-## 🚨 Common Issues
+## ðŸš¨ Common Issues
 
 ### Issue 1: "Module not found" when running Step 2
 **Solution:** Make sure you're in the backend directory and have activated your virtual environment.
@@ -127,10 +127,10 @@ for clerk in clerks:
 
 ---
 
-## 💡 Tips
+## ðŸ’¡ Tips
 
 1. **Easiest Method for Step 1:** Use Option B (database client) - just copy/paste SQL
-2. **For Step 2:** Always run from `D:\MandirSync\backend` directory
+2. **For Step 2:** Always run from `D:\MandirMitra\backend` directory
 3. **Verify Setup:** Run the verification commands above to confirm everything worked
 
 ---

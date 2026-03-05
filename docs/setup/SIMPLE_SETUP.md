@@ -1,31 +1,31 @@
-# Simple Setup - Just One Command! 🚀
+# Simple Setup - Just One Command! ðŸš€
 
-## ✅ Super Simple Method
+## âœ… Super Simple Method
 
 Since you're not comfortable with copying/pasting SQL, I've created a **single script that does everything**!
 
 ### Just Run This One Command:
 
 ```bash
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 python -m scripts.setup_multi_user
 ```
 
 That's it! The script will:
-1. ✅ Create the audit_logs table automatically
-2. ✅ Create 3 clerk users automatically
-3. ✅ Show you everything that was created
+1. âœ… Create the audit_logs table automatically
+2. âœ… Create 3 clerk users automatically
+3. âœ… Show you everything that was created
 
 ---
 
-## 📋 Step-by-Step (Very Simple)
+## ðŸ“‹ Step-by-Step (Very Simple)
 
 ### Step 1: Open Terminal/PowerShell
 
 You're already in the right place! Just make sure you're in the backend folder:
 
 ```bash
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 ```
 
 ### Step 2: Run the Setup Script
@@ -37,15 +37,15 @@ python -m scripts.setup_multi_user
 ### Step 3: Wait for It to Finish
 
 The script will show you:
-- ✅ What it's doing
-- ✅ What was created
-- ✅ Any errors (if any)
+- âœ… What it's doing
+- âœ… What was created
+- âœ… Any errors (if any)
 
 ### Step 4: Done!
 
 You'll see a message like:
 ```
-✅ SETUP COMPLETE!
+âœ… SETUP COMPLETE!
 
 Clerk users created:
   - clerk1@temple.local / Password: clerk123
@@ -55,13 +55,13 @@ Clerk users created:
 
 ---
 
-## 🎯 That's It!
+## ðŸŽ¯ That's It!
 
 No copying, no pasting, no SQL - just one command!
 
 ---
 
-## ❓ What If It Doesn't Work?
+## â“ What If It Doesn't Work?
 
 If you get an error like "ModuleNotFoundError", you might need to activate your environment first:
 
@@ -75,7 +75,7 @@ python -m scripts.setup_multi_user
 
 ---
 
-**That's all you need to do!** 🎉
+**That's all you need to do!** ðŸŽ‰
 
 
 

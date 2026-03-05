@@ -112,11 +112,19 @@ def run_interactive_setup(base_dir: Path) -> Dict:
     print("Admin User Setup:")
     print("-" * 70)
     
-    admin_email = input("9. Admin Email (default: admin@temple.com): ").strip()
-    config['admin_email'] = admin_email if admin_email else "admin@temple.com"
-    
-    admin_password = input("10. Admin Password (default: admin123): ").strip()
-    config['admin_password'] = admin_password if admin_password else "admin123"
+    while True:
+        admin_email = input("9. Admin Email (Required): ").strip()
+        if admin_email:
+            config['admin_email'] = admin_email
+            break
+        print("   [ERROR] Admin email is required.")
+
+    while True:
+        admin_password = input("10. Admin Password (Required, min 8 chars): ").strip()
+        if len(admin_password) >= 8:
+            config['admin_password'] = admin_password
+            break
+        print("   [ERROR] Admin password must be at least 8 characters.")
     
     print()
     print("=" * 70)

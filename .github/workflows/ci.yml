@@ -11,12 +11,66 @@ env:
   NODE_VERSION: "18"
 
 jobs:
+  panchang-freeze:
+    name: "Panchang Freeze Guard"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve diff range
+        id: diff_range
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+              BASE="$(git rev-parse HEAD~1)"
+            else
+              BASE="${{ github.event.before }}"
+            fi
+            echo "base=${BASE}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enforce freeze
+        shell: bash
+        env:
+          PANCHANG_FREEZE_OVERRIDE: ${{ vars.PANCHANG_FREEZE_OVERRIDE }}
+        run: |
+          OVERRIDE="$(echo "${PANCHANG_FREEZE_OVERRIDE:-false}" | tr '[:upper:]' '[:lower:]')"
+          if [ "${OVERRIDE}" = "true" ]; then
+            echo "PANCHANG_FREEZE_OVERRIDE=true -> skipping freeze enforcement."
+            exit 0
+          fi
+
+          CHANGED="$(git diff --name-only "${{ steps.diff_range.outputs.base }}" "${{ steps.diff_range.outputs.head }}" -- \
+            backend/app/services/panchang/core.py \
+            backend/app/services/panchang/timings.py \
+            backend/app/services/panchang/calendrical.py \
+            backend/app/services/panchang/constants.py \
+            backend/app/services/panchang/__init__.py \
+            frontend/src/components/PanchangDisplay.js || true)"
+
+          if [ -n "${CHANGED}" ]; then
+            echo "::error::Panchang module is frozen. Set repository variable PANCHANG_FREEZE_OVERRIDE=true only for intentional approved edits."
+            echo "Blocked file changes:"
+            echo "${CHANGED}"
+            exit 1
+          fi
+
+          echo "Freeze guard passed: no frozen Panchang files changed."
   # ────────────────────────────────────────────────
   # JOB 1: Backend — Lint + Security + Tests
   # ────────────────────────────────────────────────
   backend:
     name: "Backend (Python)"
     runs-on: ubuntu-latest
+    needs: [panchang-freeze]
 
     services:
       postgres:
@@ -108,6 +162,7 @@ jobs:
   frontend:
     name: "Frontend (React)"
     runs-on: ubuntu-latest
+    needs: [panchang-freeze]
 
     steps:
       - name: Checkout code

@@ -31,9 +31,9 @@ beforeEach(() => {
 });
 
 describe('Login Page - Rendering', () => {
-    it('renders the MandirSync heading', () => {
+    it('renders the MandirMitra heading', () => {
         renderLogin();
-        expect(screen.getByText(/MandirSync/i)).toBeInTheDocument();
+        expect(screen.getByText(/MandirMitra/i)).toBeInTheDocument();
     });
 
     it('renders email and password fields', () => {
@@ -175,7 +175,7 @@ describe('Login Page - Loading State', () => {
         await userEvent.type(screen.getByLabelText(/Password/i), 'pass');
         fireEvent.click(screen.getByRole('button', { name: /Sign In/i }));
 
-        // After click, loading starts – the submit button becomes disabled while fetch pending
+        // After click, loading starts â€“ the submit button becomes disabled while fetch pending
         await waitFor(() => {
             const submitBtn = document.querySelector('button[type="submit"]');
             expect(submitBtn).toBeDisabled();

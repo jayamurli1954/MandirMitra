@@ -65,6 +65,8 @@ describe('Devotees Page - Data Display', () => {
             address: '123 Temple St',
             donation_count: 5,
             total_donations: 5000,
+            booking_count: 2,
+            total_seva_amount: 1500,
         },
         {
             id: 2,
@@ -74,6 +76,8 @@ describe('Devotees Page - Data Display', () => {
             address: null,
             donation_count: 3,
             total_donations: 3000,
+            booking_count: 1,
+            total_seva_amount: 700,
         },
     ];
 
@@ -107,7 +111,7 @@ describe('Devotees Page - Data Display', () => {
         });
     });
 
-    it('renders table headers: Name, Phone, Email, Address, Donations, Total Donated', async () => {
+    it('renders table headers: Name, Phone, Email, Address, Donations, Total Donated, Sevas, Total Seva', async () => {
         api.get.mockResolvedValueOnce({ data: mockDevotees });
         renderDevotees();
 
@@ -118,6 +122,30 @@ describe('Devotees Page - Data Display', () => {
             expect(screen.getByText('Address')).toBeInTheDocument();
             expect(screen.getByText('Donations')).toBeInTheDocument();
             expect(screen.getByText('Total Donated')).toBeInTheDocument();
+            expect(screen.getByText('Sevas')).toBeInTheDocument();
+            expect(screen.getByText('Total Seva')).toBeInTheDocument();
+        });
+    });
+
+    it('renders total donated values from total_donations field', async () => {
+        api.get.mockResolvedValueOnce({ data: mockDevotees });
+        renderDevotees();
+
+        await waitFor(() => {
+            expect(screen.getByText(/5,000/)).toBeInTheDocument();
+            expect(screen.getByText(/3,000/)).toBeInTheDocument();
+        });
+    });
+
+    it('renders seva count and total seva values', async () => {
+        api.get.mockResolvedValueOnce({ data: mockDevotees });
+        renderDevotees();
+
+        await waitFor(() => {
+            expect(screen.getByText('2')).toBeInTheDocument();
+            expect(screen.getByText('1')).toBeInTheDocument();
+            expect(screen.getByText(/1,500/)).toBeInTheDocument();
+            expect(screen.getByText(/700/)).toBeInTheDocument();
         });
     });
 });

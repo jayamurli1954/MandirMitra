@@ -35,6 +35,15 @@ function Settings() {
   const [authenticated, setAuthenticated] = useState(true); // Always authenticated for demo
   const [settings, setSettings] = useState({
     temple_name: '',
+    name_kannada: '',
+    name_sanskrit: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
+    phone: '',
+    email: '',
+    website: '',
     financial_year_start: 4,
     receipt_prefix_donation: 'DON',
     receipt_prefix_seva: 'SEVA',
@@ -50,13 +59,24 @@ function Settings() {
     fcra_registration_number: '',
     fcra_valid_from: '',
     fcra_valid_to: '',
+    // Modules
+    module_donations_enabled: true,
+    module_sevas_enabled: true,
+    module_inventory_enabled: true,
+    module_assets_enabled: true,
+    module_hr_enabled: true,
+    module_hundi_enabled: true,
+    module_accounting_enabled: true,
+    module_panchang_enabled: true,
+    logo_url: '',
+    banner_url: '',
   });
 
   useEffect(() => {
     // Password protection disabled for demo - always fetch settings
     // const isAuth = sessionStorage.getItem('settings_authenticated') === 'true';
     // setAuthenticated(isAuth);
-    
+
     // Always fetch settings for demo
     fetchSettings();
   }, []);
@@ -91,6 +111,15 @@ function Settings() {
         const temple = response.data[0];
         setSettings({
           temple_name: temple.name || '',
+          name_kannada: temple.name_kannada || '',
+          name_sanskrit: temple.name_sanskrit || '',
+          address: temple.address || '',
+          city: temple.city || '',
+          state: temple.state || '',
+          pincode: temple.pincode || '',
+          phone: temple.phone || '',
+          email: temple.email || '',
+          website: temple.website || '',
           financial_year_start: temple.financial_year_start_month || 4,
           receipt_prefix_donation: temple.receipt_prefix_donation || 'DON',
           receipt_prefix_seva: temple.receipt_prefix_seva || 'SEVA',
@@ -106,6 +135,17 @@ function Settings() {
           fcra_registration_number: temple.fcra_registration_number || '',
           fcra_valid_from: temple.fcra_valid_from || '',
           fcra_valid_to: temple.fcra_valid_to || '',
+          // Modules
+          module_donations_enabled: temple.module_donations_enabled !== undefined ? temple.module_donations_enabled : true,
+          module_sevas_enabled: temple.module_sevas_enabled !== undefined ? temple.module_sevas_enabled : true,
+          module_inventory_enabled: temple.module_inventory_enabled !== undefined ? temple.module_inventory_enabled : true,
+          module_assets_enabled: temple.module_assets_enabled !== undefined ? temple.module_assets_enabled : true,
+          module_hr_enabled: temple.module_hr_enabled !== undefined ? temple.module_hr_enabled : true,
+          module_hundi_enabled: temple.module_hundi_enabled !== undefined ? temple.module_hundi_enabled : true,
+          module_accounting_enabled: temple.module_accounting_enabled !== undefined ? temple.module_accounting_enabled : true,
+          module_panchang_enabled: temple.module_panchang_enabled !== undefined ? temple.module_panchang_enabled : true,
+          logo_url: temple.logo_url || '',
+          banner_url: temple.banner_url || '',
         });
       }
     } catch (err) {
@@ -115,12 +155,85 @@ function Settings() {
     }
   };
 
+  const handleFileUpload = async (event, type) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setLoading(true);
+      const response = await api.post(`/api/v1/temples/upload?media_type=${type}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.data && response.data.url) {
+        setSettings({ ...settings, [`${type}_url`]: response.data.url });
+        showSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully`);
+      }
+    } catch (err) {
+      console.error('Upload failed:', err);
+      showError('Upload failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     try {
       setLoading(true);
-      // Save settings via API
-      showSuccess('Settings saved successfully');
+
+      // 1. Save module configuration
+      const moduleConfig = {
+        module_donations_enabled: settings.module_donations_enabled,
+        module_sevas_enabled: settings.module_sevas_enabled,
+        module_inventory_enabled: settings.module_inventory_enabled,
+        module_assets_enabled: settings.module_assets_enabled,
+        module_hr_enabled: settings.module_hr_enabled,
+        module_hundi_enabled: settings.module_hundi_enabled,
+        module_accounting_enabled: settings.module_accounting_enabled,
+        module_panchang_enabled: settings.module_panchang_enabled,
+      };
+
+      await api.put('/api/v1/temples/modules/config', moduleConfig);
+
+      // 2. Save general temple information
+      const templeInfo = {
+        name: settings.temple_name,
+        name_kannada: settings.name_kannada,
+        name_sanskrit: settings.name_sanskrit,
+        address: settings.address,
+        city: settings.city,
+        state: settings.state,
+        pincode: settings.pincode,
+        phone: settings.phone,
+        email: settings.email,
+        website: settings.website,
+        financial_year_start_month: parseInt(settings.financial_year_start),
+        receipt_prefix_donation: settings.receipt_prefix_donation,
+        receipt_prefix_seva: settings.receipt_prefix_seva,
+        gst_applicable: settings.gst_applicable,
+        gstin: settings.gstin,
+        gst_registration_date: settings.gst_registration_date,
+        fcra_applicable: settings.fcra_applicable,
+        fcra_registration_number: settings.fcra_registration_number,
+        fcra_valid_from: settings.fcra_valid_from,
+        fcra_valid_to: settings.fcra_valid_to,
+        logo_url: settings.logo_url,
+        banner_url: settings.banner_url,
+      };
+
+      await api.put('/api/v1/temples/current', templeInfo);
+
+      // 3. Refresh context
+      await fetchSettings();
+
+      showSuccess('Settings saved successfully. Changes to menus will reflect after refresh.');
     } catch (err) {
+      console.error('Failed to save settings:', err);
       showError('Failed to save settings');
     } finally {
       setLoading(false);
@@ -182,55 +295,208 @@ function Settings() {
         )}
 
         <Grid container spacing={3} sx={{ mt: 2 }}>
-          {/* Temple Information */}
-          <Grid item xs={12} md={6}>
-            <Card>
+          {/* Temple Identity */}
+          <Grid item xs={12}>
+            <Card sx={{ borderLeft: '5px solid #FF9933' }}>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Temple Information
+                <Typography variant="h6" gutterBottom color="primary">
+                  Temple Identity
                 </Typography>
-                <TextField
-                  fullWidth
-                  label="Temple Name"
-                  value={settings.temple_name}
-                  onChange={(e) => setSettings({ ...settings, temple_name: e.target.value })}
-                  margin="normal"
-                />
-                <TextField
-                  fullWidth
-                  label="Financial Year Start Month"
-                  type="number"
-                  value={settings.financial_year_start}
-                  onChange={(e) => setSettings({ ...settings, financial_year_start: parseInt(e.target.value) })}
-                  margin="normal"
-                  inputProps={{ min: 1, max: 12 }}
-                  helperText="1=January, 4=April (default)"
-                />
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Temple Name (English)"
+                      value={settings.temple_name}
+                      onChange={(e) => setSettings({ ...settings, temple_name: e.target.value })}
+                      margin="normal"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Temple Name (Kannada)"
+                      value={settings.name_kannada}
+                      onChange={(e) => setSettings({ ...settings, name_kannada: e.target.value })}
+                      margin="normal"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Temple Name (Sanskrit)"
+                      value={settings.name_sanskrit}
+                      onChange={(e) => setSettings({ ...settings, name_sanskrit: e.target.value })}
+                      margin="normal"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Address"
+                      multiline
+                      rows={2}
+                      value={settings.address}
+                      onChange={(e) => setSettings({ ...settings, address: e.target.value })}
+                      margin="normal"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="City"
+                      value={settings.city}
+                      onChange={(e) => setSettings({ ...settings, city: e.target.value })}
+                      margin="normal"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="Pincode"
+                      value={settings.pincode}
+                      onChange={(e) => setSettings({ ...settings, pincode: e.target.value })}
+                      margin="normal"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Phone"
+                      value={settings.phone}
+                      onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+                      margin="normal"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Email"
+                      value={settings.email}
+                      onChange={(e) => setSettings({ ...settings, email: e.target.value })}
+                      margin="normal"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Website"
+                      value={settings.website}
+                      onChange={(e) => setSettings({ ...settings, website: e.target.value })}
+                      margin="normal"
+                    />
+                  </Grid>
+                </Grid>
               </CardContent>
             </Card>
           </Grid>
 
-          {/* Receipt Prefixes */}
+          {/* Branding & Images */}
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Branding & Images
+                </Typography>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" gutterBottom>Temple Logo</Typography>
+                    <Box sx={{
+                      mb: 2,
+                      p: 2,
+                      border: '1px dashed #ccc',
+                      borderRadius: 1,
+                      textAlign: 'center',
+                      minHeight: 120,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: '#fafafa'
+                    }}>
+                      {settings.logo_url ? (
+                        <img src={settings.logo_url} alt="Logo" style={{ maxHeight: 100, maxWidth: '100%' }} />
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">No logo uploaded</Typography>
+                      )}
+                    </Box>
+                    <Button variant="outlined" component="label" fullWidth>
+                      Upload Logo
+                      <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, 'logo')} />
+                    </Button>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" gutterBottom>Temple Banner</Typography>
+                    <Box sx={{
+                      mb: 2,
+                      p: 2,
+                      border: '1px dashed #ccc',
+                      borderRadius: 1,
+                      textAlign: 'center',
+                      minHeight: 120,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: '#fafafa'
+                    }}>
+                      {settings.banner_url ? (
+                        <img src={settings.banner_url} alt="Banner" style={{ maxHeight: 100, maxWidth: '100%' }} />
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">No banner uploaded</Typography>
+                      )}
+                    </Box>
+                    <Button variant="outlined" component="label" fullWidth>
+                      Upload Banner
+                      <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, 'banner')} />
+                    </Button>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Financial & Receipt Configuration */}
           <Grid item xs={12} md={6}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Receipt Prefixes
+                  Financial & Receipt Configuration
                 </Typography>
                 <TextField
                   fullWidth
-                  label="Donation Receipt Prefix"
-                  value={settings.receipt_prefix_donation}
-                  onChange={(e) => setSettings({ ...settings, receipt_prefix_donation: e.target.value })}
+                  select
+                  label="Financial Year Start"
+                  value={settings.financial_year_start}
+                  onChange={(e) => setSettings({ ...settings, financial_year_start: e.target.value })}
                   margin="normal"
-                />
-                <TextField
-                  fullWidth
-                  label="Seva Receipt Prefix"
-                  value={settings.receipt_prefix_seva}
-                  onChange={(e) => setSettings({ ...settings, receipt_prefix_seva: e.target.value })}
-                  margin="normal"
-                />
+                  SelectProps={{ native: true }}
+                  helperText="Select which month your financial year starts in"
+                >
+                  <option value={1}>January (Calendar Year)</option>
+                  <option value={4}>April (Indian Fiscal Year)</option>
+                </TextField>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <TextField
+                      fullWidth
+                      label="Donation Receipt Prefix"
+                      value={settings.receipt_prefix_donation}
+                      onChange={(e) => setSettings({ ...settings, receipt_prefix_donation: e.target.value })}
+                      margin="normal"
+                      placeholder="e.g., DON"
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      fullWidth
+                      label="Seva Receipt Prefix"
+                      value={settings.receipt_prefix_seva}
+                      onChange={(e) => setSettings({ ...settings, receipt_prefix_seva: e.target.value })}
+                      margin="normal"
+                      placeholder="e.g., SEVA"
+                    />
+                  </Grid>
+                </Grid>
               </CardContent>
             </Card>
           </Grid>
@@ -381,49 +647,120 @@ function Settings() {
             </Card>
           </Grid>
 
-          {/* Account Linking */}
+          {/* Module Configuration */}
           <Grid item xs={12}>
-            <Card>
+            <Card sx={{ bgcolor: '#FFF8E1' }}>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Account Linking
+                <Typography variant="h6" gutterBottom color="primary">
+                  Module Configuration
                 </Typography>
-                <Typography variant="body2" color="text.secondary" paragraph>
-                  Link donation categories and sevas to accounting accounts for proper categorization.
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Enable or disable specific features for your temple. This will show/hide relevant menus in the sidebar.
                 </Typography>
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    // Navigate to account linking page or show dialog
-                    showSuccess('Account linking feature coming soon');
-                  }}
-                >
-                  Link Accounts to Categories/Sevas
-                </Button>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={settings.module_donations_enabled}
+                          onChange={(e) => setSettings({ ...settings, module_donations_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Donations Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={settings.module_sevas_enabled}
+                          onChange={(e) => setSettings({ ...settings, module_sevas_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Sevas Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={settings.module_accounting_enabled}
+                          onChange={(e) => setSettings({ ...settings, module_accounting_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Accounting Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={settings.module_inventory_enabled}
+                          onChange={(e) => setSettings({ ...settings, module_inventory_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Inventory Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={settings.module_assets_enabled}
+                          onChange={(e) => setSettings({ ...settings, module_assets_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Temple Assets Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={settings.module_hr_enabled}
+                          onChange={(e) => setSettings({ ...settings, module_hr_enabled: e.target.checked })}
+                        />
+                      }
+                      label="HR & Salary Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={settings.module_hundi_enabled}
+                          onChange={(e) => setSettings({ ...settings, module_hundi_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Hundi Module"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={settings.module_panchang_enabled}
+                          onChange={(e) => setSettings({ ...settings, module_panchang_enabled: e.target.checked })}
+                        />
+                      }
+                      label="Panchang Module"
+                    />
+                  </Grid>
+                </Grid>
               </CardContent>
             </Card>
           </Grid>
         </Grid>
 
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-          {/* Lock Settings button disabled for demo - will be enabled later */}
-          {/* <Button
-            variant="outlined"
-            onClick={() => {
-              setAuthenticated(false);
-              sessionStorage.removeItem('settings_authenticated');
-              navigate('/dashboard');
-            }}
-          >
-            Lock Settings
-          </Button> */}
           <Button
             variant="contained"
             onClick={handleSave}
             disabled={loading}
             startIcon={loading ? <CircularProgress size={20} /> : <SettingsIcon />}
+            sx={{ bgcolor: '#FF9933', '&:hover': { bgcolor: '#E68A00' } }}
           >
-            Save Settings
+            Save All Settings
           </Button>
         </Box>
       </Box>

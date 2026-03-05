@@ -95,7 +95,7 @@ class AccountBase(BaseModel):
 class AccountCreate(AccountBase):
     """Schema for creating an account"""
 
-    temple_id: int
+    temple_id: Optional[int] = None
     opening_balance_debit: float = 0.0
     opening_balance_credit: float = 0.0
 

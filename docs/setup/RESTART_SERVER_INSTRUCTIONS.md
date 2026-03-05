@@ -1,12 +1,12 @@
-# 🔄 Restart Backend Server - Required
+# ðŸ”„ Restart Backend Server - Required
 
-## ⚠️ Important: Server Must Be Restarted
+## âš ï¸ Important: Server Must Be Restarted
 
 The admin user is created, but you need to **restart the backend server** for the relationship fixes to take effect.
 
 ---
 
-## 📋 Step-by-Step Instructions
+## ðŸ“‹ Step-by-Step Instructions
 
 ### Step 1: Stop Current Server
 1. Go to the terminal/command prompt where uvicorn is running
@@ -15,7 +15,7 @@ The admin user is created, but you need to **restart the backend server** for th
 
 ### Step 2: Restart Server
 ```powershell
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 .\venv\Scripts\activate
 uvicorn app.main:app --reload --port 8000
 ```
@@ -28,12 +28,12 @@ INFO:     Application startup complete.
 
 **NOT**:
 ```
-❌ Error creating admin user: ...
+âŒ Error creating admin user: ...
 ```
 
 ---
 
-## ✅ After Restart
+## âœ… After Restart
 
 ### Test Login
 1. Open your frontend application
@@ -45,7 +45,7 @@ INFO:     Application startup complete.
 
 ---
 
-## 🔐 Login Credentials (Already Created)
+## ðŸ” Login Credentials (Already Created)
 
 - **Email**: `admin@temple.com`
 - **Password**: `admin123`
@@ -54,22 +54,22 @@ The user is already in the database - just restart the server and login!
 
 ---
 
-## 🧪 Quick Test After Restart
+## ðŸ§ª Quick Test After Restart
 
 ```powershell
 # Test health
 curl http://localhost:8000/health
 
-# Should return: {"status":"healthy","service":"MandirSync","version":"1.0.0"}
+# Should return: {"status":"healthy","service":"MandirMitra","version":"1.0.0"}
 ```
 
 ---
 
-## ✅ Summary
+## âœ… Summary
 
-1. ✅ Admin user created: `admin@temple.com` / `admin123`
-2. ⏳ **Restart server** (required)
-3. ✅ Login through frontend
+1. âœ… Admin user created: `admin@temple.com` / `admin123`
+2. â³ **Restart server** (required)
+3. âœ… Login through frontend
 
 **No Swagger UI needed** - just restart and use your frontend login!
 

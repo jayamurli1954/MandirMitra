@@ -4,7 +4,7 @@ Panchang API Endpoints
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime, date
+from datetime import datetime, date, time
 from typing import Optional
 from pydantic import BaseModel
 
@@ -18,6 +18,26 @@ router = APIRouter(prefix="/api/v1/panchang", tags=["panchang"])
 
 # Initialize Panchang Service
 panchang_service = PanchangService()
+
+
+def _resolve_panchang_location(db: Session, temple_id: int):
+    """Resolve temple location from settings with Bengaluru fallback."""
+    panchang_settings = (
+        db.query(PanchangDisplaySettings)
+        .filter(PanchangDisplaySettings.temple_id == temple_id)
+        .first()
+    )
+
+    if panchang_settings and panchang_settings.latitude and panchang_settings.longitude:
+        lat = float(panchang_settings.latitude)
+        lon = float(panchang_settings.longitude)
+        city = panchang_settings.city_name or "Bengaluru"
+    else:
+        lat = 12.9716
+        lon = 77.5946
+        city = "Bengaluru"
+
+    return lat, lon, city
 
 
 @router.get("/today")
@@ -38,25 +58,8 @@ def get_today_panchang(
         now = datetime.now()
         logger.info(f"Calculating panchang for {now}")
 
-        # Get temple's panchang settings for location
-        panchang_settings = (
-            db.query(PanchangDisplaySettings)
-            .filter(PanchangDisplaySettings.temple_id == current_user.temple_id)
-            .first()
-        )
-
-        # Default to Bangalore if settings not found
-        if panchang_settings and panchang_settings.latitude and panchang_settings.longitude:
-            lat = float(panchang_settings.latitude)
-            lon = float(panchang_settings.longitude)
-            city = panchang_settings.city_name or "Bengaluru"
-            logger.info(f"Using panchang settings: {city} ({lat}, {lon})")
-        else:
-            # Fallback to Bangalore
-            lat = 12.9716
-            lon = 77.5946
-            city = "Bengaluru"
-            logger.info(f"Using default location: {city} ({lat}, {lon})")
+        lat, lon, city = _resolve_panchang_location(db, current_user.temple_id)
+        logger.info(f"Using location: {city} ({lat}, {lon})")
 
         # Calculate real panchang using Swiss Ephemeris with temple's location
         logger.info("Starting panchang calculation...")
@@ -72,6 +75,43 @@ def get_today_panchang(
         logger.error(f"{error_msg}\n{error_trace}")
 
         # Return error response with details for debugging
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": error_msg,
+                "type": type(e).__name__,
+                "traceback": error_trace if logger.level == logging.DEBUG else None,
+            },
+        )
+
+
+@router.get("/on-date")
+def get_panchang_for_date(
+    target_date: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get Panchang for a specific calendar date (IST).
+    Useful for date-to-nakshatra lookup in seva counters.
+    """
+    import traceback
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        lat, lon, city = _resolve_panchang_location(db, current_user.temple_id)
+
+        # Use morning reference time for practical day-level seva lookup.
+        dt = datetime.combine(target_date, time(hour=6, minute=0, second=0))
+        panchang_data = panchang_service.calculate_panchang(dt, lat, lon, city)
+        panchang_data["lookup_requested_date"] = target_date.isoformat()
+        return panchang_data
+    except Exception as e:
+        error_msg = f"Error calculating panchang for date {target_date}: {str(e)}"
+        error_trace = traceback.format_exc()
+        logger.error(f"{error_msg}\n{error_trace}")
         raise HTTPException(
             status_code=500,
             detail={

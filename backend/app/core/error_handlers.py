@@ -87,7 +87,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         errors.append({"field": field, "message": error["msg"], "type": error["type"]})
 
     # Print validation errors to console for debugging
-    print(f"❌ VALIDATION ERROR: {errors}")
+    print(f"VALIDATION ERROR: {errors}")
     print(f"   Path: {request.url.path}, Method: {request.method}")
     logger.warning(
         f"Validation error: {errors}", extra={"path": request.url.path, "method": request.method}

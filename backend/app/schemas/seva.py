@@ -193,6 +193,7 @@ class SevaBookingBase(BaseModel):
     booking_time: Optional[str] = Field(None, max_length=50)
     amount_paid: float = Field(..., gt=0)
     payment_method: Optional[str] = Field(None, max_length=50)  # Cash, Card, UPI, Cheque, Online
+    payment_account_id: Optional[int] = None  # Selected chart account for cash/bank debit
     payment_reference: Optional[str] = Field(None, max_length=100)  # Legacy field
 
     # UPI Payment Details (if payment_method = 'UPI')
@@ -219,7 +220,7 @@ class SevaBookingBase(BaseModel):
 
 
 class SevaBookingCreate(SevaBookingBase):
-    pass
+    priest_id: Optional[int] = None
 
 
 class SevaBookingUpdate(BaseModel):
@@ -236,6 +237,7 @@ class SevaBookingUpdate(BaseModel):
     rashi: Optional[str] = Field(None, max_length=50)
     special_request: Optional[str] = None
     admin_notes: Optional[str] = None
+    priest_id: Optional[int] = None
 
     @field_validator("status", mode="before", check_fields=False)
     @classmethod

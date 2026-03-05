@@ -2,7 +2,10 @@
 Temple Management API Endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import shutil
+from pathlib import Path
+from uuid import uuid4
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -13,6 +16,7 @@ from app.models.temple import Temple
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/temples", tags=["temples"])
+UPLOAD_ROOT = Path(__file__).resolve().parents[2] / "uploads"
 
 
 class TempleResponse(BaseModel):
@@ -34,6 +38,8 @@ class TempleResponse(BaseModel):
     module_assets_enabled: bool = True
     module_accounting_enabled: bool = True
     module_tender_enabled: bool = False
+    module_hr_enabled: bool = True
+    module_hundi_enabled: bool = True
     module_panchang_enabled: bool = True
     module_reports_enabled: bool = True
     module_token_seva_enabled: bool = True
@@ -56,6 +62,36 @@ class ModuleConfigUpdate(BaseModel):
     module_panchang_enabled: Optional[bool] = None
     module_reports_enabled: Optional[bool] = None
     module_token_seva_enabled: Optional[bool] = None
+
+class TempleUpdate(BaseModel):
+    """Schema for updating general temple information"""
+    name: Optional[str] = None
+    name_kannada: Optional[str] = None
+    name_sanskrit: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    
+    financial_year_start_month: Optional[int] = None
+    receipt_prefix_donation: Optional[str] = None
+    receipt_prefix_seva: Optional[str] = None
+    
+    gst_applicable: Optional[bool] = None
+    gstin: Optional[str] = None
+    gst_registration_date: Optional[str] = None
+    
+    fcra_applicable: Optional[bool] = None
+    fcra_registration_number: Optional[str] = None
+    fcra_valid_from: Optional[str] = None
+    fcra_valid_to: Optional[str] = None
+    logo_url: Optional[str] = None
+    banner_url: Optional[str] = None
+    opening_time: Optional[str] = None
+    closing_time: Optional[str] = None
 
 
 @router.get("/", response_model=List[TempleResponse])
@@ -318,37 +354,77 @@ def update_module_config(
     db.refresh(temple)
 
     return {
-        "module_donations_enabled": temple.module_donations_enabled
-        if hasattr(temple, "module_donations_enabled")
-        else True,
-        "module_sevas_enabled": temple.module_sevas_enabled
-        if hasattr(temple, "module_sevas_enabled")
-        else True,
-        "module_inventory_enabled": temple.module_inventory_enabled
-        if hasattr(temple, "module_inventory_enabled")
-        else True,
-        "module_assets_enabled": temple.module_assets_enabled
-        if hasattr(temple, "module_assets_enabled")
-        else True,
-        "module_accounting_enabled": temple.module_accounting_enabled
-        if hasattr(temple, "module_accounting_enabled")
-        else True,
-        "module_tender_enabled": temple.module_tender_enabled
-        if hasattr(temple, "module_tender_enabled")
-        else False,
-        "module_hr_enabled": temple.module_hr_enabled
-        if hasattr(temple, "module_hr_enabled")
-        else True,
-        "module_hundi_enabled": temple.module_hundi_enabled
-        if hasattr(temple, "module_hundi_enabled")
-        else True,
-        "module_panchang_enabled": temple.module_panchang_enabled
-        if hasattr(temple, "module_panchang_enabled")
-        else True,
-        "module_reports_enabled": temple.module_reports_enabled
-        if hasattr(temple, "module_reports_enabled")
-        else True,
-        "module_token_seva_enabled": temple.module_token_seva_enabled
-        if hasattr(temple, "module_token_seva_enabled")
-        else True,
+        "module_donations_enabled": temple.module_donations_enabled if hasattr(temple, "module_donations_enabled") else True,
+        "module_sevas_enabled": temple.module_sevas_enabled if hasattr(temple, "module_sevas_enabled") else True,
+        "module_inventory_enabled": temple.module_inventory_enabled if hasattr(temple, "module_inventory_enabled") else True,
+        "module_assets_enabled": temple.module_assets_enabled if hasattr(temple, "module_assets_enabled") else True,
+        "module_accounting_enabled": temple.module_accounting_enabled if hasattr(temple, "module_accounting_enabled") else True,
+        "module_tender_enabled": temple.module_tender_enabled if hasattr(temple, "module_tender_enabled") else False,
+        "module_hr_enabled": temple.module_hr_enabled if hasattr(temple, "module_hr_enabled") else True,
+        "module_hundi_enabled": temple.module_hundi_enabled if hasattr(temple, "module_hundi_enabled") else True,
+        "module_panchang_enabled": temple.module_panchang_enabled if hasattr(temple, "module_panchang_enabled") else True,
+        "module_reports_enabled": temple.module_reports_enabled if hasattr(temple, "module_reports_enabled") else True,
+        "module_token_seva_enabled": temple.module_token_seva_enabled if hasattr(temple, "module_token_seva_enabled") else True,
     }
+
+@router.put("/current", response_model=TempleResponse)
+def update_current_temple(
+    update: TempleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update general information for the current temple"""
+    if not current_user.temple_id:
+        raise HTTPException(status_code=404, detail="Temple not found")
+
+    temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
+    if not temple:
+        raise HTTPException(status_code=404, detail="Temple not found")
+
+    update_data = update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        if hasattr(temple, field):
+            setattr(temple, field, value)
+
+    db.commit()
+    db.refresh(temple)
+    return temple
+
+@router.post("/upload", response_model=dict)
+async def upload_temple_media(
+    file: UploadFile = File(...),
+    media_type: str = Query(..., description="logo or banner"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload temple media (logo or banner)"""
+    if not current_user.temple_id:
+        raise HTTPException(status_code=404, detail="Temple not found")
+    if media_type not in {"logo", "banner"}:
+        raise HTTPException(status_code=400, detail="media_type must be either 'logo' or 'banner'")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File name is required")
+
+    original_name = Path(file.filename).name
+    extension = Path(original_name).suffix.lower()
+    allowed_extensions = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
+    if extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Allowed: .png, .jpg, .jpeg, .svg, .webp",
+        )
+
+    safe_filename = f"{media_type}_{uuid4().hex}{extension}"
+
+    # Ensure uploads directory exists
+    upload_dir = UPLOAD_ROOT / "temples" / str(current_user.temple_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = upload_dir / safe_filename
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # URL that will be stored in DB (assuming /uploads is served)
+    url = f"/uploads/temples/{current_user.temple_id}/{safe_filename}"
+    
+    return {"url": url}

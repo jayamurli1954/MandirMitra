@@ -168,6 +168,12 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
+# Serve static files from uploads directory
+from fastapi.staticfiles import StaticFiles
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -215,9 +221,71 @@ app.include_router(purchase_orders_router)
 app.include_router(stock_audit_router)
 
 
+def _validate_startup_security_config():
+    """Fail fast for insecure settings in non-standalone/production-like deployments."""
+    deployment_mode = (settings.DEPLOYMENT_MODE or "").lower()
+    non_standalone_mode = deployment_mode != "standalone"
+    issues = []
+
+    if non_standalone_mode and settings.DEBUG:
+        issues.append("DEBUG must be False when DEPLOYMENT_MODE is not 'standalone'.")
+
+    # Strict secret checks for SaaS/non-standalone and any explicit non-debug mode.
+    if non_standalone_mode or not settings.DEBUG:
+        placeholder_values = {
+            "your-secret-key-change-this",
+            "your-jwt-secret-key-change-this",
+            "changeme",
+            "change-me",
+            "secret",
+        }
+        secret_key = (settings.SECRET_KEY or "").strip()
+        jwt_secret_key = (settings.JWT_SECRET_KEY or "").strip()
+
+        if secret_key in placeholder_values or len(secret_key) < 32:
+            issues.append(
+                "SECRET_KEY must be set to a strong random value (minimum 32 chars)."
+            )
+        if jwt_secret_key in placeholder_values or len(jwt_secret_key) < 32:
+            issues.append(
+                "JWT_SECRET_KEY must be set to a strong random value (minimum 32 chars)."
+            )
+        if secret_key and jwt_secret_key and secret_key == jwt_secret_key:
+            issues.append("SECRET_KEY and JWT_SECRET_KEY must be different values.")
+
+    if issues:
+        for issue in issues:
+            print(f"[ERROR] {issue}")
+        raise RuntimeError(
+            "Startup blocked due to insecure configuration. "
+            "Set secure secrets and disable DEBUG for production-like deployments."
+        )
+
+
+def _check_backup_path_writable():
+    """Warn if configured backup path is not writable."""
+    from pathlib import Path
+    import uuid
+
+    backup_path = Path(settings.BACKUP_PATH).expanduser()
+    probe_file = backup_path / f".write_probe_{uuid.uuid4().hex}.tmp"
+    try:
+        backup_path.mkdir(parents=True, exist_ok=True)
+        probe_file.write_text("ok", encoding="utf-8")
+        probe_file.unlink(missing_ok=True)
+        print(f"[OK] Backup path writable: {backup_path}")
+    except Exception as e:
+        print(
+            f"[WARNING] BACKUP_PATH is not writable ({backup_path}). "
+            f"Backup create/restore may fail. Details: {e}"
+        )
+
+
 def _run_startup():
     """Synchronous startup logic (called from lifespan context manager)"""
+    _validate_startup_security_config()
     init_db()
+    _check_backup_path_writable()
 
     # Run database integrity check (for tampering detection)
     try:

@@ -5,21 +5,33 @@ from jose import jwt, JWTError
 from app.core.config import settings
 
 # Paths that don't depend on JWT validation
-EXCLUDED_PATHS = [
-    "/docs",
+EXCLUDED_PATHS_EXACT = {
+    "/",
+    "/health",
     "/openapi.json",
-    "/redoc",
+    "/api/v1/login",
+    "/api/v1/forgot-password",
+    "/api/v1/reset-password",
     "/api/v1/auth/login",
     "/api/v1/auth/register",
     "/api/v1/auth/reset-password",
-    "/health",
-    "/"
-]
+}
+
+EXCLUDED_PATH_PREFIXES = {
+    "/docs",
+    "/redoc",
+}
+
+
+def _is_excluded_path(path: str) -> bool:
+    if path in EXCLUDED_PATHS_EXACT:
+        return True
+    return any(path.startswith(prefix) for prefix in EXCLUDED_PATH_PREFIXES)
 
 class JWTMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Allow preflight requests and excluded paths
-        if request.method == "OPTIONS" or any(request.url.path.startswith(path) for path in EXCLUDED_PATHS):
+        if request.method == "OPTIONS" or _is_excluded_path(request.url.path):
             return await call_next(request)
             
         auth_header = request.headers.get("Authorization")

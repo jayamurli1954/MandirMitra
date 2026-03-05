@@ -49,20 +49,20 @@ class SevaCategoryDecorator(TypeDecorator):
             # The database column should be VARCHAR (not enum) due to TypeDecorator using String
             # So we can use the lowercase .value
             result = value.value  # Returns lowercase string like "seva"
-            print(
-                f"🔧 SevaCategoryDecorator.process_bind_param: enum {value.name}={value.value} -> '{result}'"
-            )
+            # print(
+            #     f"🔧 SevaCategoryDecorator.process_bind_param: enum {value.name}={value.value} -> '{result}'"
+            # )
             return result
         if isinstance(value, str):
             # If it's already a string, use as-is (TypeDecorator stores as VARCHAR)
             result = value.lower()  # Normalize to lowercase
-            print(f"🔧 SevaCategoryDecorator.process_bind_param: string '{value}' -> '{result}'")
+            # print(f"🔧 SevaCategoryDecorator.process_bind_param: string '{value}' -> '{result}'")
             return result
         # For any other type, convert to lowercase string
         result = str(value).lower()
-        print(
-            f"🔧 SevaCategoryDecorator.process_bind_param: other {type(value)} {value} -> '{result}'"
-        )
+        # print(
+        #     f"🔧 SevaCategoryDecorator.process_bind_param: other {type(value)} {value} -> '{result}'"
+        # )
         return result
 
     def process_result_value(self, value, dialect):

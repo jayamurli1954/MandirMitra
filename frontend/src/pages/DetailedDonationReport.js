@@ -22,6 +22,8 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import IconButton from '@mui/material/IconButton';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import ExportButton from '../components/ExportButton';
@@ -55,21 +57,45 @@ function DetailedDonationReport() {
     try {
       setLoading(true);
       setError('');
-      
+
       const params = {
         from_date: fromDate.toISOString().split('T')[0],
         to_date: toDate.toISOString().split('T')[0],
       };
-      
+
       if (categoryFilter) params.category = categoryFilter;
       if (paymentModeFilter) params.payment_mode = paymentModeFilter;
-      
+
       const response = await api.get('/api/v1/reports/donations/detailed', { params });
-      
+
       setReportData(response.data);
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to load report');
       console.error('Report error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadReceipt = async (donationId, receiptNumber) => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/api/v1/donations/${donationId}/receipt/pdf`, {
+        responseType: 'blob',
+      });
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `receipt_${receiptNumber || donationId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading receipt:', err);
+      setError('Failed to download receipt');
     } finally {
       setLoading(false);
     }
@@ -181,7 +207,7 @@ function DetailedDonationReport() {
           <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
-                Total: {reportData.total_count} donations | 
+                Total: {reportData.total_count} donations |
                 Amount: ₹{new Intl.NumberFormat('en-IN').format(reportData.total_amount)}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
@@ -201,6 +227,7 @@ function DetailedDonationReport() {
                     <TableCell><strong>Category</strong></TableCell>
                     <TableCell><strong>Payment Mode</strong></TableCell>
                     <TableCell align="right"><strong>Amount (₹)</strong></TableCell>
+                    <TableCell align="right"><strong>Action</strong></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -218,6 +245,16 @@ function DetailedDonationReport() {
                           currency: 'INR',
                           maximumFractionDigits: 0,
                         }).format(donation.amount)}
+                      </TableCell>
+                      <TableCell align="right">
+                        <IconButton
+                          color="primary"
+                          size="small"
+                          onClick={() => handleDownloadReceipt(donation.id, donation.receipt_number)}
+                          title="Download Receipt"
+                        >
+                          <PictureAsPdfIcon fontSize="small" />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   ))}

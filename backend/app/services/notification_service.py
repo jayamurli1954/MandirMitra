@@ -17,10 +17,33 @@ class NotificationService:
     def __init__(self):
         self.sms_enabled = getattr(settings, "SMS_ENABLED", False)
         self.email_enabled = getattr(settings, "EMAIL_ENABLED", False)
+        self.sms_provider = getattr(settings, "SMS_PROVIDER", "MSG91")
         self.sms_api_key = getattr(settings, "SMS_API_KEY", None)
         self.sms_sender_id = getattr(settings, "SMS_SENDER_ID", None)
+        self.sms_template_id = getattr(settings, "SMS_TEMPLATE_ID", None)
+        self.infobip_base_url = getattr(settings, "INFOBIP_BASE_URL", "https://api.infobip.com")
+        self.sms_test_mode = getattr(settings, "SMS_TEST_MODE", False)
+        self.sms_test_recipient = getattr(settings, "SMS_TEST_RECIPIENT", None)
         self.email_api_key = getattr(settings, "EMAIL_API_KEY", None)
         self.email_from = getattr(settings, "EMAIL_FROM", None)
+
+    @staticmethod
+    def _digits_only(value: str) -> str:
+        return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+    def _normalize_phone_for_msg91(self, phone: str) -> str:
+        normalized_phone = self._digits_only(phone)
+        if len(normalized_phone) == 10:
+            normalized_phone = f"91{normalized_phone}"
+        return normalized_phone
+
+    def _normalize_phone_for_infobip(self, phone: str) -> str:
+        normalized_phone = self._digits_only(phone)
+        if len(normalized_phone) == 10:
+            normalized_phone = f"91{normalized_phone}"
+        if not normalized_phone.startswith("+"):
+            normalized_phone = f"+{normalized_phone}"
+        return normalized_phone
 
     def send_sms(self, phone: str, message: str) -> Dict[str, Any]:
         """
@@ -31,13 +54,31 @@ class NotificationService:
             logger.info(f"SMS disabled, would send to {phone}: {message[:50]}...")
             return {"success": False, "error": "SMS service not enabled"}
 
+        routed_to_test_number = False
+        if self.sms_test_mode:
+            if not self.sms_test_recipient:
+                logger.warning("SMS test mode is enabled but SMS_TEST_RECIPIENT is not configured")
+                return {"success": False, "error": "SMS test recipient not configured"}
+            logger.info(
+                f"SMS test mode active: rerouting SMS from {phone} to {self.sms_test_recipient}"
+            )
+            phone = self.sms_test_recipient
+            routed_to_test_number = True
+
         if not phone or len(phone) < 10:
             return {"success": False, "error": "Invalid phone number"}
 
         try:
-            # MSG91 API integration (recommended for India)
-            # You can replace with Twilio or other providers
-            if self.sms_api_key:
+            provider = (self.sms_provider or "MSG91").strip().upper()
+            if provider == "MSG91":
+                if not self.sms_api_key:
+                    logger.warning("SMS API key not configured")
+                    return {"success": False, "error": "SMS API key not configured"}
+                if not self.sms_template_id:
+                    logger.warning("SMS template ID not configured")
+                    return {"success": False, "error": "SMS template ID not configured"}
+
+                normalized_phone = self._normalize_phone_for_msg91(phone)
                 url = "https://control.msg91.com/api/v5/flow/"
                 headers = {
                     "Accept": "application/json",
@@ -45,10 +86,10 @@ class NotificationService:
                     "authkey": self.sms_api_key,
                 }
                 payload = {
-                    "template_id": "your_template_id",  # Configure in MSG91
+                    "template_id": self.sms_template_id,
                     "sender": self.sms_sender_id or "MANDIR",
                     "short_url": "0",
-                    "mobiles": phone,
+                    "mobiles": normalized_phone,
                     "VAR1": message,  # Template variable
                 }
 
@@ -59,13 +100,58 @@ class NotificationService:
                         "success": True,
                         "message_id": result.get("request_id", ""),
                         "provider": "MSG91",
+                        "test_mode_routed": routed_to_test_number,
                     }
-                else:
-                    logger.error(f"SMS API error: {response.status_code} - {response.text}")
-                    return {"success": False, "error": f"API error: {response.status_code}"}
-            else:
-                logger.warning("SMS API key not configured")
-                return {"success": False, "error": "SMS API key not configured"}
+
+                logger.error(f"SMS API error: {response.status_code} - {response.text}")
+                return {"success": False, "error": f"API error: {response.status_code}"}
+
+            if provider == "INFOBIP":
+                if not self.sms_api_key:
+                    logger.warning("SMS API key not configured")
+                    return {"success": False, "error": "SMS API key not configured"}
+                if not self.sms_sender_id:
+                    logger.warning("SMS sender ID not configured")
+                    return {"success": False, "error": "SMS sender ID not configured"}
+
+                normalized_phone = self._normalize_phone_for_infobip(phone)
+                base_url = (self.infobip_base_url or "https://api.infobip.com").rstrip("/")
+                url = f"{base_url}/sms/2/text/advanced"
+                headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "Authorization": f"App {self.sms_api_key}",
+                }
+                payload = {
+                    "messages": [
+                        {
+                            "from": self.sms_sender_id,
+                            "destinations": [{"to": normalized_phone}],
+                            "text": message,
+                        }
+                    ]
+                }
+
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+                if 200 <= response.status_code < 300:
+                    result = response.json()
+                    message_id = ""
+                    if isinstance(result, dict):
+                        messages = result.get("messages") or []
+                        if messages and isinstance(messages[0], dict):
+                            message_id = messages[0].get("messageId", "")
+                    return {
+                        "success": True,
+                        "message_id": message_id,
+                        "provider": "INFOBIP",
+                        "test_mode_routed": routed_to_test_number,
+                    }
+
+                logger.error(f"Infobip SMS API error: {response.status_code} - {response.text}")
+                return {"success": False, "error": f"API error: {response.status_code}"}
+
+            logger.warning(f"SMS provider '{provider}' is not implemented")
+            return {"success": False, "error": f"SMS provider '{provider}' not supported"}
 
         except Exception as e:
             logger.error(f"Error sending SMS: {str(e)}")

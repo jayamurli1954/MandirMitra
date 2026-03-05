@@ -232,7 +232,9 @@ function Reports() {
               3-Day Seva Schedule
             </Button>
           </Grid>
-          {JSON.parse(localStorage.getItem('user') || '{}').role === 'admin' && (
+          {['admin', 'temple_manager'].includes(
+            JSON.parse(localStorage.getItem('user') || '{}').role
+          ) && (
             <Grid item xs={12} sm={6} md={3}>
               <Button
                 fullWidth

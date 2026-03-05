@@ -1,6 +1,6 @@
 # Step 1: Create Audit Logs Table - EASIEST METHOD
 
-## ✅ Recommended: Use Database Client (pgAdmin/DBeaver)
+## âœ… Recommended: Use Database Client (pgAdmin/DBeaver)
 
 Since `psql` is not available, use a database client:
 
@@ -20,7 +20,7 @@ Since `psql` is not available, use a database client:
    - Password: (your database password)
 
 3. **Open the SQL file:**
-   - File location: `D:\MandirSync\backend\scripts\create_audit_logs_table.sql`
+   - File location: `D:\MandirMitra\backend\scripts\create_audit_logs_table.sql`
    - Or copy the SQL content below
 
 4. **Copy and paste this SQL:**
@@ -62,7 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_user_role ON audit_logs(user_role);
 
 ---
 
-## ✅ Alternative: Install PostgreSQL Tools
+## âœ… Alternative: Install PostgreSQL Tools
 
 If you want to use `psql` in the future:
 
@@ -81,12 +81,12 @@ If you want to use `psql` in the future:
 
 ---
 
-## ✅ Alternative: Use Python (if environment is activated)
+## âœ… Alternative: Use Python (if environment is activated)
 
 If you have your project's virtual environment activated:
 
 ```bash
-cd D:\MandirSync\backend
+cd D:\MandirMitra\backend
 # Make sure your environment is activated
 python -m scripts.create_audit_logs_table
 ```
