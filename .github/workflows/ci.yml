@@ -11,6 +11,47 @@ env:
   NODE_VERSION: "18"
 
 jobs:
+  private-folder-guard:
+    name: "Private Folder Guard"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve diff range
+        id: diff_range
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+              BASE="$(git rev-parse HEAD~1)"
+            else
+              BASE="${{ github.event.before }}"
+            fi
+            echo "base=${BASE}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Block private folder changes
+        shell: bash
+        run: |
+          CHANGED="$(git diff --name-only "${{ steps.diff_range.outputs.base }}" "${{ steps.diff_range.outputs.head }}" -- \
+            do_not_push_This_folder_to_GitHub || true)"
+
+          if [ -n "${CHANGED}" ]; then
+            echo "::error::Changes detected in do_not_push_This_folder_to_GitHub/. Remove these files from commit before pushing."
+            echo "Blocked file changes:"
+            echo "${CHANGED}"
+            exit 1
+          fi
+
+          echo "Private folder guard passed."
+
   panchang-freeze:
     name: "Panchang Freeze Guard"
     runs-on: ubuntu-latest
@@ -70,7 +111,7 @@ jobs:
   backend:
     name: "Backend (Python)"
     runs-on: ubuntu-latest
-    needs: [panchang-freeze]
+    needs: [private-folder-guard, panchang-freeze]
 
     services:
       postgres:
@@ -162,7 +203,7 @@ jobs:
   frontend:
     name: "Frontend (React)"
     runs-on: ubuntu-latest
-    needs: [panchang-freeze]
+    needs: [private-folder-guard, panchang-freeze]
 
     steps:
       - name: Checkout code
