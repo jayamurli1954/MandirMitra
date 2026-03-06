@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/temple_db"
     BOOTSTRAP_ADMIN_EMAIL: Optional[str] = None
     BOOTSTRAP_ADMIN_PASSWORD: Optional[str] = None
+    SETUP_BOOTSTRAP_TOKEN: Optional[str] = None
 
     # Server
     HOST: str = "0.0.0.0"  # nosec B104

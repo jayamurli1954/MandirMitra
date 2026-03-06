@@ -9,13 +9,15 @@ DO NOT modify the login logic without thorough testing.
 See: backend/LOGIN_MODULE_FROZEN.md for full documentation.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Form, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import Any
+from typing import Any, Optional
 from datetime import datetime, timedelta, timezone
+import logging
 import secrets
 import hashlib
+import re
 
 from app.core.database import get_db
 from app.core.security import create_access_token, verify_password, get_password_hash
@@ -24,12 +26,14 @@ from app.core.rate_limiting import check_rate_limit, rate_limiter, get_client_id
 from app.core.config import settings
 from app.core.password_policy import default_policy
 from app.models.user import User
+from app.models.temple import Temple
 from app.models.password_reset import PasswordResetToken
 from app.services.notification_service import notification_service
 from app.schemas.token import Token
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 router = APIRouter(prefix="/api/v1", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -187,6 +191,166 @@ def login_for_access_token(
 
     return {"access_token": access_token, "token_type": "bearer"}
 
+
+
+class BootstrapSetupRequest(BaseModel):
+    temple_name: str = Field(min_length=2, max_length=200)
+    temple_slug: Optional[str] = Field(default=None, max_length=100)
+    primary_deity: Optional[str] = Field(default="Lord Ganesha", max_length=100)
+    admin_full_name: str = Field(min_length=2, max_length=200)
+    admin_email: EmailStr
+    admin_password: str = Field(min_length=8, max_length=128)
+
+
+class BootstrapSetupResponse(BaseModel):
+    message: str
+    temple_id: int
+    temple_name: str
+    temple_slug: str
+    admin_user_id: int
+    admin_email: EmailStr
+
+
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "temple"
+
+
+def _build_unique_slug(db: Session, base_slug: str) -> str:
+    slug = base_slug
+    counter = 2
+    while db.query(Temple.id).filter(Temple.slug == slug).first():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+    return slug
+
+
+@router.post("/setup/bootstrap", response_model=BootstrapSetupResponse, status_code=status.HTTP_201_CREATED)
+def bootstrap_temple_and_admin(
+    payload: BootstrapSetupRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    x_setup_token: Optional[str] = Header(default=None, alias="X-Setup-Token"),
+) -> Any:
+    """
+    One-click onboarding endpoint to create Temple + Admin.
+
+    Security:
+    - If SETUP_BOOTSTRAP_TOKEN is set, caller must pass matching X-Setup-Token.
+    - If SETUP_BOOTSTRAP_TOKEN is not set, endpoint only works when no users exist.
+    """
+    check_rate_limit(request, max_requests=5, window_seconds=300)
+
+    configured_token = (settings.SETUP_BOOTSTRAP_TOKEN or "").strip()
+    supplied_token = (x_setup_token or "").strip()
+
+    if configured_token:
+        if supplied_token != configured_token:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid setup token",
+            )
+    else:
+        existing_user = db.query(User.id).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Bootstrap token is not configured. "
+                    "Set SETUP_BOOTSTRAP_TOKEN to allow onboarding when users already exist."
+                ),
+            )
+
+    admin_email = str(payload.admin_email).strip().lower()
+    existing_admin = db.query(User.id).filter(func.lower(User.email) == admin_email).first()
+    if existing_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admin email already exists",
+        )
+
+    is_valid, error_msg = default_policy.validate(payload.admin_password)
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+
+    temple_name = payload.temple_name.strip()
+    full_name = payload.admin_full_name.strip()
+    if not temple_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Temple name cannot be empty",
+        )
+    if not full_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admin full name cannot be empty",
+        )
+
+    requested_slug = payload.temple_slug.strip() if payload.temple_slug else temple_name
+    base_slug = _slugify(requested_slug)
+    final_slug = _build_unique_slug(db, base_slug)
+
+    primary_deity = (payload.primary_deity or "Lord Ganesha").strip() or "Lord Ganesha"
+
+    try:
+        temple = Temple(
+            name=temple_name,
+            slug=final_slug,
+            primary_deity=primary_deity,
+            is_active=True,
+        )
+        db.add(temple)
+        db.flush()
+
+        admin_user = User(
+            temple_id=temple.id,
+            email=admin_email,
+            password_hash=get_password_hash(payload.admin_password),
+            full_name=full_name,
+            role="temple_manager",
+            is_active=True,
+            is_superuser=True,
+        )
+        db.add(admin_user)
+        db.commit()
+        db.refresh(temple)
+        db.refresh(admin_user)
+
+        try:
+            log_action(
+                db=db,
+                user=admin_user,
+                action="BOOTSTRAP_TEMPLE_ADMIN",
+                entity_type="Temple",
+                entity_id=temple.id,
+                description=f"Bootstrap onboarding completed for temple '{temple.name}'",
+                ip_address=request.client.host if request and request.client else None,
+                user_agent=request.headers.get("user-agent") if request else None,
+            )
+        except Exception as audit_err:
+            logger.warning(
+                "Bootstrap onboarding completed but audit log failed for temple_id=%s: %s",
+                temple.id,
+                audit_err,
+            )
+
+        return {
+            "message": "Temple and admin created successfully",
+            "temple_id": temple.id,
+            "temple_name": temple.name,
+            "temple_slug": temple.slug,
+            "admin_user_id": admin_user.id,
+            "admin_email": admin_user.email,
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create temple and admin",
+        )
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
 def forgot_password(

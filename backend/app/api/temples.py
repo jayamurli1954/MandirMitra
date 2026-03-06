@@ -7,10 +7,11 @@ from pathlib import Path
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
 
-from app.core.database import get_db
+from app.core.database import get_db, column_exists
 from app.core.security import get_current_user
 from app.models.temple import Temple
 from app.models.user import User
@@ -94,13 +95,54 @@ class TempleUpdate(BaseModel):
     closing_time: Optional[str] = None
 
 
+def _model_field_names(model: type[BaseModel]) -> set[str]:
+    model_fields = getattr(model, "model_fields", None)
+    if model_fields is not None:
+        return set(model_fields.keys())
+
+    legacy_fields = getattr(model, "__fields__", {})
+    return set(legacy_fields.keys())
+
+
+def _update_temple_columns(
+    db: Session,
+    temple_id: int,
+    update_data: dict,
+    allowed_fields: set[str],
+) -> set[str]:
+    if not update_data:
+        return set()
+
+    updatable_fields = [
+        field
+        for field in update_data.keys()
+        if field in allowed_fields and column_exists(db, "temples", field)
+    ]
+    if not updatable_fields:
+        return set()
+
+    assignments = ", ".join(f"{field} = :{field}" for field in updatable_fields)
+    params = {field: update_data[field] for field in updatable_fields}
+    params["temple_id"] = temple_id
+
+    db.execute(text(f"UPDATE temples SET {assignments} WHERE id = :temple_id"), params)
+    return set(updatable_fields)
+
+
+def _ensure_temple_exists(db: Session, temple_id: int) -> None:
+    exists_row = db.execute(
+        text("SELECT id FROM temples WHERE id = :temple_id"),
+        {"temple_id": temple_id},
+    ).fetchone()
+    if not exists_row:
+        raise HTTPException(status_code=404, detail="Temple not found")
+
+
 @router.get("/", response_model=List[TempleResponse])
 def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get temples (for current user's temple)"""
     if current_user.temple_id:
         # Use raw SQL to avoid missing column errors (module_hundi_enabled may not exist in DB)
-        from sqlalchemy import text
-        from app.core.database import column_exists
 
         # Check if module_hundi_enabled column exists first
         has_hundi_column = column_exists(db, "temples", "module_hundi_enabled")
@@ -165,8 +207,6 @@ def get_temple(
 ):
     """Get temple details"""
     # Use raw SQL to avoid missing column errors
-    from sqlalchemy import text
-    from app.core.database import column_exists
 
     # Check if module_hundi_enabled column exists first
     has_hundi_column = column_exists(db, "temples", "module_hundi_enabled")
@@ -218,8 +258,6 @@ def get_module_config(
         raise HTTPException(status_code=404, detail="Temple not found")
 
     # Use raw SQL to avoid missing column errors (module_hundi_enabled may not exist in DB)
-    from sqlalchemy import text
-    from app.core.database import column_exists
 
     # Check if module_hundi_enabled column exists first
     has_hundi_column = column_exists(db, "temples", "module_hundi_enabled")
@@ -340,32 +378,15 @@ def update_module_config(
     if not current_user.temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
-    temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
-    if not temple:
-        raise HTTPException(status_code=404, detail="Temple not found")
+    _ensure_temple_exists(db, current_user.temple_id)
 
-    # Update only provided fields
     update_data = config.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        if hasattr(temple, field):
-            setattr(temple, field, value)
+    allowed_fields = _model_field_names(ModuleConfigUpdate)
+    _update_temple_columns(db, current_user.temple_id, update_data, allowed_fields)
 
     db.commit()
-    db.refresh(temple)
+    return get_module_config(db=db, current_user=current_user)
 
-    return {
-        "module_donations_enabled": temple.module_donations_enabled if hasattr(temple, "module_donations_enabled") else True,
-        "module_sevas_enabled": temple.module_sevas_enabled if hasattr(temple, "module_sevas_enabled") else True,
-        "module_inventory_enabled": temple.module_inventory_enabled if hasattr(temple, "module_inventory_enabled") else True,
-        "module_assets_enabled": temple.module_assets_enabled if hasattr(temple, "module_assets_enabled") else True,
-        "module_accounting_enabled": temple.module_accounting_enabled if hasattr(temple, "module_accounting_enabled") else True,
-        "module_tender_enabled": temple.module_tender_enabled if hasattr(temple, "module_tender_enabled") else False,
-        "module_hr_enabled": temple.module_hr_enabled if hasattr(temple, "module_hr_enabled") else True,
-        "module_hundi_enabled": temple.module_hundi_enabled if hasattr(temple, "module_hundi_enabled") else True,
-        "module_panchang_enabled": temple.module_panchang_enabled if hasattr(temple, "module_panchang_enabled") else True,
-        "module_reports_enabled": temple.module_reports_enabled if hasattr(temple, "module_reports_enabled") else True,
-        "module_token_seva_enabled": temple.module_token_seva_enabled if hasattr(temple, "module_token_seva_enabled") else True,
-    }
 
 @router.put("/current", response_model=TempleResponse)
 def update_current_temple(
@@ -377,18 +398,43 @@ def update_current_temple(
     if not current_user.temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
-    temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
-    if not temple:
-        raise HTTPException(status_code=404, detail="Temple not found")
+    _ensure_temple_exists(db, current_user.temple_id)
 
     update_data = update.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        if hasattr(temple, field):
-            setattr(temple, field, value)
+    allowed_fields = _model_field_names(TempleUpdate)
+    _update_temple_columns(db, current_user.temple_id, update_data, allowed_fields)
 
     db.commit()
-    db.refresh(temple)
-    return temple
+
+    base_row = db.execute(
+        text(
+            """
+            SELECT id, name, slug, address, city, state, phone, email
+            FROM temples
+            WHERE id = :temple_id
+            """
+        ),
+        {"temple_id": current_user.temple_id},
+    ).fetchone()
+
+    if not base_row:
+        raise HTTPException(status_code=404, detail="Temple not found")
+
+    base = base_row._mapping
+    module_config = get_module_config(db=db, current_user=current_user)
+
+    return {
+        "id": base["id"],
+        "name": base["name"],
+        "slug": base["slug"],
+        "address": base["address"],
+        "city": base["city"],
+        "state": base["state"],
+        "phone": base["phone"],
+        "email": base["email"],
+        **module_config,
+    }
+
 
 @router.post("/upload", response_model=dict)
 async def upload_temple_media(
