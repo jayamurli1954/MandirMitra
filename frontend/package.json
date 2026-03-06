@@ -32,7 +32,8 @@
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "axios-mock-adapter": "^2.1.0",
-    "react-scripts": "5.0.1"
+    "react-scripts": "5.0.1",
+    "yaml": "^2.8.2"
   },
   "eslintConfig": {
     "extends": [
