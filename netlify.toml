@@ -8,6 +8,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  CI = "false"
 
 # SPA routing — all routes redirect to index.html for React Router
 [[redirects]]
