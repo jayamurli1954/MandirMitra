@@ -7,7 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import MetaData, Table, text
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -121,12 +121,22 @@ def _update_temple_columns(
     if not updatable_fields:
         return set()
 
-    assignments = ", ".join(f"{field} = :{field}" for field in updatable_fields)
-    params = {field: update_data[field] for field in updatable_fields}
-    params["temple_id"] = temple_id
+    temples_table = Table("temples", MetaData(), autoload_with=db.get_bind())
+    values_to_update = {
+        field: update_data[field]
+        for field in updatable_fields
+        if field in temples_table.c
+    }
+    if not values_to_update:
+        return set()
 
-    db.execute(text(f"UPDATE temples SET {assignments} WHERE id = :temple_id"), params)
-    return set(updatable_fields)
+    stmt = (
+        temples_table.update()
+        .where(temples_table.c.id == temple_id)
+        .values(**values_to_update)
+    )
+    db.execute(stmt)
+    return set(values_to_update.keys())
 
 
 def _ensure_temple_exists(db: Session, temple_id: int) -> None:
