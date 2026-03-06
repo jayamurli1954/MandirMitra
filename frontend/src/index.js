@@ -10,3 +10,15 @@ root.render(
   </React.StrictMode>
 );
 
+
+if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+  const swUrl = `${process.env.PUBLIC_URL}/service-worker.js`;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(swUrl).catch((err) => {
+      // Keep runtime stable if SW registration fails.
+      // eslint-disable-next-line no-console
+      console.error('Service worker registration failed:', err);
+    });
+  });
+}
+

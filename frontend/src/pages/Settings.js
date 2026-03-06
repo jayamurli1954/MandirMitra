@@ -201,6 +201,8 @@ function Settings() {
       await api.put('/api/v1/temples/modules/config', moduleConfig);
 
       // 2. Save general temple information
+      const financialYearStartMonth = Number.parseInt(settings.financial_year_start, 10);
+
       const templeInfo = {
         name: settings.temple_name,
         name_kannada: settings.name_kannada,
@@ -212,7 +214,7 @@ function Settings() {
         phone: settings.phone,
         email: settings.email,
         website: settings.website,
-        financial_year_start_month: parseInt(settings.financial_year_start),
+        ...(Number.isNaN(financialYearStartMonth) ? {} : { financial_year_start_month: financialYearStartMonth }),
         receipt_prefix_donation: settings.receipt_prefix_donation,
         receipt_prefix_seva: settings.receipt_prefix_seva,
         gst_applicable: settings.gst_applicable,
@@ -234,7 +236,15 @@ function Settings() {
       showSuccess('Settings saved successfully. Changes to menus will reflect after refresh.');
     } catch (err) {
       console.error('Failed to save settings:', err);
-      showError('Failed to save settings');
+      const detail = err?.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        const firstMsg = detail[0]?.msg;
+        showError(firstMsg || 'Failed to save settings');
+      } else if (typeof detail === 'string' && detail.trim()) {
+        showError(detail);
+      } else {
+        showError('Failed to save settings');
+      }
     } finally {
       setLoading(false);
     }

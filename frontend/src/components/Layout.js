@@ -40,7 +40,6 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import BadgeIcon from '@mui/icons-material/Badge';
 import SavingsIcon from '@mui/icons-material/Savings';
-import HelpIcon from '@mui/icons-material/Help';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 
@@ -132,7 +131,7 @@ function Layout({ children }) {
 
   const drawer = (
     <Box>
-      <Box sx={{ p: 2, textAlign: 'center', bgcolor: '#FF9933', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5 }}>
+      <Box sx={{ p: 2, textAlign: 'center', bgcolor: '#FF9933', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {moduleConfig?.logo_url ? (
           <Box
             component="img"
@@ -158,19 +157,6 @@ function Layout({ children }) {
             }}
           />
         )}
-        <Typography
-          variant="h6"
-          sx={{
-            fontWeight: 'bold',
-            color: 'white',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            fontSize: '1.1rem'
-          }}
-        >
-          {moduleConfig?.name || 'MandirMitra'}
-        </Typography>
       </Box>
       <Divider />
       <List>
@@ -339,7 +325,7 @@ function Layout({ children }) {
           bgcolor: '#FF9933',
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ position: 'relative' }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -349,86 +335,69 @@ function Layout({ children }) {
           >
             <MenuIcon />
           </IconButton>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexGrow: 1, minWidth: 0 }}>
-            <Box
-              sx={{
-                display: { xs: 'none', md: 'flex' },
-                alignItems: 'center',
-                gap: 0.8,
-                px: 1.2,
-                py: 0.7,
-                borderRadius: 1.5,
-                bgcolor: 'rgba(255,255,255,0.16)',
-                border: '1px solid rgba(255,255,255,0.25)',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <TempleHinduIcon sx={{ fontSize: 18, color: '#fff' }} />
-              <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>
-                MandirMitra
+          <Box
+            sx={{
+              position: 'absolute',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              px: { xs: 1, sm: 1.2 },
+              py: 0.7,
+              borderRadius: 1.5,
+              bgcolor: 'rgba(255,255,255,0.16)',
+              border: '1px solid rgba(255,255,255,0.25)',
+              minWidth: 0,
+              maxWidth: { xs: 'calc(100% - 180px)', sm: 'calc(100% - 260px)' },
+            }}
+          >
+            {moduleConfig?.logo_url ? (
+              <Box
+                component="img"
+                src={moduleConfig.logo_url}
+                alt="Temple Logo"
+                sx={{
+                  height: 30,
+                  width: 30,
+                  borderRadius: '50%',
+                  bgcolor: 'white',
+                  p: 0.25,
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <TempleHinduIcon sx={{ fontSize: 22, color: '#fff', flexShrink: 0 }} />
+            )}
+
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontWeight: 700,
+                  color: '#fff',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  lineHeight: 1.1,
+                  maxWidth: { xs: '160px', sm: '340px', md: '520px' },
+                }}
+              >
+                {moduleConfig?.name || 'Sri Vara Siddi Vinayak Temple'}
               </Typography>
-            </Box>
-
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                px: { xs: 1, sm: 1.2 },
-                py: 0.7,
-                borderRadius: 1.5,
-                bgcolor: 'rgba(255,255,255,0.16)',
-                border: '1px solid rgba(255,255,255,0.25)',
-                minWidth: 0,
-              }}
-            >
-              {moduleConfig?.logo_url ? (
-                <Box
-                  component="img"
-                  src={moduleConfig.logo_url}
-                  alt="Temple Logo"
-                  sx={{
-                    height: 30,
-                    width: 30,
-                    borderRadius: '50%',
-                    bgcolor: 'white',
-                    p: 0.25,
-                    flexShrink: 0,
-                  }}
-                />
-              ) : (
-                <TempleHinduIcon sx={{ fontSize: 22, color: '#fff', flexShrink: 0 }} />
-              )}
-
-              <Box sx={{ minWidth: 0 }}>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    fontWeight: 700,
-                    color: '#fff',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    lineHeight: 1.1,
-                    maxWidth: { xs: '150px', sm: '320px', md: '420px' },
-                  }}
-                >
-                  {moduleConfig?.name || 'Sri Vara Siddi Vinayak Temple'}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    display: 'block',
-                    color: 'rgba(255,255,255,0.95)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    maxWidth: { xs: '150px', sm: '320px', md: '420px' },
-                  }}
-                >
-                  Temple Management &amp; Accounting System
-                </Typography>
-              </Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: 'block',
+                  color: 'rgba(255,255,255,0.95)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: { xs: '160px', sm: '340px', md: '520px' },
+                }}
+              >
+                Temple Management &amp; Accounting System
+              </Typography>
             </Box>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
