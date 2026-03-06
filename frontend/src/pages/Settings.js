@@ -62,10 +62,10 @@ function Settings() {
     // Modules
     module_donations_enabled: true,
     module_sevas_enabled: true,
-    module_inventory_enabled: true,
-    module_assets_enabled: true,
-    module_hr_enabled: true,
-    module_hundi_enabled: true,
+    module_inventory_enabled: false,
+    module_assets_enabled: false,
+    module_hr_enabled: false,
+    module_hundi_enabled: false,
     module_accounting_enabled: true,
     module_panchang_enabled: true,
     logo_url: '',
@@ -138,10 +138,10 @@ function Settings() {
           // Modules
           module_donations_enabled: temple.module_donations_enabled !== undefined ? temple.module_donations_enabled : true,
           module_sevas_enabled: temple.module_sevas_enabled !== undefined ? temple.module_sevas_enabled : true,
-          module_inventory_enabled: temple.module_inventory_enabled !== undefined ? temple.module_inventory_enabled : true,
-          module_assets_enabled: temple.module_assets_enabled !== undefined ? temple.module_assets_enabled : true,
-          module_hr_enabled: temple.module_hr_enabled !== undefined ? temple.module_hr_enabled : true,
-          module_hundi_enabled: temple.module_hundi_enabled !== undefined ? temple.module_hundi_enabled : true,
+          module_inventory_enabled: temple.module_inventory_enabled !== undefined ? temple.module_inventory_enabled : false,
+          module_assets_enabled: temple.module_assets_enabled !== undefined ? temple.module_assets_enabled : false,
+          module_hr_enabled: temple.module_hr_enabled !== undefined ? temple.module_hr_enabled : false,
+          module_hundi_enabled: temple.module_hundi_enabled !== undefined ? temple.module_hundi_enabled : false,
           module_accounting_enabled: temple.module_accounting_enabled !== undefined ? temple.module_accounting_enabled : true,
           module_panchang_enabled: temple.module_panchang_enabled !== undefined ? temple.module_panchang_enabled : true,
           logo_url: temple.logo_url || '',
@@ -233,7 +233,11 @@ function Settings() {
       // 3. Refresh context
       await fetchSettings();
 
-      showSuccess('Settings saved successfully. Changes to menus will reflect after refresh.');
+      window.dispatchEvent(new CustomEvent('module-config-updated', {
+        detail: { ...moduleConfig, ...templeInfo },
+      }));
+
+      showSuccess('Settings saved successfully.');
     } catch (err) {
       console.error('Failed to save settings:', err);
       const detail = err?.response?.data?.detail;

@@ -35,12 +35,12 @@ class TempleResponse(BaseModel):
     # Module Configuration
     module_donations_enabled: bool = True
     module_sevas_enabled: bool = True
-    module_inventory_enabled: bool = True
-    module_assets_enabled: bool = True
+    module_inventory_enabled: bool = False
+    module_assets_enabled: bool = False
     module_accounting_enabled: bool = True
     module_tender_enabled: bool = False
-    module_hr_enabled: bool = True
-    module_hundi_enabled: bool = True
+    module_hr_enabled: bool = False
+    module_hundi_enabled: bool = False
     module_panchang_enabled: bool = True
     module_reports_enabled: bool = True
     module_token_seva_enabled: bool = True
@@ -206,7 +206,7 @@ def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_
                 temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
                 if temple:
                     # Dynamically add the missing attribute
-                    setattr(temple, "module_hundi_enabled", True)
+                    setattr(temple, "module_hundi_enabled", False)
                     return [temple]
     return []
 
@@ -251,7 +251,7 @@ def get_temple(
         temple = db.query(Temple).filter(Temple.id == temple_id).first()
         if temple:
             # Set default for missing column
-            temple.module_hundi_enabled = True
+            temple.module_hundi_enabled = False
 
     if not temple:
         raise HTTPException(status_code=404, detail="Temple not found")
@@ -280,12 +280,12 @@ def get_module_config(
                     id, name,
                     COALESCE(module_donations_enabled, true) as module_donations_enabled,
                     COALESCE(module_sevas_enabled, true) as module_sevas_enabled,
-                    COALESCE(module_inventory_enabled, true) as module_inventory_enabled,
-                    COALESCE(module_assets_enabled, true) as module_assets_enabled,
+                    COALESCE(module_inventory_enabled, false) as module_inventory_enabled,
+                    COALESCE(module_assets_enabled, false) as module_assets_enabled,
                     COALESCE(module_accounting_enabled, true) as module_accounting_enabled,
                     COALESCE(module_tender_enabled, false) as module_tender_enabled,
-                    COALESCE(module_hr_enabled, true) as module_hr_enabled,
-                    COALESCE(module_hundi_enabled, true) as module_hundi_enabled,
+                    COALESCE(module_hr_enabled, false) as module_hr_enabled,
+                    COALESCE(module_hundi_enabled, false) as module_hundi_enabled,
                     COALESCE(module_panchang_enabled, true) as module_panchang_enabled,
                     COALESCE(module_reports_enabled, true) as module_reports_enabled,
                     COALESCE(module_token_seva_enabled, true) as module_token_seva_enabled
@@ -303,12 +303,12 @@ def get_module_config(
                     id, name,
                     COALESCE(module_donations_enabled, true) as module_donations_enabled,
                     COALESCE(module_sevas_enabled, true) as module_sevas_enabled,
-                    COALESCE(module_inventory_enabled, true) as module_inventory_enabled,
-                    COALESCE(module_assets_enabled, true) as module_assets_enabled,
+                    COALESCE(module_inventory_enabled, false) as module_inventory_enabled,
+                    COALESCE(module_assets_enabled, false) as module_assets_enabled,
                     COALESCE(module_accounting_enabled, true) as module_accounting_enabled,
                     COALESCE(module_tender_enabled, false) as module_tender_enabled,
-                    COALESCE(module_hr_enabled, true) as module_hr_enabled,
-                    true as module_hundi_enabled,
+                    COALESCE(module_hr_enabled, false) as module_hr_enabled,
+                    false as module_hundi_enabled,
                     COALESCE(module_panchang_enabled, true) as module_panchang_enabled,
                     COALESCE(module_reports_enabled, true) as module_reports_enabled,
                     COALESCE(module_token_seva_enabled, true) as module_token_seva_enabled
@@ -350,10 +350,10 @@ def get_module_config(
         else True,
         "module_inventory_enabled": temple.module_inventory_enabled
         if hasattr(temple, "module_inventory_enabled")
-        else True,
+        else False,
         "module_assets_enabled": temple.module_assets_enabled
         if hasattr(temple, "module_assets_enabled")
-        else True,
+        else False,
         "module_accounting_enabled": temple.module_accounting_enabled
         if hasattr(temple, "module_accounting_enabled")
         else True,
@@ -362,10 +362,10 @@ def get_module_config(
         else False,
         "module_hr_enabled": temple.module_hr_enabled
         if hasattr(temple, "module_hr_enabled")
-        else True,
+        else False,
         "module_hundi_enabled": temple.module_hundi_enabled
         if hasattr(temple, "module_hundi_enabled")
-        else True,
+        else False,
         "module_panchang_enabled": temple.module_panchang_enabled
         if hasattr(temple, "module_panchang_enabled")
         else True,
@@ -484,3 +484,5 @@ async def upload_temple_media(
     url = f"/uploads/temples/{current_user.temple_id}/{safe_filename}"
     
     return {"url": url}
+
+

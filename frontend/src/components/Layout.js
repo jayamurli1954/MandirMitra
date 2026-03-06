@@ -75,12 +75,24 @@ const accountingMenuItems = [
   { text: 'Accounting Reports', icon: <SummarizeIcon />, path: '/accounting/reports' },
 ];
 
+const DEFAULT_MODULE_CONFIG = {
+  module_donations_enabled: true,
+  module_sevas_enabled: true,
+  module_inventory_enabled: false,
+  module_assets_enabled: false,
+  module_hr_enabled: false,
+  module_hundi_enabled: false,
+  module_accounting_enabled: true,
+  module_reports_enabled: true,
+  module_panchang_enabled: true,
+};
+
 function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [accountingOpen, setAccountingOpen] = useState(true);
   const [sevasOpen, setSevasOpen] = useState(true);
-  const [moduleConfig, setModuleConfig] = useState(null);
+  const [moduleConfig, setModuleConfig] = useState(DEFAULT_MODULE_CONFIG);
   const navigate = useNavigate();
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -102,13 +114,24 @@ function Layout({ children }) {
           const data = await response.json();
           // The API returns a list, take the first one
           const temple = Array.isArray(data) ? data[0] : data;
-          setModuleConfig(temple);
+          setModuleConfig({ ...DEFAULT_MODULE_CONFIG, ...(temple || {}) });
         }
       } catch (err) {
         console.error('Failed to fetch temple info', err);
       }
     };
     fetchTempleInfo();
+  }, []);
+
+  React.useEffect(() => {
+    const handleModuleConfigUpdated = (event) => {
+      if (event?.detail && typeof event.detail === 'object') {
+        setModuleConfig((prev) => ({ ...prev, ...event.detail }));
+      }
+    };
+
+    window.addEventListener('module-config-updated', handleModuleConfigUpdated);
+    return () => window.removeEventListener('module-config-updated', handleModuleConfigUpdated);
   }, []);
 
   const handleDrawerToggle = () => {
@@ -190,7 +213,7 @@ function Layout({ children }) {
           ))}
 
         {/* Sevas - Second Item Block */}
-        {(!moduleConfig || moduleConfig.module_sevas_enabled) && (
+        {moduleConfig.module_sevas_enabled && (
           <>
             <ListItem disablePadding>
               <ListItemButton onClick={() => setSevasOpen(!sevasOpen)}>
@@ -238,7 +261,7 @@ function Layout({ children }) {
         {/* Other Menu Items starting with Donations */}
         {menuItems
           .filter(item => item.text !== 'Dashboard')
-          .filter(item => item.module === 'always' || !moduleConfig || moduleConfig[item.module])
+          .filter(item => item.module === 'always' || moduleConfig[item.module])
           .map((item) => (
             <ListItem key={item.text} disablePadding>
               <ListItemButton
@@ -266,7 +289,7 @@ function Layout({ children }) {
           ))}
       </List>
       <Divider />
-      {(!moduleConfig || moduleConfig.module_accounting_enabled) && (
+      {moduleConfig.module_accounting_enabled && (
         <>
           <List>
             <ListItem disablePadding>
