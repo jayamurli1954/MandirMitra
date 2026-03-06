@@ -38,6 +38,7 @@ USER appuser
 # Expose port (Railway injects $PORT at runtime)
 EXPOSE 8000
 
-# Run Alembic migrations, then start the app
-CMD alembic upgrade head && \
+# Bootstrap base schema (for fresh DB), then run Alembic migrations, then start app
+CMD python scripts/ci_create_tables.py && \
+    alembic upgrade head && \
     uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2
