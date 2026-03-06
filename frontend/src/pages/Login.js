@@ -60,7 +60,8 @@ function Login() {
         role: 'temple_manager'
       }));
 
-      navigate('/dashboard');
+      sessionStorage.setItem('showBrandIntroAfterLogin', '1');
+      navigate('/brand-intro');
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'Login failed. Please check your credentials and ensure the backend is running.');

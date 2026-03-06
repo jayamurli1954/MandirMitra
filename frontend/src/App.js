@@ -7,6 +7,7 @@ import { LoadingProvider } from './contexts/LoadingContext';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import BrandIntro from './pages/BrandIntro';
 import Dashboard from './pages/Dashboard';
 import Donations from './pages/Donations';
 import Devotees from './pages/Devotees';
@@ -56,6 +57,14 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route
+                path="/brand-intro"
+                element={
+                  <ProtectedRoute>
+                    <BrandIntro />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/dashboard"
                 element={

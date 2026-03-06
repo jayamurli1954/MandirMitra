@@ -8,6 +8,7 @@ import App from '../App';
 
 // Mock all page components to keep tests fast and focused on routing
 jest.mock('../pages/Login', () => () => <div data-testid="login-page">Login Page</div>);
+jest.mock('../pages/BrandIntro', () => () => <div data-testid="brand-intro-page">Brand Intro</div>);
 jest.mock('../pages/Dashboard', () => () => <div data-testid="dashboard-page">Dashboard</div>);
 jest.mock('../pages/Donations', () => () => <div data-testid="donations-page">Donations</div>);
 jest.mock('../pages/Devotees', () => () => <div data-testid="devotees-page">Devotees</div>);
@@ -53,6 +54,12 @@ describe('App - Routing', () => {
         localStorage.setItem('token', 'valid-token');
         renderAppAt('/dashboard');
         expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+
+    it('renders Brand Intro when authenticated and accessing /brand-intro', () => {
+        localStorage.setItem('token', 'valid-token');
+        renderAppAt('/brand-intro');
+        expect(screen.getByTestId('brand-intro-page')).toBeInTheDocument();
     });
 
     it('renders Devotees page when authenticated and accessing /devotees', () => {

@@ -28,6 +28,7 @@ const renderLogin = () =>
 beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
+    sessionStorage.clear();
 });
 
 describe('Login Page - Rendering', () => {
@@ -80,7 +81,7 @@ describe('Login Page - User Interaction', () => {
 });
 
 describe('Login Page - Successful Login', () => {
-    it('stores token in localStorage and navigates to /dashboard on success', async () => {
+    it('stores token in localStorage and navigates to /brand-intro on success', async () => {
         global.fetch.mockResolvedValueOnce({
             ok: true,
             json: async () => ({ access_token: 'mock-token-123' }),
@@ -93,7 +94,8 @@ describe('Login Page - Successful Login', () => {
 
         await waitFor(() => {
             expect(localStorage.getItem('token')).toBe('mock-token-123');
-            expect(mockedNavigate).toHaveBeenCalledWith('/dashboard');
+            expect(sessionStorage.getItem('showBrandIntroAfterLogin')).toBe('1');
+            expect(mockedNavigate).toHaveBeenCalledWith('/brand-intro');
         });
     });
 
