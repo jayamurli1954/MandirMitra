@@ -16,6 +16,8 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { IconButton, InputAdornment } from '@mui/material';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,8 +38,9 @@ function Login() {
       const formData = new URLSearchParams();
       formData.append('username', email); // Backend expects 'username' field
       formData.append('password', password);
+      const loginUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/v1/login`;
 
-      const response = await fetch('http://localhost:8000/api/v1/login', {
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -64,7 +67,11 @@ function Login() {
       navigate('/brand-intro');
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'Login failed. Please check your credentials and ensure the backend is running.');
+      if (err instanceof TypeError) {
+        setError('Cannot connect to backend server. Please check backend URL and CORS settings.');
+      } else {
+        setError(err.message || 'Login failed. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }
@@ -156,9 +163,6 @@ function Login() {
                 Forgot Password?
               </Link>
             </Box>
-            <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 2 }}>
-              Use: admin@temple.com / admin123
-            </Typography>
           </Box>
         </Paper>
       </Box>

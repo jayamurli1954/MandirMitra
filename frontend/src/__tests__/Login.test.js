@@ -48,11 +48,6 @@ describe('Login Page - Rendering', () => {
         expect(screen.getByRole('button', { name: /Sign In/i })).toBeInTheDocument();
     });
 
-    it('shows default credentials hint', () => {
-        renderLogin();
-        expect(screen.getByText(/admin@temple.com/i)).toBeInTheDocument();
-    });
-
     it('does not show error alert on initial render', () => {
         renderLogin();
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
