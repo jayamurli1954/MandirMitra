@@ -192,7 +192,6 @@ def login_for_access_token(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-
 class BootstrapSetupRequest(BaseModel):
     temple_name: str = Field(min_length=2, max_length=200)
     temple_slug: Optional[str] = Field(default=None, max_length=100)
@@ -504,3 +503,4 @@ def reset_password(
     )
 
     return {"message": "Password has been reset successfully. Please log in."}
+
