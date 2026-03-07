@@ -1492,7 +1492,7 @@ def create_booking(
         "user_id": current_user.id,
         "booking_date": booking_data.booking_date,
         "booking_time": booking_data.booking_time,
-        "status": booking_status.value if hasattr(booking_status, "value") else str(booking_status),
+        "status": booking_status.name if hasattr(booking_status, "name") else str(booking_status),
         "amount_paid": booking_data.amount_paid,
         "payment_method": booking_data.payment_method,
         "payment_reference": booking_data.payment_reference,
@@ -1527,6 +1527,25 @@ def create_booking(
         safe_insert_payload = {
             key: value for key, value in booking_columns.items() if key in bookings_table.c
         }
+
+        # Normalize enum casing for DBs where enum labels are uppercase names.
+        status_column = bookings_table.c.get("status")
+        enum_labels = getattr(getattr(status_column, "type", None), "enums", None)
+        if enum_labels and "status" in safe_insert_payload:
+            status_candidates = [
+                str(booking_status.name) if hasattr(booking_status, "name") else None,
+                str(booking_status.value) if hasattr(booking_status, "value") else None,
+                str(booking_status).upper(),
+                str(booking_status).lower(),
+            ]
+            normalized_map = {label.lower(): label for label in enum_labels}
+            chosen_status = None
+            for candidate in status_candidates:
+                if candidate and candidate.lower() in normalized_map:
+                    chosen_status = normalized_map[candidate.lower()]
+                    break
+            if chosen_status:
+                safe_insert_payload["status"] = chosen_status
 
         insert_result = db.execute(bookings_table.insert().values(**safe_insert_payload))
         booking_id = None
