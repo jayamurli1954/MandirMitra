@@ -1434,50 +1434,9 @@ def create_booking(
                 detail=f"No slots available for this date. Maximum {seva.max_bookings_per_day} booking(s) allowed per day. Already booked: {existing_bookings}/{seva.max_bookings_per_day}",
             )
 
-    # Generate receipt number - sequential serial number format (SEV000001, SEV000002, etc.)
-    # In standalone mode, use simple "SEV" prefix (no temple-specific prefix needed)
+    # Receipt numbers are derived from inserted booking ID to avoid duplicate-key races.
     receipt_prefix = "SEV"
 
-    # Generate using lightweight reflected table access to avoid schema-drift SELECT failures.
-    bookings_table = Table("seva_bookings", MetaData(), autoload_with=db.get_bind())
-    last_booking_row = (
-        db.execute(
-            select(bookings_table.c.id, bookings_table.c.receipt_number)
-            .where(
-                bookings_table.c.receipt_number.isnot(None),
-                bookings_table.c.receipt_number.like(f"{receipt_prefix}%"),
-            )
-            .order_by(bookings_table.c.id.desc())
-            .limit(1)
-        )
-        .fetchone()
-    )
-
-    if last_booking_row and last_booking_row[1]:
-        # Extract the number part from the last receipt (e.g., SEV000001 -> 1, SEV000123 -> 123)
-        try:
-            last_num_str = str(last_booking_row[1]).replace("SEV", "").strip()
-            # Handle both old format (timestamp-based like SEV202512180951133) and new format (serial like SEV000001)
-            if (
-                last_num_str.isdigit() and len(last_num_str) <= 6
-            ):  # Simple serial number (SEV000001 to SEV999999)
-                last_num = int(last_num_str)
-            elif (
-                last_num_str.isdigit() and len(last_num_str) > 10
-            ):  # Old timestamp format - use booking ID
-                # For old format, use the maximum booking ID + 1 to continue sequence
-                last_num = int(last_booking_row[0]) if last_booking_row[0] else 0
-            else:
-                # Fallback to booking ID
-                last_num = int(last_booking_row[0]) if last_booking_row[0] else 0
-            new_num = last_num + 1
-        except (ValueError, AttributeError, TypeError):
-            # Fallback: use count of bookings + 1
-            new_num = (db.query(SevaBooking).count() or 0) + 1
-    else:
-        new_num = 1
-
-    receipt_number = f"{receipt_prefix}{str(new_num).zfill(6)}"  # SEV000001, SEV000002, etc.
 
     # Create booking (but don't commit yet - wait for accounting)
     # Use schema-drift-safe insert so cloud DBs with missing optional columns still work.
@@ -1496,7 +1455,6 @@ def create_booking(
         "amount_paid": booking_data.amount_paid,
         "payment_method": booking_data.payment_method,
         "payment_reference": booking_data.payment_reference,
-        "receipt_number": receipt_number,
         "devotee_names": booking_data.devotee_names,
         "gotra": booking_data.gotra,
         "nakshatra": booking_data.nakshatra,
@@ -1551,21 +1509,43 @@ def create_booking(
         booking_id = None
         if insert_result.inserted_primary_key:
             booking_id = insert_result.inserted_primary_key[0]
-
+        if not booking_id:
+            booking_id = getattr(insert_result, "lastrowid", None)
         if not booking_id:
             booking_lookup = (
-                db.execute(
-                    select(bookings_table.c.id)
-                    .where(bookings_table.c.receipt_number == receipt_number)
-                    .order_by(bookings_table.c.id.desc())
-                    .limit(1)
-                )
+                db.execute(select(bookings_table.c.id).order_by(bookings_table.c.id.desc()).limit(1))
                 .fetchone()
             )
             booking_id = int(booking_lookup[0]) if booking_lookup else None
 
         if not booking_id:
             raise ValueError("Failed to resolve newly created booking ID")
+
+        receipt_number = f"{receipt_prefix}{str(int(booking_id)).zfill(6)}"
+        if "receipt_number" in bookings_table.c:
+            final_receipt_number = receipt_number
+            existing_receipt = (
+                db.execute(
+                    select(bookings_table.c.id)
+                    .where(
+                        bookings_table.c.receipt_number == final_receipt_number,
+                        bookings_table.c.id != booking_id,
+                    )
+                    .limit(1)
+                )
+                .fetchone()
+            )
+            if existing_receipt:
+                final_receipt_number = (
+                    f"{receipt_prefix}{str(int(booking_id)).zfill(6)}-{int(datetime.utcnow().timestamp())}"
+                )
+
+            db.execute(
+                bookings_table.update()
+                .where(bookings_table.c.id == booking_id)
+                .values(receipt_number=final_receipt_number)
+            )
+            receipt_number = final_receipt_number
 
         devotee = db.query(Devotee).filter(Devotee.id == booking_data.devotee_id).first()
         priest_obj = None
