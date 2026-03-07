@@ -1437,7 +1437,6 @@ def create_booking(
     # Receipt numbers are derived from inserted booking ID to avoid duplicate-key races.
     receipt_prefix = "SEV"
 
-
     # Create booking (but don't commit yet - wait for accounting)
     # Use schema-drift-safe insert so cloud DBs with missing optional columns still work.
     selected_payment_account_id = booking_data.payment_account_id
