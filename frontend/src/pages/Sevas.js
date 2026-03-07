@@ -82,7 +82,7 @@ function Sevas() {
 
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const canManageSevas = ['admin', 'temple_manager'].includes(user.role) || Boolean(user.is_superuser);
+  const canManageSevas = ['admin', 'super_admin', 'temple_manager'].includes(user.role) || Boolean(user.is_superuser);
   const [sevas, setSevas] = useState([]);
   const [filteredSevas, setFilteredSevas] = useState([]);
   const [categories, setCategories] = useState([]);

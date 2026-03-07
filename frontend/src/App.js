@@ -17,6 +17,7 @@ import PanchangSettings from './pages/PanchangSettings';
 import Sevas from './pages/Sevas';
 import SevaManagement from './pages/SevaManagement';
 import Settings from './pages/Settings';
+import Profile from './pages/Profile';
 import CategoryWiseDonationReport from './pages/CategoryWiseDonationReport';
 import DetailedDonationReport from './pages/DetailedDonationReport';
 import DetailedSevaReport from './pages/DetailedSevaReport';
@@ -210,6 +211,15 @@ function App() {
                 }
               />
               <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
                 path="/accounting/chart-of-accounts"
                 element={
                   <ProtectedRoute>
@@ -275,4 +285,3 @@ function App() {
 }
 
 export default App;
-

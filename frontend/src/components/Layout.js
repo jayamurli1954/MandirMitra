@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -14,8 +14,7 @@ import {
   ListItemIcon,
   ListItemText,
   Avatar,
-  Menu,
-  MenuItem,
+  Button,
   Collapse,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -89,20 +88,28 @@ const DEFAULT_MODULE_CONFIG = {
 
 function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
   const [accountingOpen, setAccountingOpen] = useState(true);
   const [sevasOpen, setSevasOpen] = useState(true);
   const [moduleConfig, setModuleConfig] = useState(DEFAULT_MODULE_CONFIG);
   const navigate = useNavigate();
   const location = useLocation();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const canApproveReschedule =
-    ['admin', 'temple_manager'].includes(user.role) || Boolean(user.is_superuser);
-  const visibleSevaMenuItems = sevaMenuItems.filter(
-    (item) => item.path !== '/sevas/reschedule-approval' || canApproveReschedule
-  );
+  const [userInfo, setUserInfo] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+  const isSevaManager =
+    ['admin', 'super_admin', 'temple_manager'].includes(userInfo.role) || Boolean(userInfo.is_superuser);
+  const canApproveReschedule = isSevaManager;
+  const visibleSevaMenuItems = sevaMenuItems.filter((item) => {
+    if (item.path === '/sevas/reschedule-approval') {
+      return canApproveReschedule;
+    }
+    if (item.path === '/sevas/manage') {
+      return isSevaManager;
+    }
+    return true;
+  });
+  const displayName =
+    userInfo.full_name || userInfo.name || (userInfo.email ? userInfo.email.split('@')[0] : '') || 'Admin';
 
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchTempleInfo = async () => {
       try {
         const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/v1/temples/`, {
@@ -123,7 +130,7 @@ function Layout({ children }) {
     fetchTempleInfo();
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleModuleConfigUpdated = (event) => {
       if (event?.detail && typeof event.detail === 'object') {
         setModuleConfig((prev) => ({ ...prev, ...event.detail }));
@@ -134,48 +141,66 @@ function Layout({ children }) {
     return () => window.removeEventListener('module-config-updated', handleModuleConfigUpdated);
   }, []);
 
+  useEffect(() => {
+    const handleProfileUpdated = (event) => {
+      if (event?.detail && typeof event.detail === 'object') {
+        setUserInfo(event.detail);
+      }
+    };
+
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/v1/users/me`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        const normalized = {
+          ...(JSON.parse(localStorage.getItem('user') || '{}')),
+          id: data.id,
+          email: data.email,
+          full_name: data.full_name,
+          name: data.full_name || data.email,
+          role: data.role,
+          phone: data.phone || '',
+          is_superuser: Boolean(data.is_superuser),
+        };
+        setUserInfo(normalized);
+        localStorage.setItem('user', JSON.stringify(normalized));
+      } catch (err) {
+        console.error('Failed to fetch current user profile', err);
+      }
+    };
+
+    window.addEventListener('user-profile-updated', handleProfileUpdated);
+    fetchCurrentUser();
+
+    return () => window.removeEventListener('user-profile-updated', handleProfileUpdated);
+  }, []);
+
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
+  const handleProfileClick = () => {
+    navigate('/profile');
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    setUserInfo({});
     navigate('/login');
   };
 
   const drawer = (
-    <Box>
-      <Box
-        sx={{
-          p: 1.5,
-          textAlign: 'center',
-          bgcolor: '#FF9933',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Box
-          component="img"
-          src="/branding/mandirmitra_logo1.jpg"
-          alt="MandirMitra Logo"
-          sx={{
-            height: 58,
-            width: '100%',
-            maxWidth: 220,
-            objectFit: 'contain',
-          }}
-        />
-      </Box>
+    <Box sx={{ height: '100%', overflowY: 'auto' }}>
+      <Toolbar />
       <Divider />
       <List>
         {/* Dashboard - First Item */}
@@ -338,56 +363,47 @@ function Layout({ children }) {
       <AppBar
         position="fixed"
         sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
+          width: '100%',
+          ml: 0,
           bgcolor: '#FF9933',
+          zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
-        <Toolbar sx={{ position: 'relative' }}>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
+        <Toolbar sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: { xs: 64, sm: 72 } }}>
           <Box
             sx={{
-              position: 'absolute',
-              left: '50%',
-              transform: 'translateX(-50%)',
               display: 'flex',
               alignItems: 'center',
               gap: 1,
-              px: { xs: 1, sm: 1.2 },
-              py: 0.7,
-              borderRadius: 1.5,
-              bgcolor: 'rgba(255,255,255,0.16)',
-              border: '1px solid rgba(255,255,255,0.25)',
+              width: { sm: drawerWidth },
               minWidth: 0,
-              maxWidth: { xs: 'calc(100% - 180px)', sm: 'calc(100% - 260px)' },
+              pr: 1,
+              flexShrink: 0,
             }}
           >
-            {moduleConfig?.logo_url ? (
-              <Box
-                component="img"
-                src={moduleConfig.logo_url}
-                alt="Temple Logo"
-                sx={{
-                  height: 30,
-                  width: 30,
-                  borderRadius: '50%',
-                  bgcolor: 'white',
-                  p: 0.25,
-                  flexShrink: 0,
-                }}
-              />
-            ) : (
-              <TempleHinduIcon sx={{ fontSize: 22, color: '#fff', flexShrink: 0 }} />
-            )}
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 0.5, display: { sm: 'none' } }}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Box
+              component="img"
+              src="/branding/mandirmitra_logo1.jpg"
+              alt="MandirMitra Logo"
+              sx={{
+                height: { xs: 40, sm: 52 },
+                width: '100%',
+                maxWidth: { xs: 160, sm: 230 },
+                objectFit: 'contain',
+              }}
+            />
+          </Box>
 
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: 0, pl: { xs: 0.2, sm: 1 } }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography
                 variant="body1"
@@ -398,7 +414,6 @@ function Layout({ children }) {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                   lineHeight: 1.1,
-                  maxWidth: { xs: '160px', sm: '340px', md: '520px' },
                 }}
               >
                 {moduleConfig?.name || 'Sri Vara Siddi Vinayak Temple'}
@@ -406,40 +421,40 @@ function Layout({ children }) {
               <Typography
                 variant="caption"
                 sx={{
-                  display: 'block',
+                  display: { xs: 'none', md: 'block' },
                   color: 'rgba(255,255,255,0.95)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  maxWidth: { xs: '160px', sm: '340px', md: '520px' },
                 }}
               >
                 Temple Management &amp; Accounting System
               </Typography>
             </Box>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
-              {user.name || 'User'}
-            </Typography>
-            <IconButton onClick={handleMenuOpen} size="small">
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, ml: 'auto' }}>
+            <Button
+              color="inherit"
+              onClick={handleProfileClick}
+              sx={{ textTransform: 'none', fontWeight: 700, minWidth: 0, px: { xs: 0.5, sm: 1.2 } }}
+            >
+              {displayName}
+            </Button>
+            <IconButton color="inherit" onClick={handleProfileClick} size="small" aria-label="profile">
               <Avatar sx={{ width: 32, height: 32, bgcolor: '#138808' }}>
-                {user.name?.[0]?.toUpperCase() || 'U'}
+                {displayName?.[0]?.toUpperCase() || 'U'}
               </Avatar>
             </IconButton>
+            <Button
+              color="inherit"
+              startIcon={<LogoutIcon />}
+              onClick={handleLogout}
+              sx={{ textTransform: 'none', fontWeight: 700, px: { xs: 0.5, sm: 1.2 } }}
+            >
+              Logout
+            </Button>
           </Box>
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleMenuClose}
-          >
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
-                <LogoutIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>Logout</ListItemText>
-            </MenuItem>
-          </Menu>
         </Toolbar>
       </AppBar>
       <Box

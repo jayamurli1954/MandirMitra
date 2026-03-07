@@ -10,11 +10,10 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime
 
 from app.core.database import get_db
-from app.core.security import get_current_user, get_password_hash
+from app.core.security import get_current_user, get_password_hash, verify_password
 from app.core.audit import log_action
 from app.core.password_policy import default_policy
 from app.models.user import User
-from app.models.temple import Temple
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -32,10 +31,12 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     phone: Optional[str] = None
     role: Optional[str] = None
     is_active: Optional[bool] = None
+    current_password: Optional[str] = None
     password: Optional[str] = None  # For password change
 
 
@@ -205,6 +206,7 @@ def update_user(
 
     # Get old values for audit
     old_values = {
+        "email": user.email,
         "full_name": user.full_name,
         "phone": user.phone,
         "role": user.role,
@@ -229,6 +231,20 @@ def update_user(
             )
 
     # Update fields
+    if user_data.email is not None:
+        normalized_email = str(user_data.email).strip().lower()
+        existing_user = (
+            db.query(User)
+            .filter(User.email == normalized_email, User.id != user_id)
+            .first()
+        )
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists",
+            )
+        user.email = normalized_email
+
     if user_data.full_name is not None:
         user.full_name = user_data.full_name
     if user_data.phone is not None:
@@ -243,6 +259,19 @@ def update_user(
         if not is_valid:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
 
+        # For self-service password changes, current password is mandatory.
+        if is_own_profile:
+            if not user_data.current_password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Current password is required",
+                )
+            if not verify_password(user_data.current_password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Current password is incorrect",
+                )
+
         user.password_hash = get_password_hash(user_data.password)
         user.last_password_change = datetime.utcnow().isoformat()
 
@@ -253,6 +282,7 @@ def update_user(
 
     # Audit log
     new_values = {
+        "email": user.email,
         "full_name": user.full_name,
         "phone": user.phone,
         "role": user.role,
