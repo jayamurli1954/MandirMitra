@@ -154,32 +154,27 @@ function Layout({ children }) {
 
   const drawer = (
     <Box>
-      <Box sx={{ p: 2, textAlign: 'center', bgcolor: '#FF9933', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {moduleConfig?.logo_url ? (
-          <Box
-            component="img"
-            src={moduleConfig.logo_url}
-            alt="Temple Logo"
-            sx={{
-              height: 40,
-              width: 40,
-              borderRadius: '50%',
-              bgcolor: 'white',
-              p: 0.5
-            }}
-          />
-        ) : (
-          <Box
-            component="img"
-            src="/temple-gopuram.svg"
-            alt="Temple Gopuram"
-            sx={{
-              height: 32,
-              width: 32,
-              filter: 'brightness(0) invert(1)', // Makes it white
-            }}
-          />
-        )}
+      <Box
+        sx={{
+          p: 1.5,
+          textAlign: 'center',
+          bgcolor: '#FF9933',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Box
+          component="img"
+          src="/branding/mandirmitra_logo1.jpg"
+          alt="MandirMitra Logo"
+          sx={{
+            height: 58,
+            width: '100%',
+            maxWidth: 220,
+            objectFit: 'contain',
+          }}
+        />
       </Box>
       <Divider />
       <List>

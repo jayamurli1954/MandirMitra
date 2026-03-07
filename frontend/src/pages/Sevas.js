@@ -82,6 +82,7 @@ function Sevas() {
 
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const canManageSevas = ['admin', 'temple_manager'].includes(user.role) || Boolean(user.is_superuser);
   const [sevas, setSevas] = useState([]);
   const [filteredSevas, setFilteredSevas] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -656,7 +657,7 @@ function Sevas() {
             >
               Bookings / Reschedule
             </Button>
-            {user.role === 'admin' && (
+            {canManageSevas && (
               <Button
                 variant="contained"
                 startIcon={<SettingsIcon />}
@@ -667,7 +668,7 @@ function Sevas() {
                   '&:hover': { bgcolor: '#f5f5f5' }
                 }}
               >
-                Manage Sevas
+                Add / Manage Sevas
               </Button>
             )}
           </Box>
