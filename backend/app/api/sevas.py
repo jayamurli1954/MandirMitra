@@ -6,13 +6,13 @@ Handles temple sevas/poojas/archanas
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, MetaData, Table, select
 from typing import List, Optional
 from datetime import date, datetime, timedelta
 from pydantic import BaseModel
 import io
 
-from app.core.database import get_db
+from app.core.database import get_db, column_exists
 from app.core.security import get_current_user
 from app.core.coa_bootstrap import ensure_default_coa_for_temple
 from app.core.auto_setup import is_standalone_mode
@@ -1438,29 +1438,25 @@ def create_booking(
     # In standalone mode, use simple "SEV" prefix (no temple-specific prefix needed)
     receipt_prefix = "SEV"
 
-    # Filter by receipt prefix pattern
-    # In standalone mode, don't filter by temple (single temple environment)
-    # In multi-tenant mode, filter through seva relationship if needed
-    booking_filter = [
-        SevaBooking.receipt_number.isnot(None),
-        SevaBooking.receipt_number.like(f"{receipt_prefix}%"),
-    ]
-
-    # In multi-tenant mode, filter by temple through seva relationship
-    if not is_standalone_mode() and current_user.temple_id:
-        seva_ids = db.query(Seva.id).filter(Seva.temple_id == current_user.temple_id).all()
-        if seva_ids:
-            seva_id_list = [s[0] for s in seva_ids]
-            booking_filter.append(SevaBooking.seva_id.in_(seva_id_list))
-
-    last_booking = (
-        db.query(SevaBooking).filter(and_(*booking_filter)).order_by(SevaBooking.id.desc()).first()
+    # Generate using lightweight reflected table access to avoid schema-drift SELECT failures.
+    bookings_table = Table("seva_bookings", MetaData(), autoload_with=db.get_bind())
+    last_booking_row = (
+        db.execute(
+            select(bookings_table.c.id, bookings_table.c.receipt_number)
+            .where(
+                bookings_table.c.receipt_number.isnot(None),
+                bookings_table.c.receipt_number.like(f"{receipt_prefix}%"),
+            )
+            .order_by(bookings_table.c.id.desc())
+            .limit(1)
+        )
+        .fetchone()
     )
 
-    if last_booking and last_booking.receipt_number:
+    if last_booking_row and last_booking_row[1]:
         # Extract the number part from the last receipt (e.g., SEV000001 -> 1, SEV000123 -> 123)
         try:
-            last_num_str = last_booking.receipt_number.replace("SEV", "").strip()
+            last_num_str = str(last_booking_row[1]).replace("SEV", "").strip()
             # Handle both old format (timestamp-based like SEV202512180951133) and new format (serial like SEV000001)
             if (
                 last_num_str.isdigit() and len(last_num_str) <= 6
@@ -1470,13 +1466,12 @@ def create_booking(
                 last_num_str.isdigit() and len(last_num_str) > 10
             ):  # Old timestamp format - use booking ID
                 # For old format, use the maximum booking ID + 1 to continue sequence
-                max_booking = db.query(SevaBooking).order_by(SevaBooking.id.desc()).first()
-                last_num = max_booking.id if max_booking else 0
+                last_num = int(last_booking_row[0]) if last_booking_row[0] else 0
             else:
                 # Fallback to booking ID
-                last_num = last_booking.id
+                last_num = int(last_booking_row[0]) if last_booking_row[0] else 0
             new_num = last_num + 1
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, TypeError):
             # Fallback: use count of bookings + 1
             new_num = (db.query(SevaBooking).count() or 0) + 1
     else:
@@ -1485,24 +1480,119 @@ def create_booking(
     receipt_number = f"{receipt_prefix}{str(new_num).zfill(6)}"  # SEV000001, SEV000002, etc.
 
     # Create booking (but don't commit yet - wait for accounting)
-    try:
-        selected_payment_account_id = booking_data.payment_account_id
-        booking_payload = booking_data.dict(exclude={"payment_account_id"})
-        booking = SevaBooking(
-            **booking_payload,
-            user_id=current_user.id,
-            status=SevaBookingStatus.PENDING
-            if seva.requires_approval
-            else SevaBookingStatus.CONFIRMED,
-            receipt_number=receipt_number,
-        )
+    # Use schema-drift-safe insert so cloud DBs with missing optional columns still work.
+    selected_payment_account_id = booking_data.payment_account_id
+    booking_status = (
+        SevaBookingStatus.PENDING if seva.requires_approval else SevaBookingStatus.CONFIRMED
+    )
 
-        db.add(booking)
-        db.flush()  # Flush to get booking.id, but don't commit yet
-        db.refresh(booking)
+    booking_columns = {
+        "seva_id": booking_data.seva_id,
+        "devotee_id": booking_data.devotee_id,
+        "user_id": current_user.id,
+        "booking_date": booking_data.booking_date,
+        "booking_time": booking_data.booking_time,
+        "status": booking_status.value if hasattr(booking_status, "value") else str(booking_status),
+        "amount_paid": booking_data.amount_paid,
+        "payment_method": booking_data.payment_method,
+        "payment_reference": booking_data.payment_reference,
+        "receipt_number": receipt_number,
+        "devotee_names": booking_data.devotee_names,
+        "gotra": booking_data.gotra,
+        "nakshatra": booking_data.nakshatra,
+        "rashi": booking_data.rashi,
+        "special_request": booking_data.special_request,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+
+    optional_booking_columns = {
+        "sender_upi_id": booking_data.sender_upi_id,
+        "upi_reference_number": booking_data.upi_reference_number,
+        "cheque_number": booking_data.cheque_number,
+        "cheque_date": booking_data.cheque_date,
+        "cheque_bank_name": booking_data.cheque_bank_name,
+        "cheque_branch": booking_data.cheque_branch,
+        "utr_number": booking_data.utr_number,
+        "payer_name": booking_data.payer_name,
+        "priest_id": booking_data.priest_id,
+    }
+
+    for column_name, column_value in optional_booking_columns.items():
+        if column_exists(db, "seva_bookings", column_name):
+            booking_columns[column_name] = column_value
+
+    try:
+        bookings_table = Table("seva_bookings", MetaData(), autoload_with=db.get_bind())
+        safe_insert_payload = {
+            key: value for key, value in booking_columns.items() if key in bookings_table.c
+        }
+
+        insert_result = db.execute(bookings_table.insert().values(**safe_insert_payload))
+        booking_id = None
+        if insert_result.inserted_primary_key:
+            booking_id = insert_result.inserted_primary_key[0]
+
+        if not booking_id:
+            booking_lookup = (
+                db.execute(
+                    select(bookings_table.c.id)
+                    .where(bookings_table.c.receipt_number == receipt_number)
+                    .order_by(bookings_table.c.id.desc())
+                    .limit(1)
+                )
+                .fetchone()
+            )
+            booking_id = int(booking_lookup[0]) if booking_lookup else None
+
+        if not booking_id:
+            raise ValueError("Failed to resolve newly created booking ID")
+
+        devotee = db.query(Devotee).filter(Devotee.id == booking_data.devotee_id).first()
+        priest_obj = None
+        priest_id_value = safe_insert_payload.get("priest_id")
+        if priest_id_value:
+            priest_obj = db.query(User).filter(User.id == priest_id_value).first()
+
+        class BookingProxy:
+            pass
+
+        booking = BookingProxy()
+        booking.id = booking_id
+        booking.seva_id = booking_data.seva_id
+        booking.devotee_id = booking_data.devotee_id
+        booking.user_id = current_user.id
+        booking.priest_id = priest_id_value
+        booking.booking_date = booking_data.booking_date
+        booking.booking_time = booking_data.booking_time
+        booking.status = booking_status
+        booking.amount_paid = booking_data.amount_paid
+        booking.payment_method = booking_data.payment_method
+        booking.payment_reference = booking_data.payment_reference
+        booking.receipt_number = receipt_number
+        booking.devotee_names = booking_data.devotee_names
+        booking.gotra = booking_data.gotra
+        booking.nakshatra = booking_data.nakshatra
+        booking.rashi = booking_data.rashi
+        booking.special_request = booking_data.special_request
+        booking.admin_notes = None
+        booking.completed_at = None
+        booking.cancelled_at = None
+        booking.cancellation_reason = None
+        booking.original_booking_date = None
+        booking.reschedule_requested_date = None
+        booking.reschedule_reason = None
+        booking.reschedule_approved = None
+        booking.reschedule_approved_by = None
+        booking.reschedule_approved_at = None
+        booking.created_at = safe_insert_payload.get("created_at")
+        booking.updated_at = safe_insert_payload.get("updated_at")
+        booking.seva = seva
+        booking.devotee = devotee
+        booking.priest = priest_obj
     except Exception as e:
         db.rollback()
-        print(f"❌ Error creating seva booking: {str(e)}")
+        print(f"Error creating seva booking: {str(e)}")
         print(f"   Booking data: {booking_data.dict()}")
         import traceback
 
@@ -3185,3 +3275,4 @@ def create_accounting_for_booking(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Failed to create accounting entry: {str(e)}")
+
