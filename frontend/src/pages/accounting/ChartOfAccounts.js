@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import api from '../../services/api';
 import {
   Alert,
   Box,
@@ -190,6 +191,10 @@ function ChartOfAccounts() {
   });
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const [openingBalanceFile, setOpeningBalanceFile] = useState(null);
+  const [legacyAccountFile, setLegacyAccountFile] = useState(null);
+  const [uploadingOpeningBalances, setUploadingOpeningBalances] = useState(false);
+  const [uploadingLegacyAccounts, setUploadingLegacyAccounts] = useState(false);
   const [editForm, setEditForm] = useState({
     id: null,
     account_code: '',
@@ -338,6 +343,62 @@ function ChartOfAccounts() {
     }
   };
 
+  const handleImportOpeningBalances = async () => {
+    if (!openingBalanceFile) {
+      setMessage({ type: 'error', text: 'Select an opening balance CSV/XLSX file first.' });
+      return;
+    }
+
+    try {
+      setUploadingOpeningBalances(true);
+      setMessage({ type: '', text: '' });
+      const formData = new FormData();
+      formData.append('file', openingBalanceFile);
+      const response = await api.post('/api/v1/opening-balances/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setMessage({
+        type: response.data.errors?.length ? 'warning' : 'success',
+        text: `Opening balance upload complete. Updated ${response.data.updated_count || 0} account(s).`,
+      });
+      setOpeningBalanceFile(null);
+      await fetchAccounts();
+    } catch (error) {
+      console.error('Error importing opening balances:', error);
+      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to import opening balances' });
+    } finally {
+      setUploadingOpeningBalances(false);
+    }
+  };
+
+  const handleImportLegacyAccounts = async () => {
+    if (!legacyAccountFile) {
+      setMessage({ type: 'error', text: 'Select a legacy account CSV/XLSX file first.' });
+      return;
+    }
+
+    try {
+      setUploadingLegacyAccounts(true);
+      setMessage({ type: '', text: '' });
+      const formData = new FormData();
+      formData.append('file', legacyAccountFile);
+      const response = await api.post('/api/v1/accounts/import-legacy', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setMessage({
+        type: response.data.errors?.length ? 'warning' : 'success',
+        text: `Legacy account upload complete. Created ${response.data.created_count || 0}, updated ${response.data.updated_count || 0}.`,
+      });
+      setLegacyAccountFile(null);
+      await fetchAccounts();
+    } catch (error) {
+      console.error('Error importing legacy accounts:', error);
+      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to import legacy accounts' });
+    } finally {
+      setUploadingLegacyAccounts(false);
+    }
+  };
+
   const handleOpenEditDialog = (account) => {
     setEditForm({
       id: account.id,
@@ -426,6 +487,40 @@ function ChartOfAccounts() {
               Add Account
             </Button>
           </Box>
+        </Box>
+
+        <Box sx={{ display: 'grid', gap: 2, mb: 3 }}>
+          <Paper sx={{ p: 2, borderLeft: '5px solid #1565C0' }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>Opening Balance Upload</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Upload CSV or XLSX with columns like `account_code`, `opening_balance_debit`, `opening_balance_credit` or `opening_balance`.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Button variant="outlined" component="label">
+                {openingBalanceFile ? openingBalanceFile.name : 'Choose Opening Balance File'}
+                <input hidden type="file" accept=".csv,.xlsx" onChange={(e) => setOpeningBalanceFile(e.target.files?.[0] || null)} />
+              </Button>
+              <Button variant="contained" onClick={handleImportOpeningBalances} disabled={uploadingOpeningBalances}>
+                {uploadingOpeningBalances ? 'Uploading...' : 'Upload Opening Balances'}
+              </Button>
+            </Box>
+          </Paper>
+
+          <Paper sx={{ p: 2, borderLeft: '5px solid #2E7D32' }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>Legacy Accounts Upload</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Upload legacy account masters using `legacy_code` or `account_code` with the latest account naming and balances. 4-digit legacy codes are mapped into the current 5-digit COA format.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Button variant="outlined" component="label">
+                {legacyAccountFile ? legacyAccountFile.name : 'Choose Legacy Account File'}
+                <input hidden type="file" accept=".csv,.xlsx" onChange={(e) => setLegacyAccountFile(e.target.files?.[0] || null)} />
+              </Button>
+              <Button variant="contained" color="success" onClick={handleImportLegacyAccounts} disabled={uploadingLegacyAccounts}>
+                {uploadingLegacyAccounts ? 'Uploading...' : 'Upload Legacy Accounts'}
+              </Button>
+            </Box>
+          </Paper>
         </Box>
 
         {message.text && (

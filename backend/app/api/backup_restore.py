@@ -20,7 +20,7 @@ from app.models.user import User
 router = APIRouter(prefix="/api/v1/backup-restore", tags=["backup-restore"])
 
 BACKUP_DIR = Path(settings.BACKUP_PATH).expanduser()
-BACKUP_ALLOWED_ROLES = {"admin", "super_admin"}
+BACKUP_ALLOWED_ROLES = {"admin", "super_admin", "temple_manager"}
 ALLOWED_TABLES = {
     "temples",
     "users",

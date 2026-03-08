@@ -113,6 +113,12 @@ class Settings(BaseSettings):
     BACKUP_ENABLED: bool = True
     BACKUP_PATH: str = os.path.join(tempfile.gettempdir(), "mandirmitra", "backups")
     BACKUP_RETENTION_DAYS: int = 30
+    BACKUP_AUTO_ENABLED: bool = True
+    BACKUP_AUTO_INTERVAL_MINUTES: int = 30
+    BACKUP_AUTO_KEEP_COUNT: int = 5
+    BACKUP_AUTO_ENABLED: bool = True
+    BACKUP_AUTO_INTERVAL_MINUTES: int = 30
+    BACKUP_AUTO_KEEP_COUNT: int = 5
 
     # Deployment mode helpers
     @property

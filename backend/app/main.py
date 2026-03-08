@@ -115,6 +115,10 @@ from app.api.temples import router as temples_router
 from app.api.pincode import router as pincode_router
 from app.api.opening_balances import router as opening_balances_router
 from app.api.backup_restore import router as backup_restore_router
+from app.api.temple_onboarding import router as temple_onboarding_router
+from app.api.account_imports import router as account_imports_router
+from app.api.opening_balance_imports import router as opening_balance_imports_router
+from app.services.backup_scheduler import start_backup_scheduler, stop_backup_scheduler
 from app.api.asset_reports import router as asset_reports_router
 from app.api.inventory import router as inventory_router
 from app.api.inventory_additional import router as inventory_additional_router
@@ -133,6 +137,7 @@ async def lifespan(app: FastAPI):
     _run_startup()
     yield
     # --- SHUTDOWN (add cleanup here if needed) ---
+    stop_backup_scheduler()
 
 
 # Create FastAPI app
@@ -210,6 +215,9 @@ app.include_router(temples_router)
 app.include_router(pincode_router, prefix="/api/v1/pincode", tags=["pincode"])
 app.include_router(opening_balances_router)
 app.include_router(backup_restore_router)
+app.include_router(temple_onboarding_router)
+app.include_router(account_imports_router)
+app.include_router(opening_balance_imports_router)
 app.include_router(inventory_router)
 app.include_router(inventory_additional_router)
 app.include_router(inventory_alerts_router)
@@ -286,6 +294,8 @@ def _run_startup():
     _validate_startup_security_config()
     init_db()
     _check_backup_path_writable()
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        start_backup_scheduler()
 
     # Run database integrity check (for tampering detection)
     try:

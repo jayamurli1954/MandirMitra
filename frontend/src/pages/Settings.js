@@ -29,6 +29,24 @@ function Settings() {
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
+  const [currentUser] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+  const [backupStatus, setBackupStatus] = useState(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [manualBackupLoading, setManualBackupLoading] = useState(false);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [onboarding, setOnboarding] = useState({
+    temple_name: '',
+    trust_name: '',
+    temple_slug: '',
+    primary_deity: 'Lord Ganesha',
+    city: '',
+    state: '',
+    phone: '',
+    email: '',
+    admin_full_name: '',
+    admin_email: '',
+    admin_password: '',
+  });
   // Password protection disabled for demo - will be enabled later
   // const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   // const [password, setPassword] = useState('');
@@ -79,6 +97,7 @@ function Settings() {
 
     // Always fetch settings for demo
     fetchSettings();
+    fetchBackupStatus();
   }, []);
 
   // Password protection disabled for demo - will be enabled later
@@ -152,6 +171,72 @@ function Settings() {
       console.error('Failed to load settings:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBackupStatus = async () => {
+    const canAccessBackups = ['admin', 'super_admin', 'temple_manager'].includes(currentUser.role) || Boolean(currentUser.is_superuser);
+    if (!canAccessBackups) return;
+
+    try {
+      setBackupLoading(true);
+      const response = await api.get('/api/v1/backup-restore/status');
+      setBackupStatus(response.data);
+    } catch (err) {
+      console.error('Failed to load backup status:', err);
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleManualBackup = async () => {
+    try {
+      setManualBackupLoading(true);
+      const response = await api.post('/api/v1/backup-restore/backup');
+      showSuccess(`Backup created: ${response.data.backup_file}`);
+      await fetchBackupStatus();
+    } catch (err) {
+      showError(err?.response?.data?.detail || 'Failed to create backup');
+    } finally {
+      setManualBackupLoading(false);
+    }
+  };
+
+  const handleOnboardingSubmit = async () => {
+    try {
+      setOnboardingLoading(true);
+      const payload = {
+        temple_name: onboarding.temple_name,
+        trust_name: onboarding.trust_name || null,
+        temple_slug: onboarding.temple_slug || null,
+        primary_deity: onboarding.primary_deity || null,
+        city: onboarding.city || null,
+        state: onboarding.state || null,
+        phone: onboarding.phone || null,
+        email: onboarding.email || null,
+        admin_full_name: onboarding.admin_full_name,
+        admin_email: onboarding.admin_email,
+        admin_password: onboarding.admin_password,
+      };
+      const response = await api.post('/api/v1/temples/onboard', payload);
+      showSuccess(`Onboarded ${response.data.temple_name} with admin ${response.data.admin_email}`);
+      setOnboarding({
+        temple_name: '',
+        trust_name: '',
+        temple_slug: '',
+        primary_deity: 'Lord Ganesha',
+        city: '',
+        state: '',
+        phone: '',
+        email: '',
+        admin_full_name: '',
+        admin_email: '',
+        admin_password: '',
+      });
+    } catch (err) {
+      showError(err?.response?.data?.detail || 'Failed to onboard temple/trust');
+    } finally {
+      setOnboardingLoading(false);
     }
   };
 
@@ -660,6 +745,116 @@ function Settings() {
               </CardContent>
             </Card>
           </Grid>
+
+          {((currentUser.role === 'super_admin') || currentUser.is_superuser) && (
+            <Grid item xs={12}>
+              <Card sx={{ borderLeft: '5px solid #1565C0' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    Temple / Trust Onboarding
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Create a new temple or trust and assign its concerned temple admin in one step.
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Temple Name" value={onboarding.temple_name} onChange={(e) => setOnboarding({ ...onboarding, temple_name: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Trust Name" value={onboarding.trust_name} onChange={(e) => setOnboarding({ ...onboarding, trust_name: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Temple Slug" value={onboarding.temple_slug} onChange={(e) => setOnboarding({ ...onboarding, temple_slug: e.target.value })} helperText="Optional unique URL slug" />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="Primary Deity" value={onboarding.primary_deity} onChange={(e) => setOnboarding({ ...onboarding, primary_deity: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="City" value={onboarding.city} onChange={(e) => setOnboarding({ ...onboarding, city: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="State" value={onboarding.state} onChange={(e) => setOnboarding({ ...onboarding, state: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="Temple Phone" value={onboarding.phone} onChange={(e) => setOnboarding({ ...onboarding, phone: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Temple Email" value={onboarding.email} onChange={(e) => setOnboarding({ ...onboarding, email: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Admin Full Name" value={onboarding.admin_full_name} onChange={(e) => setOnboarding({ ...onboarding, admin_full_name: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Admin Email" value={onboarding.admin_email} onChange={(e) => setOnboarding({ ...onboarding, admin_email: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth type="password" label="Admin Password" value={onboarding.admin_password} onChange={(e) => setOnboarding({ ...onboarding, admin_password: e.target.value })} />
+                    </Grid>
+                  </Grid>
+                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button variant="contained" onClick={handleOnboardingSubmit} disabled={onboardingLoading}>
+                      {onboardingLoading ? 'Creating...' : 'Create Temple & Admin'}
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {(['admin', 'super_admin', 'temple_manager'].includes(currentUser.role) || currentUser.is_superuser) && (
+            <Grid item xs={12}>
+              <Card sx={{ borderLeft: '5px solid #2E7D32' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    Backup Management
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Automatic local backups run every 30 minutes and only the latest 5 automated backups are retained. Manual backup is available below.
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                    <Paper variant="outlined" sx={{ p: 2, minWidth: 220 }}>
+                      <Typography variant="caption" color="text.secondary">Backup Path</Typography>
+                      <Typography variant="body2">{backupStatus?.backup_directory || 'Loading...'}</Typography>
+                    </Paper>
+                    <Paper variant="outlined" sx={{ p: 2, minWidth: 180 }}>
+                      <Typography variant="caption" color="text.secondary">Auto Backup</Typography>
+                      <Typography variant="body2">Every {backupStatus?.auto_backup_interval_minutes || 30} minutes</Typography>
+                    </Paper>
+                    <Paper variant="outlined" sx={{ p: 2, minWidth: 180 }}>
+                      <Typography variant="caption" color="text.secondary">Retention</Typography>
+                      <Typography variant="body2">Latest {backupStatus?.auto_backup_keep_count || 5} auto backups</Typography>
+                    </Paper>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Button variant="contained" onClick={handleManualBackup} disabled={manualBackupLoading || backupLoading}>
+                      {manualBackupLoading ? 'Creating Backup...' : 'Manual Backup'}
+                    </Button>
+                    <Button variant="outlined" onClick={fetchBackupStatus} disabled={backupLoading}>
+                      {backupLoading ? 'Refreshing...' : 'Refresh Backup List'}
+                    </Button>
+                  </Box>
+                  <Box sx={{ mt: 2 }}>
+                    {(backupStatus?.backup_files || []).slice(0, 5).map((backupFile) => (
+                      <Paper key={backupFile.filename} variant="outlined" sx={{ p: 1.5, mb: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {backupFile.filename.includes('_auto_') ? 'Auto Backup' : 'Manual Backup'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {backupFile.filename}
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          {backupFile.created_at} | {backupFile.size_mb} MB
+                        </Typography>
+                      </Paper>
+                    ))}
+                    {!backupLoading && (!backupStatus?.backup_files || backupStatus.backup_files.length === 0) && (
+                      <Alert severity="info" sx={{ mt: 1 }}>No backups found yet.</Alert>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
 
           {/* Module Configuration */}
           <Grid item xs={12}>
