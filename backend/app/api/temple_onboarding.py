@@ -56,10 +56,11 @@ def _build_unique_slug(db: Session, base_slug: str) -> str:
 
 
 def _require_platform_admin(current_user: User) -> None:
-    if current_user.role != "super_admin" and not bool(current_user.is_superuser):
+    allowed_roles = {"admin", "super_admin", "temple_manager"}
+    if current_user.role not in allowed_roles and not bool(current_user.is_superuser):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only platform administrators can onboard temples",
+            detail="Only admin users can onboard temples",
         )
 
 

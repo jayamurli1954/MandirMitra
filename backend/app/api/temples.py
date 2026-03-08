@@ -25,12 +25,30 @@ class TempleResponse(BaseModel):
 
     id: int
     name: str
+    name_kannada: Optional[str] = None
+    name_sanskrit: Optional[str] = None
     slug: str
     address: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
+    pincode: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    website: Optional[str] = None
+    financial_year_start_month: Optional[int] = None
+    receipt_prefix_donation: Optional[str] = None
+    receipt_prefix_seva: Optional[str] = None
+    gst_applicable: Optional[bool] = None
+    gstin: Optional[str] = None
+    gst_registration_date: Optional[str] = None
+    fcra_applicable: Optional[bool] = None
+    fcra_registration_number: Optional[str] = None
+    fcra_valid_from: Optional[str] = None
+    fcra_valid_to: Optional[str] = None
+    logo_url: Optional[str] = None
+    banner_url: Optional[str] = None
+    opening_time: Optional[str] = None
+    closing_time: Optional[str] = None
 
     # Module Configuration
     module_donations_enabled: bool = True
@@ -139,6 +157,14 @@ def _update_temple_columns(
     return set(values_to_update.keys())
 
 
+def _resolve_current_temple_id(db: Session, current_user: User) -> Optional[int]:
+    if current_user.temple_id:
+        return current_user.temple_id
+
+    first_temple = db.query(Temple.id).filter(Temple.is_active == True).order_by(Temple.id.asc()).first()
+    return first_temple.id if first_temple else None
+
+
 def _ensure_temple_exists(db: Session, temple_id: int) -> None:
     exists_row = db.execute(
         text("SELECT id FROM temples WHERE id = :temple_id"),
@@ -151,7 +177,8 @@ def _ensure_temple_exists(db: Session, temple_id: int) -> None:
 @router.get("/", response_model=List[TempleResponse])
 def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get temples (for current user's temple)"""
-    if current_user.temple_id:
+    temple_id = _resolve_current_temple_id(db, current_user)
+    if temple_id:
         # Use raw SQL to avoid missing column errors (module_hundi_enabled may not exist in DB)
 
         # Check if module_hundi_enabled column exists first
@@ -162,7 +189,7 @@ def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_
             # Query all columns including module_hundi_enabled
             result = db.execute(
                 text("SELECT * FROM temples WHERE id = :temple_id"),
-                {"temple_id": current_user.temple_id},
+                {"temple_id": temple_id},
             ).fetchone()
         else:
             # Query without module_hundi_enabled column
@@ -191,19 +218,19 @@ def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_
                     WHERE id = :temple_id
                 """
                 ),
-                {"temple_id": current_user.temple_id},
+                {"temple_id": temple_id},
             ).fetchone()
 
         if result:
             # If column exists, use normal query
             if has_hundi_column:
-                temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
+                temple = db.query(Temple).filter(Temple.id == temple_id).first()
                 if temple:
                     return [temple]
             else:
                 # Column doesn't exist - create a minimal Temple object with default value
                 # Use raw SQL result and manually construct response
-                temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
+                temple = db.query(Temple).filter(Temple.id == temple_id).first()
                 if temple:
                     # Dynamically add the missing attribute
                     setattr(temple, "module_hundi_enabled", False)
@@ -264,7 +291,8 @@ def get_module_config(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get module configuration for current temple"""
-    if not current_user.temple_id:
+    temple_id = _resolve_current_temple_id(db, current_user)
+    if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
     # Use raw SQL to avoid missing column errors (module_hundi_enabled may not exist in DB)
@@ -293,7 +321,7 @@ def get_module_config(
                 WHERE id = :temple_id
             """
             ),
-            {"temple_id": current_user.temple_id},
+            {"temple_id": temple_id},
         ).fetchone()
     else:
         result = db.execute(
@@ -316,7 +344,7 @@ def get_module_config(
                 WHERE id = :temple_id
             """
             ),
-            {"temple_id": current_user.temple_id},
+            {"temple_id": temple_id},
         ).fetchone()
 
     if not result:
@@ -385,14 +413,15 @@ def update_module_config(
     current_user: User = Depends(get_current_user),
 ):
     """Update module configuration for current temple"""
-    if not current_user.temple_id:
+    temple_id = _resolve_current_temple_id(db, current_user)
+    if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
-    _ensure_temple_exists(db, current_user.temple_id)
+    _ensure_temple_exists(db, temple_id)
 
     update_data = config.dict(exclude_unset=True)
     allowed_fields = _model_field_names(ModuleConfigUpdate)
-    _update_temple_columns(db, current_user.temple_id, update_data, allowed_fields)
+    _update_temple_columns(db, temple_id, update_data, allowed_fields)
 
     db.commit()
     return get_module_config(db=db, current_user=current_user)
@@ -405,14 +434,15 @@ def update_current_temple(
     current_user: User = Depends(get_current_user),
 ):
     """Update general information for the current temple"""
-    if not current_user.temple_id:
+    temple_id = _resolve_current_temple_id(db, current_user)
+    if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
-    _ensure_temple_exists(db, current_user.temple_id)
+    _ensure_temple_exists(db, temple_id)
 
     update_data = update.dict(exclude_unset=True)
     allowed_fields = _model_field_names(TempleUpdate)
-    _update_temple_columns(db, current_user.temple_id, update_data, allowed_fields)
+    _update_temple_columns(db, temple_id, update_data, allowed_fields)
 
     db.commit()
 
@@ -454,7 +484,8 @@ async def upload_temple_media(
     current_user: User = Depends(get_current_user)
 ):
     """Upload temple media (logo or banner)"""
-    if not current_user.temple_id:
+    temple_id = _resolve_current_temple_id(db, current_user)
+    if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
     if media_type not in {"logo", "banner"}:
         raise HTTPException(status_code=400, detail="media_type must be either 'logo' or 'banner'")
@@ -473,7 +504,7 @@ async def upload_temple_media(
     safe_filename = f"{media_type}_{uuid4().hex}{extension}"
 
     # Ensure uploads directory exists
-    upload_dir = UPLOAD_ROOT / "temples" / str(current_user.temple_id)
+    upload_dir = UPLOAD_ROOT / "temples" / str(temple_id)
     upload_dir.mkdir(parents=True, exist_ok=True)
     
     file_path = upload_dir / safe_filename
@@ -481,7 +512,7 @@ async def upload_temple_media(
         shutil.copyfileobj(file.file, buffer)
         
     # URL that will be stored in DB (assuming /uploads is served)
-    url = f"/uploads/temples/{current_user.temple_id}/{safe_filename}"
+    url = f"/uploads/temples/{temple_id}/{safe_filename}"
     
     return {"url": url}
 

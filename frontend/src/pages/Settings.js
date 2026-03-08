@@ -394,6 +394,116 @@ function Settings() {
         )}
 
         <Grid container spacing={3} sx={{ mt: 2 }}>
+          {(['admin', 'super_admin', 'temple_manager'].includes(currentUser.role) || currentUser.is_superuser) && (
+            <Grid item xs={12}>
+              <Card sx={{ borderLeft: '5px solid #1565C0' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    Temple / Trust Onboarding
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Create a new temple or trust and assign its concerned temple admin in one step.
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Temple Name" value={onboarding.temple_name} onChange={(e) => setOnboarding({ ...onboarding, temple_name: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Trust Name" value={onboarding.trust_name} onChange={(e) => setOnboarding({ ...onboarding, trust_name: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Temple Slug" value={onboarding.temple_slug} onChange={(e) => setOnboarding({ ...onboarding, temple_slug: e.target.value })} helperText="Optional unique URL slug" />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="Primary Deity" value={onboarding.primary_deity} onChange={(e) => setOnboarding({ ...onboarding, primary_deity: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="City" value={onboarding.city} onChange={(e) => setOnboarding({ ...onboarding, city: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="State" value={onboarding.state} onChange={(e) => setOnboarding({ ...onboarding, state: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="Temple Phone" value={onboarding.phone} onChange={(e) => setOnboarding({ ...onboarding, phone: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Temple Email" value={onboarding.email} onChange={(e) => setOnboarding({ ...onboarding, email: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Admin Full Name" value={onboarding.admin_full_name} onChange={(e) => setOnboarding({ ...onboarding, admin_full_name: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Admin Email" value={onboarding.admin_email} onChange={(e) => setOnboarding({ ...onboarding, admin_email: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth type="password" label="Admin Password" value={onboarding.admin_password} onChange={(e) => setOnboarding({ ...onboarding, admin_password: e.target.value })} />
+                    </Grid>
+                  </Grid>
+                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button variant="contained" onClick={handleOnboardingSubmit} disabled={onboardingLoading}>
+                      {onboardingLoading ? 'Creating...' : 'Create Temple & Admin'}
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {(['admin', 'super_admin', 'temple_manager'].includes(currentUser.role) || currentUser.is_superuser) && (
+            <Grid item xs={12}>
+              <Card sx={{ borderLeft: '5px solid #2E7D32' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    Backup Management
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Automatic local backups run every 30 minutes and only the latest 5 automated backups are retained. Manual backup is available below.
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                    <Paper variant="outlined" sx={{ p: 2, minWidth: 220 }}>
+                      <Typography variant="caption" color="text.secondary">Backup Path</Typography>
+                      <Typography variant="body2">{backupStatus?.backup_directory || 'Loading...'}</Typography>
+                    </Paper>
+                    <Paper variant="outlined" sx={{ p: 2, minWidth: 180 }}>
+                      <Typography variant="caption" color="text.secondary">Auto Backup</Typography>
+                      <Typography variant="body2">Every {backupStatus?.auto_backup_interval_minutes || 30} minutes</Typography>
+                    </Paper>
+                    <Paper variant="outlined" sx={{ p: 2, minWidth: 180 }}>
+                      <Typography variant="caption" color="text.secondary">Retention</Typography>
+                      <Typography variant="body2">Latest {backupStatus?.auto_backup_keep_count || 5} auto backups</Typography>
+                    </Paper>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Button variant="contained" onClick={handleManualBackup} disabled={manualBackupLoading || backupLoading}>
+                      {manualBackupLoading ? 'Creating Backup...' : 'Manual Backup'}
+                    </Button>
+                    <Button variant="outlined" onClick={fetchBackupStatus} disabled={backupLoading}>
+                      {backupLoading ? 'Refreshing...' : 'Refresh Backup List'}
+                    </Button>
+                  </Box>
+                  <Box sx={{ mt: 2 }}>
+                    {(backupStatus?.backup_files || []).slice(0, 5).map((backupFile) => (
+                      <Paper key={backupFile.filename} variant="outlined" sx={{ p: 1.5, mb: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {backupFile.filename.includes('_auto_') ? 'Auto Backup' : 'Manual Backup'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {backupFile.filename}
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          {backupFile.created_at} | {backupFile.size_mb} MB
+                        </Typography>
+                      </Paper>
+                    ))}
+                    {!backupLoading && (!backupStatus?.backup_files || backupStatus.backup_files.length === 0) && (
+                      <Alert severity="info" sx={{ mt: 1 }}>No backups found yet.</Alert>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
           {/* Temple Identity */}
           <Grid item xs={12}>
             <Card sx={{ borderLeft: '5px solid #FF9933' }}>
@@ -745,116 +855,6 @@ function Settings() {
               </CardContent>
             </Card>
           </Grid>
-
-          {((currentUser.role === 'super_admin') || currentUser.is_superuser) && (
-            <Grid item xs={12}>
-              <Card sx={{ borderLeft: '5px solid #1565C0' }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom color="primary">
-                    Temple / Trust Onboarding
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Create a new temple or trust and assign its concerned temple admin in one step.
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
-                      <TextField fullWidth label="Temple Name" value={onboarding.temple_name} onChange={(e) => setOnboarding({ ...onboarding, temple_name: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <TextField fullWidth label="Trust Name" value={onboarding.trust_name} onChange={(e) => setOnboarding({ ...onboarding, trust_name: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <TextField fullWidth label="Temple Slug" value={onboarding.temple_slug} onChange={(e) => setOnboarding({ ...onboarding, temple_slug: e.target.value })} helperText="Optional unique URL slug" />
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                      <TextField fullWidth label="Primary Deity" value={onboarding.primary_deity} onChange={(e) => setOnboarding({ ...onboarding, primary_deity: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                      <TextField fullWidth label="City" value={onboarding.city} onChange={(e) => setOnboarding({ ...onboarding, city: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                      <TextField fullWidth label="State" value={onboarding.state} onChange={(e) => setOnboarding({ ...onboarding, state: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                      <TextField fullWidth label="Temple Phone" value={onboarding.phone} onChange={(e) => setOnboarding({ ...onboarding, phone: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <TextField fullWidth label="Temple Email" value={onboarding.email} onChange={(e) => setOnboarding({ ...onboarding, email: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <TextField fullWidth label="Admin Full Name" value={onboarding.admin_full_name} onChange={(e) => setOnboarding({ ...onboarding, admin_full_name: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <TextField fullWidth label="Admin Email" value={onboarding.admin_email} onChange={(e) => setOnboarding({ ...onboarding, admin_email: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <TextField fullWidth type="password" label="Admin Password" value={onboarding.admin_password} onChange={(e) => setOnboarding({ ...onboarding, admin_password: e.target.value })} />
-                    </Grid>
-                  </Grid>
-                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button variant="contained" onClick={handleOnboardingSubmit} disabled={onboardingLoading}>
-                      {onboardingLoading ? 'Creating...' : 'Create Temple & Admin'}
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
-
-          {(['admin', 'super_admin', 'temple_manager'].includes(currentUser.role) || currentUser.is_superuser) && (
-            <Grid item xs={12}>
-              <Card sx={{ borderLeft: '5px solid #2E7D32' }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom color="primary">
-                    Backup Management
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Automatic local backups run every 30 minutes and only the latest 5 automated backups are retained. Manual backup is available below.
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-                    <Paper variant="outlined" sx={{ p: 2, minWidth: 220 }}>
-                      <Typography variant="caption" color="text.secondary">Backup Path</Typography>
-                      <Typography variant="body2">{backupStatus?.backup_directory || 'Loading...'}</Typography>
-                    </Paper>
-                    <Paper variant="outlined" sx={{ p: 2, minWidth: 180 }}>
-                      <Typography variant="caption" color="text.secondary">Auto Backup</Typography>
-                      <Typography variant="body2">Every {backupStatus?.auto_backup_interval_minutes || 30} minutes</Typography>
-                    </Paper>
-                    <Paper variant="outlined" sx={{ p: 2, minWidth: 180 }}>
-                      <Typography variant="caption" color="text.secondary">Retention</Typography>
-                      <Typography variant="body2">Latest {backupStatus?.auto_backup_keep_count || 5} auto backups</Typography>
-                    </Paper>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <Button variant="contained" onClick={handleManualBackup} disabled={manualBackupLoading || backupLoading}>
-                      {manualBackupLoading ? 'Creating Backup...' : 'Manual Backup'}
-                    </Button>
-                    <Button variant="outlined" onClick={fetchBackupStatus} disabled={backupLoading}>
-                      {backupLoading ? 'Refreshing...' : 'Refresh Backup List'}
-                    </Button>
-                  </Box>
-                  <Box sx={{ mt: 2 }}>
-                    {(backupStatus?.backup_files || []).slice(0, 5).map((backupFile) => (
-                      <Paper key={backupFile.filename} variant="outlined" sx={{ p: 1.5, mb: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {backupFile.filename.includes('_auto_') ? 'Auto Backup' : 'Manual Backup'}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {backupFile.filename}
-                        </Typography>
-                        <Typography variant="caption" display="block" color="text.secondary">
-                          {backupFile.created_at} | {backupFile.size_mb} MB
-                        </Typography>
-                      </Paper>
-                    ))}
-                    {!backupLoading && (!backupStatus?.backup_files || backupStatus.backup_files.length === 0) && (
-                      <Alert severity="info" sx={{ mt: 1 }}>No backups found yet.</Alert>
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
 
           {/* Module Configuration */}
           <Grid item xs={12}>
