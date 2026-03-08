@@ -35,6 +35,7 @@ function Settings() {
   const [manualBackupLoading, setManualBackupLoading] = useState(false);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboarding, setOnboarding] = useState({
+    display_name: '',
     temple_name: '',
     trust_name: '',
     temple_slug: '',
@@ -203,10 +204,25 @@ function Settings() {
   };
 
   const handleOnboardingSubmit = async () => {
+    const resolvedDisplayName = (onboarding.display_name || '').trim() || (onboarding.temple_name || '').trim() || (onboarding.trust_name || '').trim();
+    if (!(onboarding.admin_full_name || '').trim()) {
+      showError('Admin Full Name is required');
+      return;
+    }
+    if (!(onboarding.admin_email || '').trim()) {
+      showError('Admin Email is required');
+      return;
+    }
+    if ((onboarding.admin_password || '').trim().length < 8) {
+      showError('Admin Password must be at least 8 characters');
+      return;
+    }
+
     try {
       setOnboardingLoading(true);
       const payload = {
-        temple_name: onboarding.temple_name,
+        display_name: resolvedDisplayName || null,
+        temple_name: onboarding.temple_name || null,
         trust_name: onboarding.trust_name || null,
         temple_slug: onboarding.temple_slug || null,
         primary_deity: onboarding.primary_deity || null,
@@ -221,6 +237,7 @@ function Settings() {
       const response = await api.post('/api/v1/temples/onboard', payload);
       showSuccess(`Onboarded ${response.data.temple_name} with admin ${response.data.admin_email}`);
       setOnboarding({
+        display_name: '',
         temple_name: '',
         trust_name: '',
         temple_slug: '',
@@ -234,7 +251,14 @@ function Settings() {
         admin_password: '',
       });
     } catch (err) {
-      showError(err?.response?.data?.detail || 'Failed to onboard temple/trust');
+      const detail = err?.response?.data?.detail;
+      if (Array.isArray(detail) && detail.length > 0) {
+        showError(detail[0]?.msg || 'Failed to onboard temple/trust');
+      } else if (typeof detail === 'string' && detail.trim()) {
+        showError(detail);
+      } else {
+        showError('Failed to onboard temple/trust');
+      }
     } finally {
       setOnboardingLoading(false);
     }
@@ -402,16 +426,19 @@ function Settings() {
                     Temple / Trust Onboarding
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Create a new temple or trust and assign its concerned temple admin in one step.
+                    Create a new temple, trust, or organization and assign its concerned temple admin in one step. Temple and trust names are optional.
                   </Typography>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
-                      <TextField fullWidth label="Temple Name" value={onboarding.temple_name} onChange={(e) => setOnboarding({ ...onboarding, temple_name: e.target.value })} />
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="Display Name / Organization Name" helperText="Shown in top banner and reports. Optional." value={onboarding.display_name} onChange={(e) => setOnboarding({ ...onboarding, display_name: e.target.value })} />
                     </Grid>
-                    <Grid item xs={12} md={4}>
-                      <TextField fullWidth label="Trust Name" value={onboarding.trust_name} onChange={(e) => setOnboarding({ ...onboarding, trust_name: e.target.value })} />
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="Temple Name (Optional)" value={onboarding.temple_name} onChange={(e) => setOnboarding({ ...onboarding, temple_name: e.target.value })} />
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={3}>
+                      <TextField fullWidth label="Trust Name (Optional)" value={onboarding.trust_name} onChange={(e) => setOnboarding({ ...onboarding, trust_name: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
                       <TextField fullWidth label="Temple Slug" value={onboarding.temple_slug} onChange={(e) => setOnboarding({ ...onboarding, temple_slug: e.target.value })} helperText="Optional unique URL slug" />
                     </Grid>
                     <Grid item xs={12} md={3}>
@@ -515,7 +542,7 @@ function Settings() {
                   <Grid item xs={12} md={4}>
                     <TextField
                       fullWidth
-                      label="Temple Name (English)"
+                      label="Display Name (English)"
                       value={settings.temple_name}
                       onChange={(e) => setSettings({ ...settings, temple_name: e.target.value })}
                       margin="normal"

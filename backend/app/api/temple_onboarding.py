@@ -17,7 +17,8 @@ router = APIRouter(prefix="/api/v1/temples", tags=["temples"])
 
 
 class TempleOnboardingRequest(BaseModel):
-    temple_name: str = Field(min_length=2, max_length=200)
+    display_name: str | None = Field(default=None, max_length=200)
+    temple_name: str | None = Field(default=None, max_length=200)
     temple_slug: str | None = Field(default=None, max_length=100)
     trust_name: str | None = Field(default=None, max_length=200)
     primary_deity: str | None = Field(default="Lord Ganesha", max_length=100)
@@ -86,19 +87,24 @@ def onboard_temple_with_admin(
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
 
-    temple_name = payload.temple_name.strip()
+    display_name = (
+        (payload.display_name or '').strip()
+        or (payload.temple_name or '').strip()
+        or (payload.trust_name or '').strip()
+    )
     admin_full_name = payload.admin_full_name.strip()
-    if not temple_name:
-        raise HTTPException(status_code=400, detail="Temple name cannot be empty")
+    if not display_name:
+        admin_seed = str(payload.admin_email).split('@', 1)[0].replace('.', ' ').replace('_', ' ').strip()
+        display_name = f"{admin_seed.title() or 'Organization'} Organization"
     if not admin_full_name:
         raise HTTPException(status_code=400, detail="Admin full name cannot be empty")
 
-    requested_slug = payload.temple_slug.strip() if payload.temple_slug else temple_name
+    requested_slug = payload.temple_slug.strip() if payload.temple_slug else display_name
     final_slug = _build_unique_slug(db, _slugify(requested_slug))
 
     try:
         temple = Temple(
-            name=temple_name,
+            name=display_name,
             slug=final_slug,
             trust_name=(payload.trust_name or "").strip() or None,
             primary_deity=(payload.primary_deity or "Lord Ganesha").strip() or "Lord Ganesha",

@@ -501,7 +501,7 @@ function Layout({ children }) {
                   lineHeight: 1.1,
                 }}
               >
-                {moduleConfig?.name || 'Sri Vara Siddi Vinayak Temple'}
+                {moduleConfig?.name || moduleConfig?.trust_name || 'MandirMitra'}
               </Typography>
               <Typography
                 variant="caption"
@@ -513,7 +513,7 @@ function Layout({ children }) {
                   whiteSpace: 'nowrap',
                 }}
               >
-                Temple Management &amp; Accounting System
+                Temple / Trust Management &amp; Accounting System
               </Typography>
             </Box>
           </Box>
