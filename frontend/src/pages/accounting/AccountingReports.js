@@ -42,6 +42,7 @@ function AccountingReports() {
   const [trialBalance, setTrialBalance] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [bulkLedgers, setBulkLedgers] = useState([]);
+  const [ledgerErrors, setLedgerErrors] = useState([]);
   const [profitLoss, setProfitLoss] = useState(null);
   const [categoryIncome, setCategoryIncome] = useState(null);
   const [topDonors, setTopDonors] = useState(null);
@@ -117,8 +118,36 @@ function AccountingReports() {
       const toDateStr = toDate.toISOString().split('T')[0];
 
       if (selectedAccount === ALL_GT_ZERO_OPTION) {
+        setLedgerErrors([]);
+
+        // Keep account scope aligned with Trial Balance non-zero listing.
+        let candidateAccounts = accounts;
+        try {
+          const tbResponse = await fetch(
+            `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/trial-balance?as_of_date=${toDateStr}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+            }
+          );
+
+          if (tbResponse.ok) {
+            const tbData = await tbResponse.json();
+            const nonZeroCodes = new Set(
+              (Array.isArray(tbData?.accounts) ? tbData.accounts : []).map((acc) => String(acc.account_code))
+            );
+            const matchedAccounts = accounts.filter((acc) => nonZeroCodes.has(String(acc.account_code)));
+            if (matchedAccounts.length > 0) {
+              candidateAccounts = matchedAccounts;
+            }
+          }
+        } catch (error) {
+          console.warn('Trial balance account alignment failed, falling back to full account list.', error);
+        }
+
         const ledgerResults = await Promise.all(
-          accounts.map(async (account) => {
+          candidateAccounts.map(async (account) => {
             try {
               const response = await fetch(
                 `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/ledger/${account.id}?from_date=${fromDateStr}&to_date=${toDateStr}`,
@@ -128,7 +157,16 @@ function AccountingReports() {
                   },
                 }
               );
-              if (!response.ok) return null;
+
+              if (!response.ok) {
+                const errText = await response.text();
+                return {
+                  __error: true,
+                  accountCode: String(account.account_code),
+                  message: errText || `HTTP ${response.status}`,
+                };
+              }
+
               const data = await response.json();
               const entries = getLedgerEntries(data);
               const opening = Number(data.opening_balance || 0);
@@ -137,20 +175,33 @@ function AccountingReports() {
                 Math.abs(opening) > 0.01 ||
                 Math.abs(closing) > 0.01 ||
                 entries.length > 0;
-              return hasNonZero ? data : null;
+
+              return hasNonZero ? { __error: false, data } : null;
             } catch (error) {
-              return null;
+              return {
+                __error: true,
+                accountCode: String(account.account_code),
+                message: error?.message || 'Network/parse error',
+              };
             }
           })
         );
 
+        const errors = ledgerResults
+          .filter((item) => item && item.__error)
+          .map((item) => item.accountCode)
+          .sort((a, b) => a.localeCompare(b));
+
         const filteredLedgers = ledgerResults
-          .filter(Boolean)
+          .filter((item) => item && !item.__error)
+          .map((item) => item.data)
           .sort((a, b) => String(a.account_code).localeCompare(String(b.account_code)));
 
+        setLedgerErrors(errors);
         setBulkLedgers(filteredLedgers);
         setLedger(null);
       } else {
+        setLedgerErrors([]);
         const response = await fetch(
           `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/ledger/${selectedAccount}?from_date=${fromDateStr}&to_date=${toDateStr}`,
           {
@@ -461,6 +512,12 @@ function AccountingReports() {
                   </Table>
                 </TableContainer>
               </>
+            )}
+
+            {selectedAccount === ALL_GT_ZERO_OPTION && ledgerErrors.length > 0 && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                Could not load ledger for account code(s): {ledgerErrors.slice(0, 10).join(', ')}
+              </Alert>
             )}
 
             {selectedAccount === ALL_GT_ZERO_OPTION && bulkLedgers.length > 0 && (

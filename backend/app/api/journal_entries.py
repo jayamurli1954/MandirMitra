@@ -616,8 +616,8 @@ def get_trial_balance(
             .first()
         )
 
-        debit = float(balance_query.total_debit or 0) + account.opening_balance_debit
-        credit = float(balance_query.total_credit or 0) + account.opening_balance_credit
+        debit = float(balance_query.total_debit or 0) + float(account.opening_balance_debit or 0)
+        credit = float(balance_query.total_credit or 0) + float(account.opening_balance_credit or 0)
 
         net_balance = debit - credit
 
@@ -847,8 +847,8 @@ def get_account_ledger(
         .first()
     )
 
-    opening_debit = float(opening_query.debit or 0) + account.opening_balance_debit
-    opening_credit = float(opening_query.credit or 0) + account.opening_balance_credit
+    opening_debit = float(opening_query.debit or 0) + float(account.opening_balance_debit or 0)
+    opening_credit = float(opening_query.credit or 0) + float(account.opening_balance_credit or 0)
     opening_balance = opening_debit - opening_credit
 
     # Get all transactions in date range
@@ -874,18 +874,38 @@ def get_account_ledger(
     running_balance = opening_balance
 
     for line in lines:
-        running_balance += line.debit_amount - line.credit_amount
+        debit_amount = float(line.debit_amount or 0)
+        credit_amount = float(line.credit_amount or 0)
+        running_balance += debit_amount - credit_amount
+
+        entry_number = line.journal_entry.entry_number or f"JE-{line.journal_entry.id}"
+        narration = line.journal_entry.narration or line.description or ""
+        reference_type_obj = getattr(line.journal_entry, "reference_type", None)
+        if reference_type_obj is None:
+            reference_type = None
+        elif hasattr(reference_type_obj, "value"):
+            reference_type = str(reference_type_obj.value)
+        else:
+            reference_type = str(reference_type_obj)
+        try:
+            reference_id = (
+                int(line.journal_entry.reference_id)
+                if getattr(line.journal_entry, "reference_id", None) is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            reference_id = None
 
         ledger_entries.append(
             LedgerEntry(
                 entry_date=line.journal_entry.entry_date,
-                entry_number=line.journal_entry.entry_number,
-                narration=line.journal_entry.narration,
-                debit_amount=line.debit_amount,
-                credit_amount=line.credit_amount,
+                entry_number=str(entry_number),
+                narration=str(narration),
+                debit_amount=debit_amount,
+                credit_amount=credit_amount,
                 running_balance=running_balance,
-                reference_type=line.journal_entry.reference_type,
-                reference_id=line.journal_entry.reference_id,
+                reference_type=reference_type,
+                reference_id=reference_id,
             )
         )
 
@@ -1418,8 +1438,8 @@ def get_balance_sheet(
         if not account:
             return 0.0
 
-        debit = float(balance_query.total_debit or 0) + account.opening_balance_debit
-        credit = float(balance_query.total_credit or 0) + account.opening_balance_credit
+        debit = float(balance_query.total_debit or 0) + float(account.opening_balance_debit or 0)
+        credit = float(balance_query.total_credit or 0) + float(account.opening_balance_credit or 0)
 
         # For assets: debit balance is positive, credit balance is negative
         # For liabilities: credit balance is positive, debit balance is negative
@@ -1769,8 +1789,8 @@ def get_day_book(
             .first()
         )
 
-        debit = float(balance_query.total_debit or 0) + acc.opening_balance_debit
-        credit = float(balance_query.total_credit or 0) + acc.opening_balance_credit
+        debit = float(balance_query.total_debit or 0) + float(acc.opening_balance_debit or 0)
+        credit = float(balance_query.total_credit or 0) + float(acc.opening_balance_credit or 0)
         opening_balance += debit - credit
 
     # Separate receipts and payments
@@ -1938,8 +1958,8 @@ def get_cash_book(
 
     # Add opening balances from accounts
     for acc in cash_accounts:
-        opening_debit += acc.opening_balance_debit
-        opening_credit += acc.opening_balance_credit
+        opening_debit += float(acc.opening_balance_debit or 0)
+        opening_credit += float(acc.opening_balance_credit or 0)
 
     opening_balance = opening_debit - opening_credit
 
@@ -2057,8 +2077,8 @@ def get_bank_book(
         .first()
     )
 
-    opening_debit = float(opening_query.total_debit or 0) + account.opening_balance_debit
-    opening_credit = float(opening_query.total_credit or 0) + account.opening_balance_credit
+    opening_debit = float(opening_query.total_debit or 0) + float(account.opening_balance_debit or 0)
+    opening_credit = float(opening_query.total_credit or 0) + float(account.opening_balance_credit or 0)
     opening_balance = opening_debit - opening_credit
 
     # Get all transactions in date range
@@ -2764,13 +2784,15 @@ def debug_account_transactions(
     return {
         "account_code": account.account_code,
         "account_name": account.account_name,
-        "opening_balance_debit": float(account.opening_balance_debit),
-        "opening_balance_credit": float(account.opening_balance_credit),
+        "opening_balance_debit": float(account.opening_balance_debit or 0),
+        "opening_balance_credit": float(account.opening_balance_credit or 0),
         "as_of_date": as_of_date.isoformat() if as_of_date else None,
         "transactions": transactions,
         "total_debit": total_debit,
         "total_credit": total_credit,
-        "net_balance": (account.opening_balance_debit + total_debit)
-        - (account.opening_balance_credit + total_credit),
+        "net_balance": (float(account.opening_balance_debit or 0) + total_debit)
+        - (float(account.opening_balance_credit or 0) + total_credit),
         "transaction_count": len(transactions),
     }
+
+
