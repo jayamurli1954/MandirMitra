@@ -1,41 +1,41 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { LoadingProvider } from './contexts/LoadingContext';
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import BrandIntro from './pages/BrandIntro';
-import Dashboard from './pages/Dashboard';
-import Donations from './pages/Donations';
-import Devotees from './pages/Devotees';
-import Reports from './pages/Reports';
-import Panchang from './pages/Panchang';
-import PanchangSettings from './pages/PanchangSettings';
-import Sevas from './pages/Sevas';
-import SevaManagement from './pages/SevaManagement';
-import Settings from './pages/Settings';
-import Profile from './pages/Profile';
-import CategoryWiseDonationReport from './pages/CategoryWiseDonationReport';
-import DetailedDonationReport from './pages/DetailedDonationReport';
-import DetailedSevaReport from './pages/DetailedSevaReport';
-import SevaSchedule from './pages/SevaSchedule';
-import SevaRescheduleApproval from './pages/SevaRescheduleApproval';
-import Inventory from './pages/Inventory';
-import Assets from './pages/Assets';
-import HR from './pages/HR';
-import Hundi from './pages/Hundi';
-import ChartOfAccounts from './pages/accounting/ChartOfAccounts';
-import QuickExpense from './pages/accounting/QuickExpense';
-import JournalEntries from './pages/accounting/JournalEntries';
-import UpiPayments from './pages/accounting/UpiPayments';
-import BankReconciliation from './pages/accounting/BankReconciliation';
-import FinancialClosing from './pages/accounting/FinancialClosing';
-import AccountingReports from './pages/accounting/AccountingReports';
 import ProtectedRoute from './components/ProtectedRoute';
 
+const Login = lazy(() => import('./pages/Login'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const BrandIntro = lazy(() => import('./pages/BrandIntro'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Donations = lazy(() => import('./pages/Donations'));
+const Devotees = lazy(() => import('./pages/Devotees'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Panchang = lazy(() => import('./pages/Panchang'));
+const PanchangSettings = lazy(() => import('./pages/PanchangSettings'));
+const Sevas = lazy(() => import('./pages/Sevas'));
+const SevaManagement = lazy(() => import('./pages/SevaManagement'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Profile = lazy(() => import('./pages/Profile'));
+const CategoryWiseDonationReport = lazy(() => import('./pages/CategoryWiseDonationReport'));
+const DetailedDonationReport = lazy(() => import('./pages/DetailedDonationReport'));
+const DetailedSevaReport = lazy(() => import('./pages/DetailedSevaReport'));
+const SevaSchedule = lazy(() => import('./pages/SevaSchedule'));
+const SevaRescheduleApproval = lazy(() => import('./pages/SevaRescheduleApproval'));
+const Inventory = lazy(() => import('./pages/Inventory'));
+const Assets = lazy(() => import('./pages/Assets'));
+const HR = lazy(() => import('./pages/HR'));
+const Hundi = lazy(() => import('./pages/Hundi'));
+const ChartOfAccounts = lazy(() => import('./pages/accounting/ChartOfAccounts'));
+const QuickExpense = lazy(() => import('./pages/accounting/QuickExpense'));
+const JournalEntries = lazy(() => import('./pages/accounting/JournalEntries'));
+const UpiPayments = lazy(() => import('./pages/accounting/UpiPayments'));
+const BankReconciliation = lazy(() => import('./pages/accounting/BankReconciliation'));
+const FinancialClosing = lazy(() => import('./pages/accounting/FinancialClosing'));
+const AccountingReports = lazy(() => import('./pages/accounting/AccountingReports'));
 const theme = createTheme({
   palette: {
     primary: {
@@ -54,7 +54,8 @@ function App() {
       <NotificationProvider>
         <LoadingProvider>
           <Router>
-            <Routes>
+            <Suspense fallback={<div style={{ padding: 16 }}>Loading...</div>}>
+              <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -276,7 +277,8 @@ function App() {
                 }
               />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+              </Routes>
+            </Suspense>
           </Router>
         </LoadingProvider>
       </NotificationProvider>
@@ -285,3 +287,4 @@ function App() {
 }
 
 export default App;
+

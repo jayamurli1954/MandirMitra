@@ -86,6 +86,48 @@ const DEFAULT_MODULE_CONFIG = {
   module_panchang_enabled: true,
 };
 
+const LAYOUT_CACHE_TTL_MS = 2 * 60 * 1000;
+const MODULE_CONFIG_CACHE_KEY = 'layout_module_config_cache_v1';
+const USER_PROFILE_CACHE_KEY = 'layout_user_profile_cache_v1';
+
+const readLayoutCache = (key) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      localStorage.removeItem(key);
+      return null;
+    }
+
+    if (typeof parsed.expiresAt !== 'number' || Date.now() > parsed.expiresAt) {
+      localStorage.removeItem(key);
+      return null;
+    }
+
+    return parsed.value ?? null;
+  } catch (err) {
+    localStorage.removeItem(key);
+    return null;
+  }
+};
+
+const writeLayoutCache = (key, value, ttlMs = LAYOUT_CACHE_TTL_MS) => {
+  try {
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        value,
+        expiresAt: Date.now() + ttlMs,
+      })
+    );
+  } catch (err) {
+    // Ignore storage write failures and continue with runtime state.
+  }
+};
 function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(true);
@@ -93,7 +135,13 @@ function Layout({ children }) {
   const [moduleConfig, setModuleConfig] = useState(DEFAULT_MODULE_CONFIG);
   const navigate = useNavigate();
   const location = useLocation();
-  const [userInfo, setUserInfo] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+  const [userInfo, setUserInfo] = useState(() => {
+    const cachedProfile = readLayoutCache(USER_PROFILE_CACHE_KEY);
+    if (cachedProfile && typeof cachedProfile === 'object') {
+      return cachedProfile;
+    }
+    return JSON.parse(localStorage.getItem('user') || '{}');
+  });
   const isSevaManager =
     ['admin', 'super_admin', 'temple_manager'].includes(userInfo.role) || Boolean(userInfo.is_superuser);
   const canApproveReschedule = isSevaManager;
@@ -111,17 +159,30 @@ function Layout({ children }) {
 
   useEffect(() => {
     const fetchTempleInfo = async () => {
+      const cachedModuleConfig = readLayoutCache(MODULE_CONFIG_CACHE_KEY);
+      if (cachedModuleConfig && typeof cachedModuleConfig === 'object') {
+        setModuleConfig({ ...DEFAULT_MODULE_CONFIG, ...cachedModuleConfig });
+        return;
+      }
+
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          return;
+        }
+
         const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/v1/temples/`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            Authorization: `Bearer ${token}`,
           }
         });
         if (response.ok) {
           const data = await response.json();
           // The API returns a list, take the first one
           const temple = Array.isArray(data) ? data[0] : data;
-          setModuleConfig({ ...DEFAULT_MODULE_CONFIG, ...(temple || {}) });
+          const normalized = { ...DEFAULT_MODULE_CONFIG, ...(temple || {}) };
+          setModuleConfig(normalized);
+          writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalized);
         }
       } catch (err) {
         console.error('Failed to fetch temple info', err);
@@ -133,7 +194,11 @@ function Layout({ children }) {
   useEffect(() => {
     const handleModuleConfigUpdated = (event) => {
       if (event?.detail && typeof event.detail === 'object') {
-        setModuleConfig((prev) => ({ ...prev, ...event.detail }));
+        setModuleConfig((prev) => {
+          const merged = { ...prev, ...event.detail };
+          writeLayoutCache(MODULE_CONFIG_CACHE_KEY, merged);
+          return merged;
+        });
       }
     };
 
@@ -144,15 +209,32 @@ function Layout({ children }) {
   useEffect(() => {
     const handleProfileUpdated = (event) => {
       if (event?.detail && typeof event.detail === 'object') {
-        setUserInfo(event.detail);
+        const merged = {
+          ...(JSON.parse(localStorage.getItem('user') || '{}')),
+          ...event.detail,
+        };
+        setUserInfo(merged);
+        localStorage.setItem('user', JSON.stringify(merged));
+        writeLayoutCache(USER_PROFILE_CACHE_KEY, merged);
       }
     };
 
     const fetchCurrentUser = async () => {
+      const cachedProfile = readLayoutCache(USER_PROFILE_CACHE_KEY);
+      if (cachedProfile && (cachedProfile.id || cachedProfile.email)) {
+        setUserInfo(cachedProfile);
+        return;
+      }
+
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          return;
+        }
+
         const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/v1/users/me`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${token}`,
           },
         });
         if (!response.ok) {
@@ -172,6 +254,7 @@ function Layout({ children }) {
         };
         setUserInfo(normalized);
         localStorage.setItem('user', JSON.stringify(normalized));
+        writeLayoutCache(USER_PROFILE_CACHE_KEY, normalized);
       } catch (err) {
         console.error('Failed to fetch current user profile', err);
       }
@@ -194,6 +277,8 @@ function Layout({ children }) {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem(MODULE_CONFIG_CACHE_KEY);
+    localStorage.removeItem(USER_PROFILE_CACHE_KEY);
     setUserInfo({});
     navigate('/login');
   };
@@ -504,4 +589,5 @@ function Layout({ children }) {
 }
 
 export default Layout;
+
 

@@ -1546,48 +1546,11 @@ def create_booking(
             )
             receipt_number = final_receipt_number
 
-        devotee = db.query(Devotee).filter(Devotee.id == booking_data.devotee_id).first()
-        priest_obj = None
-        priest_id_value = safe_insert_payload.get("priest_id")
-        if priest_id_value:
-            priest_obj = db.query(User).filter(User.id == priest_id_value).first()
-
-        class BookingProxy:
-            pass
-
-        booking = BookingProxy()
-        booking.id = booking_id
-        booking.seva_id = booking_data.seva_id
-        booking.devotee_id = booking_data.devotee_id
-        booking.user_id = current_user.id
-        booking.priest_id = priest_id_value
-        booking.booking_date = booking_data.booking_date
-        booking.booking_time = booking_data.booking_time
-        booking.status = booking_status
-        booking.amount_paid = booking_data.amount_paid
-        booking.payment_method = booking_data.payment_method
-        booking.payment_reference = booking_data.payment_reference
-        booking.receipt_number = receipt_number
-        booking.devotee_names = booking_data.devotee_names
-        booking.gotra = booking_data.gotra
-        booking.nakshatra = booking_data.nakshatra
-        booking.rashi = booking_data.rashi
-        booking.special_request = booking_data.special_request
-        booking.admin_notes = None
-        booking.completed_at = None
-        booking.cancelled_at = None
-        booking.cancellation_reason = None
-        booking.original_booking_date = None
-        booking.reschedule_requested_date = None
-        booking.reschedule_reason = None
-        booking.reschedule_approved = None
-        booking.reschedule_approved_by = None
-        booking.reschedule_approved_at = None
-        booking.created_at = safe_insert_payload.get("created_at")
-        booking.updated_at = safe_insert_payload.get("updated_at")
-        booking.seva = seva
-        booking.devotee = devotee
-        booking.priest = priest_obj
+        # Load a mapped ORM instance for accounting/notifications/response serialization.
+        # Using an unmapped proxy here breaks db.refresh() and can cause 500 errors.
+        booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+        if not booking:
+            raise ValueError(f"Failed to load newly created booking ID {booking_id}")
     except Exception as e:
         db.rollback()
         print(f"Error creating seva booking: {str(e)}")
@@ -1644,9 +1607,6 @@ def create_booking(
     except Exception as e:
         # Don't fail booking creation if SMS/Email fails
         print(f"Failed to send booking confirmation: {str(e)}")
-
-    # Refresh to get relationships
-    db.refresh(booking)
 
     # Use helper function to serialize booking
     return SevaBookingResponse(**serialize_booking_response(booking))

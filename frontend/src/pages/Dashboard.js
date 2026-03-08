@@ -89,7 +89,8 @@ function Dashboard() {
   const namePrefixes = ['Sri', 'Smt.', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'M/s.'];
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchDashboardStats();
+    fetchPanchangData();
     fetchCategories();
     fetchPaymentAccounts();
   }, []);
@@ -102,27 +103,33 @@ function Dashboard() {
     }
   }, [lookupStatus, mobileVerified]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardStats = async () => {
     try {
       setLoading(true);
-      const [statsRes, panchangSettingsRes, panchangDataRes] = await Promise.allSettled([
-        api.get('/api/v1/dashboard/stats'),
+      const statsRes = await api.get('/api/v1/dashboard/stats');
+      if (statsRes?.data) {
+        setStats(statsRes.data);
+        return;
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard stats:', err);
+    } finally {
+      setLoading(false);
+    }
+
+    setStats({
+      donations: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } },
+      sevas: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } }
+    });
+  };
+
+  const fetchPanchangData = async () => {
+    try {
+      const [panchangSettingsRes, panchangDataRes] = await Promise.allSettled([
         api.get('/api/v1/panchang/display-settings/'),
         api.get('/api/v1/panchang/today'),
       ]);
 
-      // Get dashboard stats
-      if (statsRes.status === 'fulfilled' && statsRes.value.data) {
-        setStats(statsRes.value.data);
-      } else {
-        // Fallback to empty stats
-        setStats({
-          donations: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } },
-          sevas: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } }
-        });
-      }
-
-      // Fetch panchang settings and data
       let panchangSettings = null;
       let panchangData = null;
 
@@ -135,13 +142,12 @@ function Dashboard() {
       } else if (panchangDataRes.status === 'rejected') {
         const error = panchangDataRes.reason;
         if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Network Error')) {
-          console.warn('Panchang API: Backend server not reachable. Ensure backend is running on http://localhost:8000');
+          console.warn('Panchang API not reachable');
         } else {
           console.log('Panchang data API failed:', error);
         }
       }
 
-      // Set panchang data (merge settings if available)
       if (panchangData) {
         setPanchangData({
           ...panchangData,
@@ -151,13 +157,7 @@ function Dashboard() {
         setPanchangData(panchangSettings);
       }
     } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-      setStats({
-        donations: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } },
-        sevas: { today: { amount: 0, count: 0 }, month: { amount: 0, count: 0 }, year: { amount: 0, count: 0 } }
-      });
-    } finally {
-      setLoading(false);
+      console.error('Error fetching panchang data:', err);
     }
   };
 
@@ -480,7 +480,7 @@ function Dashboard() {
       setFoundDevotee(null);
       setMobileVerified(false);
       setLookupStatus('idle');
-      fetchDashboardData();
+      fetchDashboardStats();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error('Donation error:', err);
