@@ -48,7 +48,7 @@ def get_setup_wizard_status(
     ).count()
 
     profile_checks = {
-        'display_name': bool((temple.name or '').strip()),
+        'temple_or_trust_name': bool((temple.name or '').strip() or (temple.trust_name or '').strip()),
         'address': bool((temple.address or '').strip()),
         'city': bool((temple.city or '').strip()),
         'state': bool((temple.state or '').strip()),
@@ -64,8 +64,8 @@ def get_setup_wizard_status(
     steps = [
         {
             'id': 'temple_profile',
-            'title': 'Organization Details',
-            'description': 'Display name, address, and primary contacts',
+            'title': 'Temple / Trust Details',
+            'description': 'Temple name or trust name, address, and primary contacts',
             'required': True,
             'completed': all(profile_checks.values()),
             'details': profile_checks,

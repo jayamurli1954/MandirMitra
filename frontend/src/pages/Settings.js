@@ -35,7 +35,6 @@ function Settings() {
   const [manualBackupLoading, setManualBackupLoading] = useState(false);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboarding, setOnboarding] = useState({
-    display_name: '',
     temple_name: '',
     trust_name: '',
     temple_slug: '',
@@ -204,7 +203,12 @@ function Settings() {
   };
 
   const handleOnboardingSubmit = async () => {
-    const resolvedDisplayName = (onboarding.display_name || '').trim() || (onboarding.temple_name || '').trim() || (onboarding.trust_name || '').trim();
+    const resolvedTempleName = (onboarding.temple_name || '').trim();
+    const resolvedTrustName = (onboarding.trust_name || '').trim();
+    if (!resolvedTempleName && !resolvedTrustName) {
+      showError('Fill Temple Name or Trust Name');
+      return;
+    }
     if (!(onboarding.admin_full_name || '').trim()) {
       showError('Admin Full Name is required');
       return;
@@ -221,9 +225,8 @@ function Settings() {
     try {
       setOnboardingLoading(true);
       const payload = {
-        display_name: resolvedDisplayName || null,
-        temple_name: onboarding.temple_name || null,
-        trust_name: onboarding.trust_name || null,
+        temple_name: resolvedTempleName || null,
+        trust_name: resolvedTrustName || null,
         temple_slug: onboarding.temple_slug || null,
         primary_deity: onboarding.primary_deity || null,
         city: onboarding.city || null,
@@ -237,8 +240,7 @@ function Settings() {
       const response = await api.post('/api/v1/temples/onboard', payload);
       showSuccess(`Onboarded ${response.data.temple_name} with admin ${response.data.admin_email}`);
       setOnboarding({
-        display_name: '',
-        temple_name: '',
+            temple_name: '',
         trust_name: '',
         temple_slug: '',
         primary_deity: 'Lord Ganesha',
@@ -426,19 +428,16 @@ function Settings() {
                     Temple / Trust Onboarding
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Create a new temple, trust, or organization and assign its concerned temple admin in one step. Temple and trust names are optional.
+                    Create a new temple or trust and assign its concerned temple admin in one step. Fill Temple Name or Trust Name. If both are filled, the top banner will show Temple Name.
                   </Typography>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={3}>
-                      <TextField fullWidth label="Display Name / Organization Name" helperText="Shown in top banner and reports. Optional." value={onboarding.display_name} onChange={(e) => setOnboarding({ ...onboarding, display_name: e.target.value })} />
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Temple Name" helperText="Shown in top banner if filled. Required only when Trust Name is blank." value={onboarding.temple_name} onChange={(e) => setOnboarding({ ...onboarding, temple_name: e.target.value })} />
                     </Grid>
-                    <Grid item xs={12} md={3}>
-                      <TextField fullWidth label="Temple Name (Optional)" value={onboarding.temple_name} onChange={(e) => setOnboarding({ ...onboarding, temple_name: e.target.value })} />
+                    <Grid item xs={12} md={4}>
+                      <TextField fullWidth label="Trust Name" helperText="Used in top banner when Temple Name is blank." value={onboarding.trust_name} onChange={(e) => setOnboarding({ ...onboarding, trust_name: e.target.value })} />
                     </Grid>
-                    <Grid item xs={12} md={3}>
-                      <TextField fullWidth label="Trust Name (Optional)" value={onboarding.trust_name} onChange={(e) => setOnboarding({ ...onboarding, trust_name: e.target.value })} />
-                    </Grid>
-                    <Grid item xs={12} md={3}>
+                    <Grid item xs={12} md={4}>
                       <TextField fullWidth label="Temple Slug" value={onboarding.temple_slug} onChange={(e) => setOnboarding({ ...onboarding, temple_slug: e.target.value })} helperText="Optional unique URL slug" />
                     </Grid>
                     <Grid item xs={12} md={3}>

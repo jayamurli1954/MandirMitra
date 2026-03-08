@@ -17,7 +17,6 @@ router = APIRouter(prefix="/api/v1/temples", tags=["temples"])
 
 
 class TempleOnboardingRequest(BaseModel):
-    display_name: str | None = Field(default=None, max_length=200)
     temple_name: str | None = Field(default=None, max_length=200)
     temple_slug: str | None = Field(default=None, max_length=100)
     trust_name: str | None = Field(default=None, max_length=200)
@@ -87,26 +86,23 @@ def onboard_temple_with_admin(
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
 
-    display_name = (
-        (payload.display_name or '').strip()
-        or (payload.temple_name or '').strip()
-        or (payload.trust_name or '').strip()
-    )
+    temple_name = (payload.temple_name or '').strip()
+    trust_name = (payload.trust_name or '').strip()
     admin_full_name = payload.admin_full_name.strip()
-    if not display_name:
-        admin_seed = str(payload.admin_email).split('@', 1)[0].replace('.', ' ').replace('_', ' ').strip()
-        display_name = f"{admin_seed.title() or 'Organization'} Organization"
+    if not temple_name and not trust_name:
+        raise HTTPException(status_code=400, detail="Fill Temple Name or Trust Name")
     if not admin_full_name:
         raise HTTPException(status_code=400, detail="Admin full name cannot be empty")
 
-    requested_slug = payload.temple_slug.strip() if payload.temple_slug else display_name
+    resolved_name = temple_name or trust_name
+    requested_slug = payload.temple_slug.strip() if payload.temple_slug else resolved_name
     final_slug = _build_unique_slug(db, _slugify(requested_slug))
 
     try:
         temple = Temple(
-            name=display_name,
+            name=resolved_name,
             slug=final_slug,
-            trust_name=(payload.trust_name or "").strip() or None,
+            trust_name=trust_name or None,
             primary_deity=(payload.primary_deity or "Lord Ganesha").strip() or "Lord Ganesha",
             city=(payload.city or "").strip() or None,
             state=(payload.state or "").strip() or None,

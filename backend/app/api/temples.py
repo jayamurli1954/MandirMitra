@@ -178,6 +178,22 @@ def _ensure_temple_exists(db: Session, temple_id: int) -> None:
         raise HTTPException(status_code=404, detail="Temple not found")
 
 
+def _validate_temple_or_trust_name(db: Session, temple_id: int, update_data: dict) -> None:
+    current_row = db.execute(
+        text("SELECT name, trust_name FROM temples WHERE id = :temple_id"),
+        {"temple_id": temple_id},
+    ).fetchone()
+    if not current_row:
+        raise HTTPException(status_code=404, detail="Temple not found")
+
+    current = current_row._mapping
+    resolved_name = update_data.get('name', current['name'])
+    resolved_trust_name = update_data.get('trust_name', current['trust_name'])
+
+    if not ((resolved_name or '').strip() or (resolved_trust_name or '').strip()):
+        raise HTTPException(status_code=400, detail="Fill Temple Name or Trust Name")
+
+
 @router.get("/", response_model=List[TempleResponse])
 def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get temples (for current user's temple)"""
@@ -445,6 +461,7 @@ def update_current_temple(
     _ensure_temple_exists(db, temple_id)
 
     update_data = update.dict(exclude_unset=True)
+    _validate_temple_or_trust_name(db, temple_id, update_data)
     allowed_fields = _model_field_names(TempleUpdate)
     _update_temple_columns(db, temple_id, update_data, allowed_fields)
 

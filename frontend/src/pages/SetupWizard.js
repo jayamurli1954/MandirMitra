@@ -121,11 +121,18 @@ function SetupWizard() {
   }, []);
 
   const handleSaveTemple = async () => {
+    const resolvedTempleName = (templeForm.name || '').trim();
+    const resolvedTrustName = (templeForm.trust_name || '').trim();
+    if (!resolvedTempleName && !resolvedTrustName) {
+      showError('Fill Temple Name or Trust Name');
+      return;
+    }
+
     try {
       setSavingTemple(true);
       await api.put('/api/v1/temples/current', {
-        name: templeForm.name,
-        trust_name: templeForm.trust_name || null,
+        name: resolvedTempleName,
+        trust_name: resolvedTrustName || null,
         primary_deity: templeForm.primary_deity || null,
         address: templeForm.address,
         city: templeForm.city,
@@ -136,7 +143,7 @@ function SetupWizard() {
         receipt_prefix_donation: templeForm.receipt_prefix_donation,
         receipt_prefix_seva: templeForm.receipt_prefix_seva,
       });
-      showSuccess('Organization setup saved');
+      showSuccess('Temple / Trust setup saved');
       await fetchWizardData();
     } catch (error) {
       showError(error?.response?.data?.detail || 'Failed to save temple setup');
@@ -199,7 +206,7 @@ function SetupWizard() {
           First-Time Setup Wizard
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Complete the required organization setup before regular operations begin.
+          Complete the required temple or trust setup before regular operations begin.
         </Typography>
 
         {loading ? (
@@ -220,7 +227,7 @@ function SetupWizard() {
               </Alert>
             ) : (
               <Alert severity="warning" sx={{ mb: 3 }}>
-                Complete organization details, receipt settings, and at least one bank account to finish onboarding.
+                Complete temple or trust details, receipt settings, and at least one bank account to finish onboarding.
               </Alert>
             )}
 
@@ -228,12 +235,12 @@ function SetupWizard() {
               <Grid item xs={12} md={8}>
                 <Card sx={{ mb: 3, borderLeft: '5px solid #1565C0' }}>
                   <CardContent>
-                    <Typography variant="h6" gutterBottom>Organization Details</Typography>
+                    <Typography variant="h6" gutterBottom>Temple / Trust Details</Typography>
                     <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}><TextField fullWidth label="Display Name / Organization Name" helperText="Shown in the top banner, receipts, and reports" value={templeForm.name} onChange={(e) => setTempleForm({ ...templeForm, name: e.target.value })} /></Grid>
-                      <Grid item xs={12} md={6}><TextField fullWidth label="Trust Name (Optional)" value={templeForm.trust_name} onChange={(e) => setTempleForm({ ...templeForm, trust_name: e.target.value })} /></Grid>
+                      <Grid item xs={12} md={6}><TextField fullWidth label="Temple Name" helperText="Shown in top banner if filled" value={templeForm.name} onChange={(e) => setTempleForm({ ...templeForm, name: e.target.value })} /></Grid>
+                      <Grid item xs={12} md={6}><TextField fullWidth label="Trust Name" helperText="Used in top banner when Temple Name is blank" value={templeForm.trust_name} onChange={(e) => setTempleForm({ ...templeForm, trust_name: e.target.value })} /></Grid>
                       <Grid item xs={12} md={6}><TextField fullWidth label="Primary Deity" value={templeForm.primary_deity} onChange={(e) => setTempleForm({ ...templeForm, primary_deity: e.target.value })} /></Grid>
-                      <Grid item xs={12} md={6}><TextField fullWidth label="Organization Email" value={templeForm.email} onChange={(e) => setTempleForm({ ...templeForm, email: e.target.value })} /></Grid>
+                      <Grid item xs={12} md={6}><TextField fullWidth label="Temple / Trust Email" value={templeForm.email} onChange={(e) => setTempleForm({ ...templeForm, email: e.target.value })} /></Grid>
                       <Grid item xs={12}><TextField fullWidth label="Address" value={templeForm.address} onChange={(e) => setTempleForm({ ...templeForm, address: e.target.value })} /></Grid>
                       <Grid item xs={12} md={4}><TextField fullWidth label="City" value={templeForm.city} onChange={(e) => setTempleForm({ ...templeForm, city: e.target.value })} /></Grid>
                       <Grid item xs={12} md={4}><TextField fullWidth label="State" value={templeForm.state} onChange={(e) => setTempleForm({ ...templeForm, state: e.target.value })} /></Grid>
