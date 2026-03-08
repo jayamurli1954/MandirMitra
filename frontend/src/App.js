@@ -19,6 +19,7 @@ const PanchangSettings = lazy(() => import('./pages/PanchangSettings'));
 const Sevas = lazy(() => import('./pages/Sevas'));
 const SevaManagement = lazy(() => import('./pages/SevaManagement'));
 const Settings = lazy(() => import('./pages/Settings'));
+const SetupWizard = lazy(() => import('./pages/SetupWizard'));
 const Profile = lazy(() => import('./pages/Profile'));
 const CategoryWiseDonationReport = lazy(() => import('./pages/CategoryWiseDonationReport'));
 const DetailedDonationReport = lazy(() => import('./pages/DetailedDonationReport'));
@@ -200,6 +201,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <HR />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/setup-wizard"
+                element={
+                  <ProtectedRoute>
+                    <SetupWizard />
                   </ProtectedRoute>
                 }
               />

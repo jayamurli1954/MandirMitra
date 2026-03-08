@@ -28,6 +28,8 @@ class TempleResponse(BaseModel):
     name_kannada: Optional[str] = None
     name_sanskrit: Optional[str] = None
     slug: str
+    trust_name: Optional[str] = None
+    primary_deity: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
@@ -94,6 +96,8 @@ class TempleUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     website: Optional[str] = None
+    trust_name: Optional[str] = None
+    primary_deity: Optional[str] = None
     
     financial_year_start_month: Optional[int] = None
     receipt_prefix_donation: Optional[str] = None

@@ -11,10 +11,19 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
+from app.models.temple import Temple
 from app.models.upi_banking import BankAccount
 from app.models.accounting import Account, AccountType, AccountSubType
 
 router = APIRouter(prefix="/api/v1/bank-accounts", tags=["bank-accounts"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int | None:
+    if current_user.temple_id:
+        return current_user.temple_id
+
+    first_temple = db.query(Temple.id).filter(Temple.is_active == True).order_by(Temple.id.asc()).first()
+    return first_temple.id if first_temple else None
 
 
 # Pydantic Schemas
@@ -75,7 +84,7 @@ def get_bank_accounts(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get all bank accounts for the temple"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
     if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
@@ -96,7 +105,7 @@ def create_bank_account(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new bank account"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
     if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
@@ -202,7 +211,7 @@ def update_bank_account(
     current_user: User = Depends(get_current_user),
 ):
     """Update a bank account"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
     if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
@@ -246,7 +255,7 @@ def delete_bank_account(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a bank account (soft delete by setting is_active=False)"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
     if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 

@@ -118,6 +118,7 @@ from app.api.backup_restore import router as backup_restore_router
 from app.api.temple_onboarding import router as temple_onboarding_router
 from app.api.account_imports import router as account_imports_router
 from app.api.opening_balance_imports import router as opening_balance_imports_router
+from app.api.setup_wizard import router as setup_wizard_router
 from app.services.backup_scheduler import start_backup_scheduler, stop_backup_scheduler
 from app.api.asset_reports import router as asset_reports_router
 from app.api.inventory import router as inventory_router
@@ -218,6 +219,7 @@ app.include_router(backup_restore_router)
 app.include_router(temple_onboarding_router)
 app.include_router(account_imports_router)
 app.include_router(opening_balance_imports_router)
+app.include_router(setup_wizard_router)
 app.include_router(inventory_router)
 app.include_router(inventory_additional_router)
 app.include_router(inventory_alerts_router)

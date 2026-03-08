@@ -14,8 +14,21 @@ from app.core.security import get_current_user, get_password_hash, verify_passwo
 from app.core.audit import log_action
 from app.core.password_policy import default_policy
 from app.models.user import User
+from app.models.temple import Temple
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
+
+
+def _is_admin_user(current_user: User) -> bool:
+    return current_user.role in {"admin", "temple_manager"} or bool(current_user.is_superuser)
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int | None:
+    if current_user.temple_id:
+        return current_user.temple_id
+
+    first_temple = db.query(Temple.id).filter(Temple.is_active == True).order_by(Temple.id.asc()).first()
+    return first_temple.id if first_temple else None
 
 
 # ===== SCHEMAS =====
@@ -70,7 +83,7 @@ def create_user(
     For standalone: Creates clerk1, clerk2, clerk3, etc.
     """
     # Only admin can create users
-    if current_user.role != "admin" and not current_user.is_superuser:
+    if not _is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create users"
         )
@@ -88,7 +101,7 @@ def create_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
 
     # Get temple_id (for standalone, use current user's temple_id)
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Create user
     new_user = User(
@@ -138,16 +151,16 @@ def list_users(
     """
     List all users (admin only)
     """
-    if current_user.role != "admin" and not current_user.is_superuser:
+    if not _is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can view user list"
         )
 
     query = db.query(User)
 
-    # Filter by temple in standalone mode
-    if current_user.temple_id:
-        query = query.filter(User.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    if temple_id:
+        query = query.filter(User.temple_id == temple_id)
 
     # Filter by role if provided
     if role:
@@ -214,7 +227,7 @@ def update_user(
     }
 
     # Permission check
-    is_admin = current_user.role == "admin" or current_user.is_superuser
+    is_admin = _is_admin_user(current_user)
     is_own_profile = current_user.id == user_id
 
     if not is_admin and not is_own_profile:
@@ -315,7 +328,7 @@ def delete_user(
     """
     Delete user (admin only, cannot delete self)
     """
-    if current_user.role != "admin" and not current_user.is_superuser:
+    if not _is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can delete users"
         )
