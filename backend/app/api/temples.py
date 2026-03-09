@@ -126,6 +126,39 @@ def _model_field_names(model: type[BaseModel]) -> set[str]:
     return set(legacy_fields.keys())
 
 
+MODULE_FLAG_DEFAULTS = {
+    "module_donations_enabled": True,
+    "module_sevas_enabled": True,
+    "module_inventory_enabled": False,
+    "module_assets_enabled": False,
+    "module_accounting_enabled": True,
+    "module_tender_enabled": False,
+    "module_hr_enabled": False,
+    "module_hundi_enabled": False,
+    "module_panchang_enabled": True,
+    "module_reports_enabled": True,
+    "module_token_seva_enabled": True,
+}
+
+
+def _serialize_temple_response(temple) -> dict:
+    payload = {}
+    for field in _model_field_names(TempleResponse):
+        if field in MODULE_FLAG_DEFAULTS:
+            value = getattr(temple, field, MODULE_FLAG_DEFAULTS[field])
+            payload[field] = MODULE_FLAG_DEFAULTS[field] if value is None else bool(value)
+        else:
+            payload[field] = getattr(temple, field, None)
+
+    if not payload.get("name"):
+        payload["name"] = payload.get("trust_name") or "MandirMitra"
+
+    if not payload.get("slug"):
+        payload["slug"] = f"temple-{payload.get('id', 'current')}"
+
+    return payload
+
+
 def _update_temple_columns(
     db: Session,
     temple_id: int,
@@ -243,18 +276,11 @@ def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_
 
         if result:
             # If column exists, use normal query
-            if has_hundi_column:
-                temple = db.query(Temple).filter(Temple.id == temple_id).first()
-                if temple:
-                    return [temple]
-            else:
-                # Column doesn't exist - create a minimal Temple object with default value
-                # Use raw SQL result and manually construct response
-                temple = db.query(Temple).filter(Temple.id == temple_id).first()
-                if temple:
-                    # Dynamically add the missing attribute
+            temple = db.query(Temple).filter(Temple.id == temple_id).first()
+            if temple:
+                if not has_hundi_column:
                     setattr(temple, "module_hundi_enabled", False)
-                    return [temple]
+                return [_serialize_temple_response(temple)]
     return []
 
 
@@ -303,7 +329,7 @@ def get_temple(
     if not temple:
         raise HTTPException(status_code=404, detail="Temple not found")
 
-    return temple
+    return _serialize_temple_response(temple)
 
 
 @router.get("/modules/config", response_model=dict)

@@ -2,7 +2,7 @@
 Database Connection and Session Management
 """
 
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine, func, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
@@ -73,6 +73,26 @@ def column_exists(db: Session, table_name: str, column_name: str) -> bool:
         return False
 
 
+def normalize_nullable_temple_module_flags(db: Session) -> None:
+    """Backfill legacy temple rows where newer module flags are NULL."""
+    defaults = {
+        "module_tender_enabled": False,
+        "module_reports_enabled": True,
+        "module_token_seva_enabled": True,
+    }
+    available_columns = [column for column in defaults if column_exists(db, "temples", column)]
+    if not available_columns:
+        return
+
+    assignments = ", ".join(
+        f"{column} = COALESCE({column}, {'true' if defaults[column] else 'false'})"
+        for column in available_columns
+    )
+    null_filter = " OR ".join(f"{column} IS NULL" for column in available_columns)
+    db.execute(text(f"UPDATE temples SET {assignments} WHERE {null_filter}"))
+    db.commit()
+
+
 def init_db():
     """
     Initialize database (create tables and optionally create bootstrap admin user)
@@ -127,6 +147,12 @@ def init_db():
 
     # Create all tables (checkfirst=True avoids error if tables already exist, e.g. in tests)
     Base.metadata.create_all(bind=engine, checkfirst=True)
+
+    db = SessionLocal()
+    try:
+        normalize_nullable_temple_module_flags(db)
+    finally:
+        db.close()
 
     # Standalone mode (SQLite) admin user is created by setup_wizard.py.
     # For PostgreSQL, bootstrap credentials must be explicitly provided via env vars.
