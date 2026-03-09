@@ -184,7 +184,22 @@ def init_db():
             db.commit()
             print("[OK] Bootstrap admin user created")
         elif admin_user:
-            print("[INFO] Bootstrap admin user already exists")
+            updated_bootstrap_flags = False
+            if admin_user.role != "super_admin":
+                admin_user.role = "super_admin"
+                updated_bootstrap_flags = True
+            if not bool(admin_user.is_superuser):
+                admin_user.is_superuser = True
+                updated_bootstrap_flags = True
+            if not bool(admin_user.is_active):
+                admin_user.is_active = True
+                updated_bootstrap_flags = True
+            if updated_bootstrap_flags:
+                admin_user.updated_at = datetime.utcnow().isoformat()
+                db.commit()
+                print(f"[OK] Bootstrap admin privileges enforced for {bootstrap_email}")
+            else:
+                print("[INFO] Bootstrap admin user already exists")
         else:
             print(
                 "[INFO] BOOTSTRAP_ADMIN_EMAIL is set but BOOTSTRAP_ADMIN_PASSWORD is missing; "

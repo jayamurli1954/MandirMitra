@@ -6,6 +6,7 @@ Computes onboarding readiness from existing temple configuration.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.temple import Temple
@@ -32,7 +33,9 @@ def get_setup_wizard_status(
     if not temple_id:
         raise HTTPException(status_code=404, detail='Temple not found')
 
-    is_platform_super_admin = bool(current_user.is_superuser) or current_user.role == 'super_admin'
+    bootstrap_email = (settings.BOOTSTRAP_ADMIN_EMAIL or '').strip().lower()
+    current_email = (current_user.email or '').strip().lower()
+    is_platform_super_admin = bool(current_user.is_superuser) or current_user.role == 'super_admin' or bool(bootstrap_email and current_email == bootstrap_email)
     can_manage_setup = current_user.role in {'admin', 'temple_manager'} and not is_platform_super_admin
 
     temple = db.query(Temple).filter(Temple.id == temple_id).first()
