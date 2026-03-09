@@ -32,8 +32,8 @@ def get_setup_wizard_status(
     if not temple_id:
         raise HTTPException(status_code=404, detail='Temple not found')
 
-    can_manage_setup = current_user.role in {'admin', 'temple_manager', 'super_admin'} or bool(current_user.is_superuser)
     is_platform_super_admin = bool(current_user.is_superuser) or current_user.role == 'super_admin'
+    can_manage_setup = current_user.role in {'admin', 'temple_manager'} and not is_platform_super_admin
 
     temple = db.query(Temple).filter(Temple.id == temple_id).first()
     if not temple:
@@ -108,7 +108,7 @@ def get_setup_wizard_status(
         'temple_id': temple.id,
         'temple_name': temple.name,
         'can_manage_setup': can_manage_setup,
-        'force_setup': bool(can_manage_setup and not is_platform_super_admin and not required_complete),
+        'force_setup': bool(can_manage_setup and not required_complete),
         'needs_setup': not required_complete,
         'setup_complete': required_complete,
         'is_platform_super_admin': is_platform_super_admin,
