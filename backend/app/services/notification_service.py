@@ -158,7 +158,12 @@ class NotificationService:
             return {"success": False, "error": str(e)}
 
     def send_email(
-        self, to_email: str, subject: str, body: str, html_body: Optional[str] = None
+        self,
+        to_email: str,
+        subject: str,
+        body: str,
+        html_body: Optional[str] = None,
+        disable_click_tracking: bool = False,
     ) -> Dict[str, Any]:
         """
         Send Email notification
@@ -188,6 +193,14 @@ class NotificationService:
 
                 if html_body:
                     payload["content"].append({"type": "text/html", "value": html_body})
+
+                if disable_click_tracking:
+                    payload["tracking_settings"] = {
+                        "click_tracking": {
+                            "enable": False,
+                            "enable_text": False,
+                        }
+                    }
 
                 response = requests.post(url, json=payload, headers=headers, timeout=10)
                 if response.status_code == 202:

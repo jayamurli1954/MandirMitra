@@ -410,10 +410,34 @@ def forgot_password(
     body = (
         f"Dear {user.full_name},\n\n"
         "A password reset request was received for your account.\n"
-        f"Use this link to reset your password (valid for 30 minutes):\n{reset_link}\n\n"
+        "Use the Reset Password button in the email, or copy this link into your browser (valid for 30 minutes):\n"
+        f"{reset_link}\n\n"
         "If you did not request this, you can ignore this email.\n"
     )
-    notification_service.send_email(user.email, subject, body)
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+        <p>Dear {user.full_name},</p>
+        <p>A password reset request was received for your account.</p>
+        <p>Use the button below to reset your password. This link is valid for <strong>30 minutes</strong>.</p>
+        <p style="margin: 24px 0;">
+          <a href="{reset_link}" style="background: #f97316; color: #ffffff; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+            Reset Password
+          </a>
+        </p>
+        <p>If the button does not work, copy and paste this link into your browser:</p>
+        <p><a href="{reset_link}">{reset_link}</a></p>
+        <p>If you did not request this, you can ignore this email.</p>
+      </body>
+    </html>
+    """
+    notification_service.send_email(
+        user.email,
+        subject,
+        body,
+        html_body=html_body,
+        disable_click_tracking=True,
+    )
 
     # In debug mode, return the link so local environments can complete the flow without email setup.
     if settings.DEBUG:

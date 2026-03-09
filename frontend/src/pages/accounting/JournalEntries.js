@@ -162,7 +162,7 @@ function JournalEntryRow({
 
 function JournalEntries() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const canReverseEntries = user.role === 'admin';
+  const canReverseEntries = Boolean(user.action_permissions?.reverse_accounting_entries) || user.role === 'admin';
   const [entries, setEntries] = useState([]);
   const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), 3, 1)); // April 1st
   const [toDate, setToDate] = useState(new Date());

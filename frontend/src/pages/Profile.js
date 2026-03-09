@@ -70,7 +70,7 @@ function Profile() {
           lastName: nameParts.lastName,
           email: data.email || '',
           phone: data.phone || '',
-          role: data.role || '',
+          role: data.role_label || data.role || '',
           isActive: Boolean(data.is_active),
         });
       } catch (err) {
@@ -111,8 +111,13 @@ function Profile() {
         email: data.email,
         full_name: data.full_name,
         name: data.full_name || data.email,
-        role: data.role,
+        role: data.system_role || data.role,
+        system_role: data.system_role || data.role,
+        role_key: data.role_key,
+        role_label: data.role_label,
         phone: data.phone || '',
+        module_permissions: data.module_permissions || {},
+        action_permissions: data.action_permissions || {},
         is_superuser: Boolean(data.is_superuser),
       };
 

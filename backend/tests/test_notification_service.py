@@ -183,6 +183,31 @@ class TestNotificationService:
         
         assert result['success'] == True
         mock_post.assert_called_once()
+
+    @patch('app.services.notification_service.requests.post')
+    def test_send_email_can_disable_click_tracking(self, mock_post, notification_service):
+        """Test email sending can disable SendGrid click tracking."""
+        notification_service.email_enabled = True
+        notification_service.email_api_key = "test_key"
+        notification_service.email_from = "test@temple.com"
+
+        mock_response = Mock()
+        mock_response.status_code = 202
+        mock_response.headers = {"X-Message-Id": "email456"}
+        mock_post.return_value = mock_response
+
+        result = notification_service.send_email(
+            to_email="test@example.com",
+            subject="Reset Password",
+            body="Test message",
+            html_body="<p>HTML</p>",
+            disable_click_tracking=True,
+        )
+
+        assert result['success'] == True
+        payload = mock_post.call_args.kwargs['json']
+        assert payload['tracking_settings']['click_tracking']['enable'] is False
+        assert payload['tracking_settings']['click_tracking']['enable_text'] is False
     
     @patch('app.services.notification_service.requests.post')
     def test_send_email_api_failure(self, mock_post, notification_service):

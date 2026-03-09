@@ -232,9 +232,9 @@ function Reports() {
               3-Day Seva Schedule
             </Button>
           </Grid>
-          {['admin', 'temple_manager'].includes(
+          {(Boolean(JSON.parse(localStorage.getItem('user') || '{}').action_permissions?.approve_seva_reschedule) || ['admin', 'temple_manager'].includes(
             JSON.parse(localStorage.getItem('user') || '{}').role
-          ) && (
+          )) && (
             <Grid item xs={12} sm={6} md={3}>
               <Button
                 fullWidth

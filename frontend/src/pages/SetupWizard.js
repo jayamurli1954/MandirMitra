@@ -19,11 +19,11 @@ import Layout from '../components/Layout';
 import api from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
 
-const INVITE_ROLE_OPTIONS = [
-  { value: 'accountant', label: 'Accountant' },
-  { value: 'priest', label: 'Priest' },
-  { value: 'staff', label: 'Staff' },
-  { value: 'counter_staff', label: 'Counter Staff' },
+const DEFAULT_INVITE_ROLE_OPTIONS = [
+  { role_key: 'treasurer', display_name: 'Treasurer' },
+  { role_key: 'counter_clerk', display_name: 'Counter Clerk' },
+  { role_key: 'accounts_clerk', display_name: 'Accounts Clerk' },
+  { role_key: 'priest_operator', display_name: 'Priest / Temple Operator' },
 ];
 
 function SetupWizard() {
@@ -33,6 +33,7 @@ function SetupWizard() {
   const [status, setStatus] = useState(null);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [users, setUsers] = useState([]);
+  const [roleOptions, setRoleOptions] = useState(DEFAULT_INVITE_ROLE_OPTIONS);
   const [savingTemple, setSavingTemple] = useState(false);
   const [savingBank, setSavingBank] = useState(false);
   const [savingInvite, setSavingInvite] = useState(false);
@@ -63,7 +64,7 @@ function SetupWizard() {
     full_name: '',
     email: '',
     phone: '',
-    role: 'accountant',
+    role: 'treasurer',
     password: '',
     is_active: true,
   });
@@ -71,11 +72,12 @@ function SetupWizard() {
   const fetchWizardData = async () => {
     try {
       setLoading(true);
-      const [statusRes, templeRes, bankRes, usersRes] = await Promise.allSettled([
+      const [statusRes, templeRes, bankRes, usersRes, roleOptionsRes] = await Promise.allSettled([
         api.get('/api/v1/setup-wizard/status'),
         api.get('/api/v1/temples/'),
         api.get('/api/v1/bank-accounts/'),
         api.get('/api/v1/users/'),
+        api.get('/api/v1/role-permissions/assignable'),
       ]);
 
       if (statusRes.status === 'fulfilled') {
@@ -107,6 +109,10 @@ function SetupWizard() {
 
       if (usersRes.status === 'fulfilled') {
         setUsers(usersRes.value.data || []);
+      }
+
+      if (roleOptionsRes.status === 'fulfilled') {
+        setRoleOptions(roleOptionsRes.value.data?.roles || DEFAULT_INVITE_ROLE_OPTIONS);
       }
     } catch (error) {
       console.error('Failed to load setup wizard data', error);
@@ -184,7 +190,7 @@ function SetupWizard() {
         full_name: '',
         email: '',
         phone: '',
-        role: 'accountant',
+        role: 'treasurer',
         password: '',
         is_active: true,
       });
@@ -284,7 +290,7 @@ function SetupWizard() {
                     <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                         {bankAccounts.map((account) => (
-                          <Chip key={account.id} label={`${account.bank_name} • ${account.account_number}`} color={account.is_primary ? 'success' : 'default'} />
+                          <Chip key={account.id} label={`${account.bank_name}  ${account.account_number}`} color={account.is_primary ? 'success' : 'default'} />
                         ))}
                       </Box>
                       <Button variant="contained" color="success" onClick={handleCreateBankAccount} disabled={savingBank}>
@@ -304,13 +310,13 @@ function SetupWizard() {
                       <Grid item xs={12} md={6}><TextField fullWidth label="Full Name" value={inviteForm.full_name} onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })} /></Grid>
                       <Grid item xs={12} md={6}><TextField fullWidth label="Email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} /></Grid>
                       <Grid item xs={12} md={4}><TextField fullWidth label="Phone" value={inviteForm.phone} onChange={(e) => setInviteForm({ ...inviteForm, phone: e.target.value })} /></Grid>
-                      <Grid item xs={12} md={4}><TextField select fullWidth label="Role" value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}>{INVITE_ROLE_OPTIONS.map((option) => (<MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>))}</TextField></Grid>
+                      <Grid item xs={12} md={4}><TextField select fullWidth label="Role" value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}>{roleOptions.map((option) => (<MenuItem key={option.role_key || option.value} value={option.role_key || option.value}>{option.display_name || option.label}</MenuItem>))}</TextField></Grid>
                       <Grid item xs={12} md={4}><TextField fullWidth type="password" label="Temporary Password" value={inviteForm.password} onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })} /></Grid>
                     </Grid>
                     <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                         {users.filter((user) => user.is_active).map((user) => (
-                          <Chip key={user.id} label={`${user.full_name} • ${user.role}`} variant="outlined" />
+                          <Chip key={user.id} label={`${user.full_name}  ${user.role}`} variant="outlined" />
                         ))}
                       </Box>
                       <Button variant="contained" color="secondary" onClick={handleInviteUser} disabled={savingInvite}>

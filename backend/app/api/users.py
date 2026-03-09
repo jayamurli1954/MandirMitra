@@ -3,18 +3,20 @@ User Management API
 Handles user creation, updates, and management for multi-user support
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
-from typing import List, Optional
-from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from typing import List, Optional
 
-from app.core.database import get_db
-from app.core.security import get_current_user, get_password_hash, verify_password
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
+
 from app.core.audit import log_action
+from app.core.database import get_db
 from app.core.password_policy import default_policy
-from app.models.user import User
+from app.core.role_permissions import get_user_role_context, resolve_role_input, assign_role_to_user
+from app.core.security import get_current_user, get_password_hash, verify_password
 from app.models.temple import Temple
+from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -31,7 +33,24 @@ def _resolve_temple_id(db: Session, current_user: User) -> int | None:
     return first_temple.id if first_temple else None
 
 
-# ===== SCHEMAS =====
+def _serialize_user_response(db: Session, user: User, temple_id: int | None = None) -> dict:
+    role_context = get_user_role_context(db, user, temple_id=temple_id)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "phone": user.phone,
+        "role": user.role,
+        "system_role": role_context["system_role"],
+        "role_key": role_context["role_key"],
+        "role_label": role_context["role_label"],
+        "module_permissions": role_context["module_permissions"],
+        "action_permissions": role_context["action_permissions"],
+        "is_active": user.is_active,
+        "is_superuser": user.is_superuser,
+        "last_login_at": user.last_login_at,
+        "created_at": user.created_at,
+    }
 
 
 class UserCreate(BaseModel):
@@ -39,7 +58,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     phone: Optional[str] = None
-    role: str = "staff"  # admin, staff, clerk, accountant, priest
+    role: str = "priest_operator"
     is_active: bool = True
 
 
@@ -50,7 +69,7 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     current_password: Optional[str] = None
-    password: Optional[str] = None  # For password change
+    password: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -59,16 +78,15 @@ class UserResponse(BaseModel):
     full_name: str
     phone: Optional[str]
     role: str
+    system_role: str
+    role_key: str
+    role_label: str
+    module_permissions: dict[str, bool]
+    action_permissions: dict[str, bool]
     is_active: bool
     is_superuser: bool
     last_login_at: Optional[str]
     created_at: str
-
-    class Config:
-        from_attributes = True
-
-
-# ===== USER MANAGEMENT =====
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -78,38 +96,31 @@ def create_user(
     current_user: User = Depends(get_current_user),
     request: Request = None,
 ):
-    """
-    Create a new user (admin only)
-    For standalone: Creates clerk1, clerk2, clerk3, etc.
-    """
-    # Only admin can create users
     if not _is_admin_user(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create users"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create users")
 
-    # Check if email already exists
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    normalized_email = str(user_data.email).strip().lower()
+    existing_user = db.query(User).filter(User.email == normalized_email).first()
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="User with this email already exists"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User with this email already exists")
 
-    # Validate password policy
     is_valid, error_msg = default_policy.validate(user_data.password)
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
 
-    # Get temple_id (for standalone, use current user's temple_id)
     temple_id = _resolve_temple_id(db, current_user)
 
-    # Create user
+    try:
+        system_role, role_key, role_label = resolve_role_input(db, temple_id, user_data.role)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
     new_user = User(
-        email=user_data.email,
+        email=normalized_email,
         password_hash=get_password_hash(user_data.password),
         full_name=user_data.full_name,
         phone=user_data.phone,
-        role=user_data.role,
+        role=system_role,
         is_active=user_data.is_active,
         temple_id=temple_id,
         created_at=datetime.utcnow().isoformat(),
@@ -117,10 +128,11 @@ def create_user(
     )
 
     db.add(new_user)
+    db.flush()
+    assign_role_to_user(db, new_user, temple_id, role_key)
     db.commit()
     db.refresh(new_user)
 
-    # Audit log
     log_action(
         db=db,
         user=current_user,
@@ -130,14 +142,16 @@ def create_user(
         new_values={
             "email": new_user.email,
             "full_name": new_user.full_name,
-            "role": new_user.role,
+            "role": system_role,
+            "role_key": role_key,
+            "role_label": role_label,
         },
         description=f"Created user: {new_user.full_name} ({new_user.email})",
         ip_address=request.client.host if request and request.client else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
 
-    return new_user
+    return _serialize_user_response(db, new_user, temple_id=temple_id)
 
 
 @router.get("/", response_model=List[UserResponse])
@@ -148,58 +162,41 @@ def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    List all users (admin only)
-    """
     if not _is_admin_user(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can view user list"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can view user list")
 
     query = db.query(User)
-
     temple_id = _resolve_temple_id(db, current_user)
     if temple_id:
         query = query.filter(User.temple_id == temple_id)
 
-    # Filter by role if provided
     if role:
         query = query.filter(User.role == role)
 
     users = query.offset(skip).limit(limit).all()
-    return users
+    return [_serialize_user_response(db, user, temple_id=temple_id) for user in users]
 
 
 @router.get("/me", response_model=UserResponse)
-def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """
-    Get current logged-in user's information
-    """
-    return current_user
+def get_current_user_info(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    temple_id = _resolve_temple_id(db, current_user)
+    return _serialize_user_response(db, current_user, temple_id=temple_id)
 
 
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(
     user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    """
-    Get user details (admin only, or own profile)
-    """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Users can view their own profile, admins can view any
-    if (
-        current_user.id != user_id
-        and current_user.role != "admin"
-        and not current_user.is_superuser
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this user"
-        )
+    if current_user.id != user_id and not _is_admin_user(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this user")
 
-    return user
+    return _serialize_user_response(db, user, temple_id=_resolve_temple_id(db, current_user))
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -210,14 +207,10 @@ def update_user(
     current_user: User = Depends(get_current_user),
     request: Request = None,
 ):
-    """
-    Update user (admin only, or own profile for limited fields)
-    """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Get old values for audit
     old_values = {
         "email": user.email,
         "full_name": user.full_name,
@@ -226,16 +219,13 @@ def update_user(
         "is_active": user.is_active,
     }
 
-    # Permission check
     is_admin = _is_admin_user(current_user)
     is_own_profile = current_user.id == user_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     if not is_admin and not is_own_profile:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this user"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this user")
 
-    # Non-admins can only update limited fields
     if not is_admin:
         if user_data.role is not None or user_data.is_active is not None:
             raise HTTPException(
@@ -243,19 +233,11 @@ def update_user(
                 detail="Only admins can change role or active status",
             )
 
-    # Update fields
     if user_data.email is not None:
         normalized_email = str(user_data.email).strip().lower()
-        existing_user = (
-            db.query(User)
-            .filter(User.email == normalized_email, User.id != user_id)
-            .first()
-        )
+        existing_user = db.query(User).filter(User.email == normalized_email, User.id != user_id).first()
         if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User with this email already exists",
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User with this email already exists")
         user.email = normalized_email
 
     if user_data.full_name is not None:
@@ -263,27 +245,24 @@ def update_user(
     if user_data.phone is not None:
         user.phone = user_data.phone
     if is_admin and user_data.role is not None:
-        user.role = user_data.role
+        try:
+            system_role, role_key, _role_label = resolve_role_input(db, temple_id, user_data.role)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        user.role = system_role
+        assign_role_to_user(db, user, temple_id or user.temple_id, role_key)
     if is_admin and user_data.is_active is not None:
         user.is_active = user_data.is_active
     if user_data.password is not None:
-        # Validate password policy
         is_valid, error_msg = default_policy.validate(user_data.password)
         if not is_valid:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
 
-        # For self-service password changes, current password is mandatory.
         if is_own_profile:
             if not user_data.current_password:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Current password is required",
-                )
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is required")
             if not verify_password(user_data.current_password, user.password_hash):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Current password is incorrect",
-                )
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
         user.password_hash = get_password_hash(user_data.password)
         user.last_password_change = datetime.utcnow().isoformat()
@@ -293,7 +272,6 @@ def update_user(
     db.commit()
     db.refresh(user)
 
-    # Audit log
     new_values = {
         "email": user.email,
         "full_name": user.full_name,
@@ -315,7 +293,7 @@ def update_user(
         user_agent=request.headers.get("user-agent") if request else None,
     )
 
-    return user
+    return _serialize_user_response(db, user, temple_id=temple_id)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -325,30 +303,21 @@ def delete_user(
     current_user: User = Depends(get_current_user),
     request: Request = None,
 ):
-    """
-    Delete user (admin only, cannot delete self)
-    """
     if not _is_admin_user(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can delete users"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can delete users")
 
     if current_user.id == user_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete your own account"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete your own account")
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Soft delete (deactivate) instead of hard delete
     user.is_active = False
     user.updated_at = datetime.utcnow().isoformat()
 
     db.commit()
 
-    # Audit log
     log_action(
         db=db,
         user=current_user,

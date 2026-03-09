@@ -45,23 +45,23 @@ import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 const drawerWidth = 260;
 
 const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', module: 'always' },
-  { text: 'Donations', icon: <AccountBalanceIcon />, path: '/donations', module: 'module_donations_enabled' },
-  { text: 'Devotees', icon: <PeopleIcon />, path: '/devotees', module: 'always' },
-  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory', module: 'module_inventory_enabled' },
-  { text: 'Temple Assets', icon: <EngineeringIcon />, path: '/assets', module: 'module_assets_enabled' },
-  { text: 'HR & Salary', icon: <BadgeIcon />, path: '/hr', module: 'module_hr_enabled' },
-  { text: 'Hundi', icon: <SavingsIcon />, path: '/hundi', module: 'module_hundi_enabled' },
-  { text: 'Reports', icon: <AssessmentIcon />, path: '/reports', module: 'module_reports_enabled' },
-  { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', module: 'module_panchang_enabled' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/settings', module: 'always' },
+  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', permissionKey: 'dashboard' },
+  { text: 'Donations', icon: <AccountBalanceIcon />, path: '/donations', moduleFlag: 'module_donations_enabled', permissionKey: 'donations' },
+  { text: 'Devotees', icon: <PeopleIcon />, path: '/devotees', permissionKey: 'devotees' },
+  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory', moduleFlag: 'module_inventory_enabled', permissionKey: 'inventory' },
+  { text: 'Temple Assets', icon: <EngineeringIcon />, path: '/assets', moduleFlag: 'module_assets_enabled', permissionKey: 'assets' },
+  { text: 'HR & Salary', icon: <BadgeIcon />, path: '/hr', moduleFlag: 'module_hr_enabled', permissionKey: 'hr' },
+  { text: 'Hundi', icon: <SavingsIcon />, path: '/hundi', moduleFlag: 'module_hundi_enabled', permissionKey: 'hundi' },
+  { text: 'Reports', icon: <AssessmentIcon />, path: '/reports', moduleFlag: 'module_reports_enabled', permissionKey: 'reports' },
+  { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', moduleFlag: 'module_panchang_enabled', permissionKey: 'panchang' },
+  { text: 'Settings', icon: <SettingsIcon />, path: '/settings', permissionKey: 'settings' },
 ];
 
 const sevaMenuItems = [
   { text: 'Book Sevas', icon: <TempleHinduIcon />, path: '/sevas' },
   { text: 'Seva Bookings / Reschedule', icon: <AssignmentIcon />, path: '/reports/sevas/detailed' },
-  { text: 'Seva Management', icon: <AssignmentIcon />, path: '/sevas/manage' },
-  { text: 'Reschedule Approval', icon: <AssignmentTurnedInIcon />, path: '/sevas/reschedule-approval' },
+  { text: 'Seva Management', icon: <AssignmentIcon />, path: '/sevas/manage', requires: 'manage_seva_master' },
+  { text: 'Reschedule Approval', icon: <AssignmentTurnedInIcon />, path: '/sevas/reschedule-approval', requires: 'approve_seva_reschedule' },
 ];
 
 const accountingMenuItems = [
@@ -125,9 +125,10 @@ const writeLayoutCache = (key, value, ttlMs = LAYOUT_CACHE_TTL_MS) => {
       })
     );
   } catch (err) {
-    // Ignore storage write failures and continue with runtime state.
+    // Ignore storage write failures.
   }
 };
+
 function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(true);
@@ -142,18 +143,55 @@ function Layout({ children }) {
     }
     return JSON.parse(localStorage.getItem('user') || '{}');
   });
-  const isSevaManager =
-    ['admin', 'super_admin', 'temple_manager'].includes(userInfo.role) || Boolean(userInfo.is_superuser);
-  const canApproveReschedule = isSevaManager;
-  const visibleSevaMenuItems = sevaMenuItems.filter((item) => {
-    if (item.path === '/sevas/reschedule-approval') {
-      return canApproveReschedule;
+
+  const systemRole = userInfo.system_role || userInfo.role;
+  const modulePermissions = userInfo.module_permissions || {};
+  const actionPermissions = userInfo.action_permissions || {};
+  const hasModuleAccess = (permissionKey) => {
+    if (userInfo.is_superuser) {
+      return true;
     }
-    if (item.path === '/sevas/manage') {
+    if (!permissionKey) {
+      return true;
+    }
+    if (Object.prototype.hasOwnProperty.call(modulePermissions, permissionKey)) {
+      return Boolean(modulePermissions[permissionKey]);
+    }
+    return true;
+  };
+  const hasActionAccess = (permissionKey) => {
+    if (userInfo.is_superuser) {
+      return true;
+    }
+    if (!permissionKey) {
+      return true;
+    }
+    if (Object.prototype.hasOwnProperty.call(actionPermissions, permissionKey)) {
+      return Boolean(actionPermissions[permissionKey]);
+    }
+    return false;
+  };
+  const isFeatureEnabled = (moduleFlag) => {
+    if (!moduleFlag) {
+      return true;
+    }
+    return Boolean(moduleConfig[moduleFlag]);
+  };
+
+  const isSevaManager =
+    hasActionAccess('manage_seva_master') || ['admin', 'super_admin', 'temple_manager'].includes(systemRole) || Boolean(userInfo.is_superuser);
+  const canApproveReschedule = hasActionAccess('approve_seva_reschedule') || isSevaManager;
+
+  const visibleSevaMenuItems = sevaMenuItems.filter((item) => {
+    if (item.requires === 'manage_seva_master') {
       return isSevaManager;
+    }
+    if (item.requires === 'approve_seva_reschedule') {
+      return canApproveReschedule;
     }
     return true;
   });
+
   const displayName =
     userInfo.full_name || userInfo.name || (userInfo.email ? userInfo.email.split('@')[0] : '') || 'Admin';
 
@@ -174,11 +212,10 @@ function Layout({ children }) {
         const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/v1/temples/`, {
           headers: {
             Authorization: `Bearer ${token}`,
-          }
+          },
         });
         if (response.ok) {
           const data = await response.json();
-          // The API returns a list, take the first one
           const temple = Array.isArray(data) ? data[0] : data;
           const normalized = { ...DEFAULT_MODULE_CONFIG, ...(temple || {}) };
           setModuleConfig(normalized);
@@ -248,8 +285,13 @@ function Layout({ children }) {
           email: data.email,
           full_name: data.full_name,
           name: data.full_name || data.email,
-          role: data.role,
+          role: data.system_role || data.role,
+          system_role: data.system_role || data.role,
+          role_key: data.role_key,
+          role_label: data.role_label,
           phone: data.phone || '',
+          module_permissions: data.module_permissions || {},
+          action_permissions: data.action_permissions || {},
           is_superuser: Boolean(data.is_superuser),
         };
         setUserInfo(normalized);
@@ -283,14 +325,17 @@ function Layout({ children }) {
     navigate('/login');
   };
 
+  const visibleMenuItems = menuItems.filter((item) => isFeatureEnabled(item.moduleFlag) && hasModuleAccess(item.permissionKey));
+  const showSevaSection = isFeatureEnabled('module_sevas_enabled') && hasModuleAccess('sevas');
+  const showAccountingSection = isFeatureEnabled('module_accounting_enabled') && hasModuleAccess('accounting');
+
   const drawer = (
     <Box sx={{ height: '100%', overflowY: 'auto' }}>
       <Toolbar />
       <Divider />
       <List>
-        {/* Dashboard - First Item */}
-        {menuItems
-          .filter(item => item.text === 'Dashboard')
+        {visibleMenuItems
+          .filter((item) => item.text === 'Dashboard')
           .map((item) => (
             <ListItem key={item.text} disablePadding>
               <ListItemButton
@@ -303,9 +348,7 @@ function Layout({ children }) {
                   '&.Mui-selected': {
                     bgcolor: '#FFF3E0',
                     borderLeft: '4px solid #FF9933',
-                    '&:hover': {
-                      bgcolor: '#FFF3E0',
-                    },
+                    '&:hover': { bgcolor: '#FFF3E0' },
                   },
                 }}
               >
@@ -317,8 +360,7 @@ function Layout({ children }) {
             </ListItem>
           ))}
 
-        {/* Sevas - Second Item Block */}
-        {moduleConfig.module_sevas_enabled && (
+        {showSevaSection && (
           <>
             <ListItem disablePadding>
               <ListItemButton onClick={() => setSevasOpen(!sevasOpen)}>
@@ -344,9 +386,7 @@ function Layout({ children }) {
                         '&.Mui-selected': {
                           bgcolor: '#FFF3E0',
                           borderLeft: '4px solid #FF9933',
-                          '&:hover': {
-                            bgcolor: '#FFF3E0',
-                          },
+                          '&:hover': { bgcolor: '#FFF3E0' },
                         },
                       }}
                     >
@@ -363,10 +403,8 @@ function Layout({ children }) {
           </>
         )}
 
-        {/* Other Menu Items starting with Donations */}
-        {menuItems
-          .filter(item => item.text !== 'Dashboard')
-          .filter(item => item.module === 'always' || moduleConfig[item.module])
+        {visibleMenuItems
+          .filter((item) => item.text !== 'Dashboard')
           .map((item) => (
             <ListItem key={item.text} disablePadding>
               <ListItemButton
@@ -379,9 +417,7 @@ function Layout({ children }) {
                   '&.Mui-selected': {
                     bgcolor: '#FFF3E0',
                     borderLeft: '4px solid #FF9933',
-                    '&:hover': {
-                      bgcolor: '#FFF3E0',
-                    },
+                    '&:hover': { bgcolor: '#FFF3E0' },
                   },
                 }}
               >
@@ -394,7 +430,7 @@ function Layout({ children }) {
           ))}
       </List>
       <Divider />
-      {moduleConfig.module_accounting_enabled && (
+      {showAccountingSection && (
         <>
           <List>
             <ListItem disablePadding>
@@ -421,9 +457,7 @@ function Layout({ children }) {
                         '&.Mui-selected': {
                           bgcolor: '#FFF3E0',
                           borderLeft: '4px solid #FF9933',
-                          '&:hover': {
-                            bgcolor: '#FFF3E0',
-                          },
+                          '&:hover': { bgcolor: '#FFF3E0' },
                         },
                       }}
                     >
@@ -542,17 +576,12 @@ function Layout({ children }) {
           </Box>
         </Toolbar>
       </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
+      <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true,
-          }}
+          ModalProps={{ keepMounted: true }}
           sx={{
             display: { xs: 'block', sm: 'none' },
             '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
@@ -589,5 +618,3 @@ function Layout({ children }) {
 }
 
 export default Layout;
-
-

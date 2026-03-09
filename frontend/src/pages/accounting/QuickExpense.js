@@ -69,7 +69,7 @@ const LEGACY_EXPENSE_CODE_MAP = {
 
 function QuickExpense() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const canReverseEntries = user.role === 'admin';
+  const canReverseEntries = Boolean(user.action_permissions?.reverse_accounting_entries) || user.role === 'admin';
   const [accounts, setAccounts] = useState([]);
   const [paymentAccounts, setPaymentAccounts] = useState({ cash_accounts: [], bank_accounts: [] });
   const [todayExpenses, setTodayExpenses] = useState([]);

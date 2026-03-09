@@ -119,6 +119,7 @@ def init_db():
     from app.models.upi_banking import BankAccount, UpiPayment, BankTransaction
     from app.models.token_seva import TokenInventory, TokenSale, TokenReconciliation
     from app.models.password_reset import PasswordResetToken
+    from app.models.role_permission import RolePermissionProfile, UserRoleAssignment
     from app.models.budget import Budget
     from app.models.bank_reconciliation import BankReconciliation, BankStatement, BankStatementEntry
     from app.models.financial_period import FinancialPeriod

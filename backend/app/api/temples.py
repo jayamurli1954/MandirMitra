@@ -475,7 +475,7 @@ def update_current_temple(
             WHERE id = :temple_id
             """
         ),
-        {"temple_id": current_user.temple_id},
+        {"temple_id": temple_id},
     ).fetchone()
 
     if not base_row:

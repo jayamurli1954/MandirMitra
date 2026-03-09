@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
+import RolePermissionMatrix from '../components/RolePermissionMatrix';
 
 function Settings() {
   const navigate = useNavigate();
@@ -529,6 +530,8 @@ function Settings() {
               </Card>
             </Grid>
           )}
+
+          <RolePermissionMatrix currentUser={currentUser} />
 
           {/* Temple Identity */}
           <Grid item xs={12}>
