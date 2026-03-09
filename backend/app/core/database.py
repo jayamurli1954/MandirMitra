@@ -2,7 +2,7 @@
 Database Connection and Session Management
 """
 
-from sqlalchemy import create_engine, func, text
+from sqlalchemy import MetaData, Table, create_engine, func, or_, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
@@ -84,12 +84,15 @@ def normalize_nullable_temple_module_flags(db: Session) -> None:
     if not available_columns:
         return
 
-    assignments = ", ".join(
-        f"{column} = COALESCE({column}, {'true' if defaults[column] else 'false'})"
+    temples_table = Table("temples", MetaData(), autoload_with=db.get_bind())
+    values_to_update = {
+        column: func.coalesce(getattr(temples_table.c, column), defaults[column])
         for column in available_columns
+    }
+    null_conditions = [getattr(temples_table.c, column).is_(None) for column in available_columns]
+    db.execute(
+        temples_table.update().where(or_(*null_conditions)).values(**values_to_update)
     )
-    null_filter = " OR ".join(f"{column} IS NULL" for column in available_columns)
-    db.execute(text(f"UPDATE temples SET {assignments} WHERE {null_filter}"))
     db.commit()
 
 
