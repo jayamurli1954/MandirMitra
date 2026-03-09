@@ -2,10 +2,11 @@
 Database Connection and Session Management
 """
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
+from datetime import datetime
 import os
 
 from app.core.config import settings
@@ -138,28 +139,56 @@ def init_db():
 
     db = SessionLocal()
     try:
-        bootstrap_email = settings.BOOTSTRAP_ADMIN_EMAIL
+        bootstrap_email = (settings.BOOTSTRAP_ADMIN_EMAIL or '').strip().lower()
         bootstrap_password = settings.BOOTSTRAP_ADMIN_PASSWORD
-        if not (bootstrap_email and bootstrap_password):
+        legacy_bootstrap_email = 'admin@temple.com'
+
+        if not bootstrap_email and not bootstrap_password:
             print(
                 "[INFO] BOOTSTRAP_ADMIN_EMAIL/BOOTSTRAP_ADMIN_PASSWORD not set; "
                 "skipping auto-admin creation."
             )
             return
-        admin_user = db.query(User).filter(User.email == bootstrap_email).first()
-        if not admin_user:
+
+        admin_user = None
+        if bootstrap_email:
+            admin_user = db.query(User).filter(func.lower(User.email) == bootstrap_email).first()
+
+            if not admin_user:
+                legacy_admin_user = (
+                    db.query(User)
+                    .filter(
+                        func.lower(User.email) == legacy_bootstrap_email,
+                        User.is_superuser == True,
+                    )
+                    .first()
+                )
+                if legacy_admin_user:
+                    legacy_admin_user.email = bootstrap_email
+                    legacy_admin_user.updated_at = datetime.utcnow().isoformat()
+                    db.commit()
+                    admin_user = legacy_admin_user
+                    print(f"[OK] Legacy bootstrap admin email updated to {bootstrap_email}")
+
+        if not admin_user and bootstrap_email and bootstrap_password:
             admin_user = User(
                 email=bootstrap_email,
                 password_hash=get_password_hash(bootstrap_password),
                 full_name="Bootstrap Admin",
-                role="temple_manager",
+                role="super_admin",
                 is_active=True,
+                is_superuser=True,
             )
             db.add(admin_user)
             db.commit()
             print("[OK] Bootstrap admin user created")
-        else:
+        elif admin_user:
             print("[INFO] Bootstrap admin user already exists")
+        else:
+            print(
+                "[INFO] BOOTSTRAP_ADMIN_EMAIL is set but BOOTSTRAP_ADMIN_PASSWORD is missing; "
+                "skipping auto-admin creation."
+            )
     except Exception as e:
         print(f"[ERROR] Error creating bootstrap admin user: {e}")
         db.rollback()

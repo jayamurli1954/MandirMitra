@@ -37,12 +37,14 @@ from app.models.bank_reconciliation import BankReconciliation
 from app.models.financial_period import FinancialPeriod
 from app.models.inkind_sponsorship import InKindDonation
 from app.core.security import get_password_hash
+from app.core.config import settings
 
 def fix_admin_password():
     session = SessionLocal()
     try:
         print("Fixing Admin Password...")
-        admin = session.query(User).filter(User.email == "admin@temple.com").first()
+        admin_email = (settings.BOOTSTRAP_ADMIN_EMAIL or 'admin@temple.com').strip().lower()
+        admin = session.query(User).filter(User.email == admin_email).first()
         if not admin:
             print("❌ Admin user not found!")
             return

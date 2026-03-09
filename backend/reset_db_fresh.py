@@ -32,6 +32,7 @@ from app.models.bank_reconciliation import BankReconciliation, BankStatement, Ba
 from app.models.financial_period import FinancialPeriod
 from app.models.inkind_sponsorship import InKindDonation, Sponsorship
 from app.core.security import get_password_hash
+from app.core.config import settings
 
 # Triggers all imports in database.py
 # Make sure database.py has all models imported!
@@ -96,8 +97,9 @@ def reset_database():
             # Fallback bcrypt hash for 'admin123' if passlib fails
             hashed_pwd = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWUNUz/dF12b0kX.sKj.D/3X/f/1.2" 
         
+        admin_email = (settings.BOOTSTRAP_ADMIN_EMAIL or 'admin@temple.com').strip().lower()
         admin_user = User(
-            email="admin@temple.com",
+            email=admin_email,
             password_hash=hashed_pwd,
             full_name="System Admin",
             role="super_admin",
@@ -112,7 +114,7 @@ def reset_database():
         print(f"\nRESET COMPLETE SUCCESSFULLY!")
         print(f"----------------------------------------")
         print(f"Temple: {test_temple.name} (ID: {test_temple.id})")
-        print(f"Admin:  admin@temple.com / admin123")
+        print(f"Admin:  {admin_email} / admin123")
         print(f"----------------------------------------")
         
     except Exception as e:
