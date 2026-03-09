@@ -30,9 +30,9 @@ function ProtectedRoute({ children }) {
         const onWizardPage = location.pathname === '/setup-wizard';
         let redirectTo = null;
 
-        if (data.can_manage_setup && data.needs_setup && !onWizardPage) {
+        if (data.force_setup && !onWizardPage) {
           redirectTo = '/setup-wizard';
-        } else if ((!data.needs_setup || !data.can_manage_setup) && onWizardPage) {
+        } else if (onWizardPage && !data.can_manage_setup) {
           redirectTo = '/dashboard';
         }
 

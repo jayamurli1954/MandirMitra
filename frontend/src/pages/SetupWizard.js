@@ -232,8 +232,10 @@ function SetupWizard() {
                 Temple setup is complete. You can continue to the dashboard.
               </Alert>
             ) : (
-              <Alert severity="warning" sx={{ mb: 3 }}>
-                Complete temple or trust details, receipt settings, and at least one bank account to finish onboarding.
+              <Alert severity={status?.force_setup ? 'warning' : 'info'} sx={{ mb: 3 }}>
+                {status?.force_setup
+                  ? 'Complete temple or trust details, receipt settings, and at least one bank account to finish onboarding.'
+                  : 'Setup details are incomplete for the selected temple/trust, but platform super admin can continue and return later.'}
               </Alert>
             )}
 
@@ -339,7 +341,7 @@ function SetupWizard() {
                       ))}
                     </Box>
                     <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button variant="contained" disabled={status?.needs_setup} onClick={() => navigate('/dashboard', { replace: true })}>
+                      <Button variant="contained" disabled={Boolean(status?.force_setup)} onClick={() => navigate('/dashboard', { replace: true })}>
                         Continue to Dashboard
                       </Button>
                     </Box>
