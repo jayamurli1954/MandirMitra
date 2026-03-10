@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { buildApiUrl } from '../utils/apiBaseUrl';
+import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 import {
   Box,
   Drawer,
@@ -210,11 +210,11 @@ function Layout({ children }) {
           return;
         }
 
-        const response = await fetch(buildApiUrl('/api/v1/temples/'), {
+        const response = await fetchWithApiFallback('/api/v1/temples/', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        });
+        }, { timeoutMs: 12000 });
         if (response.ok) {
           const data = await response.json();
           const temple = Array.isArray(data) ? data[0] : data;
@@ -270,11 +270,11 @@ function Layout({ children }) {
           return;
         }
 
-        const response = await fetch(buildApiUrl('/api/v1/users/me'), {
+        const response = await fetchWithApiFallback('/api/v1/users/me', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        });
+        }, { timeoutMs: 12000 });
         if (!response.ok) {
           return;
         }

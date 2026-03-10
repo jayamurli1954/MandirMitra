@@ -14,7 +14,7 @@ import LockResetIcon from '@mui/icons-material/LockReset';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { IconButton, InputAdornment } from '@mui/material';
-import { buildApiUrl } from '../utils/apiBaseUrl';
+import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 
 function ResetPassword() {
   const navigate = useNavigate();
@@ -40,7 +40,7 @@ function ResetPassword() {
         throw new Error('Reset token missing. Please open the reset link from your email.');
       }
 
-      const response = await fetch(buildApiUrl('/api/v1/reset-password'), {
+      const response = await fetchWithApiFallback('/api/v1/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -50,7 +50,7 @@ function ResetPassword() {
           new_password: newPassword,
           confirm_password: confirmPassword,
         }),
-      });
+      }, { timeoutMs: 20000 });
 
       const data = await response.json();
       if (!response.ok) {

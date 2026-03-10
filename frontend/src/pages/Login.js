@@ -15,7 +15,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { IconButton, InputAdornment } from '@mui/material';
-import { buildApiUrl } from '../utils/apiBaseUrl';
+import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -37,15 +37,13 @@ function Login() {
       const formData = new URLSearchParams();
       formData.append('username', email); // Backend expects 'username' field
       formData.append('password', password);
-      const loginUrl = buildApiUrl('/api/v1/login');
-
-      const response = await fetch(loginUrl, {
+      const response = await fetchWithApiFallback('/api/v1/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: formData.toString(),
-      });
+      }, { timeoutMs: 20000 });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -66,7 +64,9 @@ function Login() {
       navigate('/brand-intro');
     } catch (err) {
       console.error('Login error:', err);
-      if (err instanceof TypeError) {
+      if (err?.name === 'AbortError') {
+        setError('Backend login request timed out. Please check whether the Render backend is awake and reachable.');
+      } else if (err instanceof TypeError) {
         setError('Cannot connect to backend server. Please check Netlify API configuration, Render service status, and CORS settings.');
       } else {
         setError(err.message || 'Login failed. Please check your credentials.');

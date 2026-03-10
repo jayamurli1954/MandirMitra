@@ -2,10 +2,11 @@ import axios from 'axios';
 import { getApiBaseUrl } from '../utils/apiBaseUrl';
 
 const api = axios.create({
-  baseURL: getApiBaseUrl(),
+  baseURL: getApiBaseUrl({ preferDirect: true }),
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 20000,
 });
 
 // Add token to requests

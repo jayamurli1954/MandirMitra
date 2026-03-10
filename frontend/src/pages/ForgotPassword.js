@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import LockResetIcon from '@mui/icons-material/LockReset';
-import { buildApiUrl } from '../utils/apiBaseUrl';
+import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 
 function ForgotPassword() {
   const navigate = useNavigate();
@@ -30,13 +30,13 @@ function ForgotPassword() {
     setDebugLink('');
 
     try {
-      const response = await fetch(buildApiUrl('/api/v1/forgot-password'), {
+      const response = await fetchWithApiFallback('/api/v1/forgot-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email }),
-      });
+      }, { timeoutMs: 20000 });
 
       const data = await response.json();
       if (!response.ok) {
