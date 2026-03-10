@@ -40,8 +40,10 @@ function Settings() {
     trust_name: '',
     temple_slug: '',
     primary_deity: 'Lord Ganesha',
+    address: '',
     city: '',
     state: '',
+    pincode: '',
     phone: '',
     email: '',
     admin_full_name: '',
@@ -230,8 +232,10 @@ function Settings() {
         trust_name: resolvedTrustName || null,
         temple_slug: onboarding.temple_slug || null,
         primary_deity: onboarding.primary_deity || null,
+        address: onboarding.address || null,
         city: onboarding.city || null,
         state: onboarding.state || null,
+        pincode: onboarding.pincode || null,
         phone: onboarding.phone || null,
         email: onboarding.email || null,
         admin_full_name: onboarding.admin_full_name,
@@ -245,8 +249,10 @@ function Settings() {
         trust_name: '',
         temple_slug: '',
         primary_deity: 'Lord Ganesha',
+        address: '',
         city: '',
         state: '',
+        pincode: '',
         phone: '',
         email: '',
         admin_full_name: '',
@@ -444,11 +450,29 @@ function Settings() {
                     <Grid item xs={12} md={3}>
                       <TextField fullWidth label="Primary Deity" value={onboarding.primary_deity} onChange={(e) => setOnboarding({ ...onboarding, primary_deity: e.target.value })} />
                     </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Temple / Trust Address"
+                        placeholder="Door No, street, area"
+                        value={onboarding.address}
+                        onChange={(e) => setOnboarding({ ...onboarding, address: e.target.value })}
+                      />
+                    </Grid>
                     <Grid item xs={12} md={3}>
                       <TextField fullWidth label="City" value={onboarding.city} onChange={(e) => setOnboarding({ ...onboarding, city: e.target.value })} />
                     </Grid>
                     <Grid item xs={12} md={3}>
                       <TextField fullWidth label="State" value={onboarding.state} onChange={(e) => setOnboarding({ ...onboarding, state: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        fullWidth
+                        label="PIN Code"
+                        placeholder="575003"
+                        value={onboarding.pincode}
+                        onChange={(e) => setOnboarding({ ...onboarding, pincode: e.target.value })}
+                      />
                     </Grid>
                     <Grid item xs={12} md={3}>
                       <TextField fullWidth label="Temple Phone" value={onboarding.phone} onChange={(e) => setOnboarding({ ...onboarding, phone: e.target.value })} />

@@ -21,8 +21,10 @@ class TempleOnboardingRequest(BaseModel):
     temple_slug: str | None = Field(default=None, max_length=100)
     trust_name: str | None = Field(default=None, max_length=200)
     primary_deity: str | None = Field(default="Lord Ganesha", max_length=100)
+    address: str | None = Field(default=None, max_length=500)
     city: str | None = Field(default=None, max_length=100)
     state: str | None = Field(default=None, max_length=100)
+    pincode: str | None = Field(default=None, max_length=20)
     phone: str | None = Field(default=None, max_length=20)
     email: EmailStr | None = None
     admin_full_name: str = Field(min_length=2, max_length=200)
@@ -104,8 +106,10 @@ def onboard_temple_with_admin(
             slug=final_slug,
             trust_name=trust_name or None,
             primary_deity=(payload.primary_deity or "Lord Ganesha").strip() or "Lord Ganesha",
+            address=(payload.address or "").strip() or None,
             city=(payload.city or "").strip() or None,
             state=(payload.state or "").strip() or None,
+            pincode=(payload.pincode or "").strip() or None,
             phone=(payload.phone or "").strip() or None,
             email=str(payload.email).strip().lower() if payload.email else None,
             is_active=True,
