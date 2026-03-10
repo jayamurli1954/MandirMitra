@@ -10,6 +10,12 @@
   NODE_VERSION = "18"
   CI = "false"
 
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://mandirmitra-backend.onrender.com/api/:splat"
+  status = 200
+  force  = true
+
 # SPA routing — all routes redirect to index.html for React Router
 [[redirects]]
   from   = "/*"

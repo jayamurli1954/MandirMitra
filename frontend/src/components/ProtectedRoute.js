@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { buildApiUrl } from '../utils/apiBaseUrl';
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -16,7 +17,7 @@ function ProtectedRoute({ children }) {
 
     const checkSetupStatus = async () => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/v1/setup-wizard/status`, {
+        const response = await fetch(buildApiUrl('/api/v1/setup-wizard/status'), {
           headers: {
             Authorization: `Bearer ${token}`,
           },

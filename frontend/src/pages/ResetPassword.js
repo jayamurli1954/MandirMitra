@@ -14,8 +14,7 @@ import LockResetIcon from '@mui/icons-material/LockReset';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { IconButton, InputAdornment } from '@mui/material';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+import { buildApiUrl } from '../utils/apiBaseUrl';
 
 function ResetPassword() {
   const navigate = useNavigate();
@@ -41,7 +40,7 @@ function ResetPassword() {
         throw new Error('Reset token missing. Please open the reset link from your email.');
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/v1/reset-password`, {
+      const response = await fetch(buildApiUrl('/api/v1/reset-password'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

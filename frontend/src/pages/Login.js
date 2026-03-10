@@ -15,8 +15,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { IconButton, InputAdornment } from '@mui/material';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+import { buildApiUrl } from '../utils/apiBaseUrl';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -38,7 +37,7 @@ function Login() {
       const formData = new URLSearchParams();
       formData.append('username', email); // Backend expects 'username' field
       formData.append('password', password);
-      const loginUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/v1/login`;
+      const loginUrl = buildApiUrl('/api/v1/login');
 
       const response = await fetch(loginUrl, {
         method: 'POST',
@@ -68,7 +67,7 @@ function Login() {
     } catch (err) {
       console.error('Login error:', err);
       if (err instanceof TypeError) {
-        setError('Cannot connect to backend server. Please check backend URL and CORS settings.');
+        setError('Cannot connect to backend server. Please check Netlify API configuration, Render service status, and CORS settings.');
       } else {
         setError(err.message || 'Login failed. Please check your credentials.');
       }

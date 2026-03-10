@@ -12,8 +12,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import LockResetIcon from '@mui/icons-material/LockReset';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+import { buildApiUrl } from '../utils/apiBaseUrl';
 
 function ForgotPassword() {
   const navigate = useNavigate();
@@ -31,7 +30,7 @@ function ForgotPassword() {
     setDebugLink('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/forgot-password`, {
+      const response = await fetch(buildApiUrl('/api/v1/forgot-password'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

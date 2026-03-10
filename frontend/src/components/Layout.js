@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { buildApiUrl } from '../utils/apiBaseUrl';
 import {
   Box,
   Drawer,
@@ -209,7 +210,7 @@ function Layout({ children }) {
           return;
         }
 
-        const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/v1/temples/`, {
+        const response = await fetch(buildApiUrl('/api/v1/temples/'), {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -269,7 +270,7 @@ function Layout({ children }) {
           return;
         }
 
-        const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/v1/users/me`, {
+        const response = await fetch(buildApiUrl('/api/v1/users/me'), {
           headers: {
             Authorization: `Bearer ${token}`,
           },
