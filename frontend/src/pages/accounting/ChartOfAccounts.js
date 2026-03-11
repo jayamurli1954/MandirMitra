@@ -33,6 +33,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AddIcon from '@mui/icons-material/Add';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import EditIcon from '@mui/icons-material/Edit';
+import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 
 const ACCOUNT_TYPES = [
   { value: 'asset', label: 'Asset' },
@@ -214,7 +215,7 @@ function ChartOfAccounts() {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/accounts/hierarchy`, {
+      const response = await fetchWithApiFallback(`/api/v1/accounts/hierarchy`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -260,7 +261,7 @@ function ChartOfAccounts() {
       setInitializing(true);
       setMessage({ type: '', text: '' });
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/accounts/initialize-default`, {
+      const response = await fetchWithApiFallback(`/api/v1/accounts/initialize-default`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -310,7 +311,7 @@ function ChartOfAccounts() {
         allow_manual_entry: true,
       };
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/accounts/`, {
+      const response = await fetchWithApiFallback(`/api/v1/accounts/`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -432,8 +433,8 @@ function ChartOfAccounts() {
       setMessage({ type: '', text: '' });
       const token = localStorage.getItem('token');
       const reason = encodeURIComponent(editForm.reason.trim());
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/accounts/${editForm.id}?reason=${reason}`,
+      const response = await fetchWithApiFallback(
+        `/api/v1/accounts/${editForm.id}?reason=${reason}`,
         {
           method: 'PUT',
           headers: {

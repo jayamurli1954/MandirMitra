@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta
 from typing import Dict
 
 from app.core.database import get_db
+from app.core.temple_context import resolve_temple_id_for_user
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.donation import Donation
@@ -30,11 +31,7 @@ def get_dashboard_stats(
     - Today's donations and cumulative (month/year)
     - Today's sevas and cumulative (month/year)
     """
-    # For standalone mode, if temple_id is None, get the first temple or use None
-    temple_id = current_user.temple_id
-    if temple_id is None:
-        # In standalone mode, get all donations (temple_id can be None)
-        temple_id = None
+    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=False)
 
     today = date.today()
     current_month = today.month
@@ -115,16 +112,20 @@ def get_dashboard_stats(
     today_start = datetime.combine(today, datetime.min.time())
     today_end = datetime.combine(today, datetime.max.time())
 
+    today_seva_filters = [
+        SevaBooking.created_at >= today_start,
+        SevaBooking.created_at <= today_end,
+        SevaBooking.status != SevaBookingStatus.CANCELLED,
+    ]
+    if temple_id is not None:
+        today_seva_filters.append(SevaBooking.temple_id == temple_id)
+
     today_sevas_query = (
         db.query(
             func.sum(SevaBooking.amount_paid).label("total"),
             func.count(SevaBooking.id).label("count"),
         )
-        .filter(
-            SevaBooking.created_at >= today_start,
-            SevaBooking.created_at <= today_end,
-            SevaBooking.status != SevaBookingStatus.CANCELLED,
-        )
+        .filter(*today_seva_filters)
         .first()
     )
 
@@ -135,16 +136,20 @@ def get_dashboard_stats(
     month_start_dt = datetime.combine(month_start, datetime.min.time())
     month_end_dt = datetime.combine(month_end, datetime.min.time())
 
+    month_seva_filters = [
+        SevaBooking.created_at >= month_start_dt,
+        SevaBooking.created_at < month_end_dt,
+        SevaBooking.status != SevaBookingStatus.CANCELLED,
+    ]
+    if temple_id is not None:
+        month_seva_filters.append(SevaBooking.temple_id == temple_id)
+
     month_sevas_query = (
         db.query(
             func.sum(SevaBooking.amount_paid).label("total"),
             func.count(SevaBooking.id).label("count"),
         )
-        .filter(
-            SevaBooking.created_at >= month_start_dt,
-            SevaBooking.created_at < month_end_dt,
-            SevaBooking.status != SevaBookingStatus.CANCELLED,
-        )
+        .filter(*month_seva_filters)
         .first()
     )
 
@@ -155,16 +160,20 @@ def get_dashboard_stats(
     year_start_dt = datetime.combine(year_start, datetime.min.time())
     year_end_dt = datetime.combine(year_end, datetime.min.time())
 
+    year_seva_filters = [
+        SevaBooking.created_at >= year_start_dt,
+        SevaBooking.created_at < year_end_dt,
+        SevaBooking.status != SevaBookingStatus.CANCELLED,
+    ]
+    if temple_id is not None:
+        year_seva_filters.append(SevaBooking.temple_id == temple_id)
+
     year_sevas_query = (
         db.query(
             func.sum(SevaBooking.amount_paid).label("total"),
             func.count(SevaBooking.id).label("count"),
         )
-        .filter(
-            SevaBooking.created_at >= year_start_dt,
-            SevaBooking.created_at < year_end_dt,
-            SevaBooking.status != SevaBookingStatus.CANCELLED,
-        )
+        .filter(*year_seva_filters)
         .first()
     )
 
@@ -200,7 +209,7 @@ def get_sacred_events(
     Get upcoming sacred events for Ready Reckoner widget
     Returns pre-calculated dates for Nakshatra, Ekadashi, Pradosha, etc.
     """
-    temple_id = current_user.temple_id
+    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=False)
 
     # Get temple's panchang settings for location
     panchang_settings = (
@@ -247,7 +256,7 @@ def trigger_pre_calculation(
 
         raise HTTPException(status_code=403, detail="Only admins can trigger pre-calculation")
 
-    temple_id = current_user.temple_id
+    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=False)
 
     # Get temple's panchang settings for location
     panchang_settings = (
@@ -298,7 +307,7 @@ def find_nakshatra_dates(
     Returns:
         Dict with nakshatra info and next occurrence dates
     """
-    temple_id = current_user.temple_id
+    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=False)
 
     # Get temple's panchang settings for location
     panchang_settings = (

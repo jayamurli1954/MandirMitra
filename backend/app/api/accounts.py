@@ -10,10 +10,10 @@ from typing import List, Optional
 from datetime import datetime, date
 
 from app.core.database import get_db
+from app.core.temple_context import resolve_temple_id_for_user
 from app.core.security import get_current_user
 from app.core.coa_bootstrap import ensure_default_coa_for_temple
 from app.models.user import User
-from app.models.temple import Temple
 from app.models.accounting import Account, AccountType, JournalLine, JournalEntry
 from app.schemas.accounting import (
     AccountCreate,
@@ -97,18 +97,8 @@ def get_account_balance(db: Session, account_id: int, as_of_date: Optional[date]
 
 
 def _resolve_temple_id(db: Session, current_user: User) -> int:
-    """
-    Resolve temple_id for current user.
-    In standalone scenarios where user.temple_id may be null, fall back to first temple.
-    """
-    if current_user.temple_id is not None:
-        return current_user.temple_id
-
-    first_temple = db.query(Temple.id).order_by(Temple.id.asc()).first()
-    if first_temple:
-        return first_temple.id
-
-    return 0
+    """Resolve temple scope for the current request."""
+    return resolve_temple_id_for_user(db, current_user, fallback_to_first=True, active_only=False) or 0
 
 
 def _seed_default_accounts_for_temple(
@@ -361,9 +351,8 @@ def update_account(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only admin users can update accounts"
         )
 
-    # Handle standalone mode (temple_id = None or 0)
-    temple_id = current_user.temple_id if current_user.temple_id is not None else 0
-    
+    temple_id = _resolve_temple_id(db, current_user)
+
     account = (
         db.query(Account)
         .filter(Account.id == account_id, Account.temple_id == temple_id)

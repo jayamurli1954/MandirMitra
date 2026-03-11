@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.temple_context import resolve_temple_id_for_user
 from app.core.security import get_current_user
 from app.models.temple import Temple
 from app.models.upi_banking import BankAccount
@@ -17,11 +18,7 @@ router = APIRouter(prefix="/api/v1/setup-wizard", tags=["setup-wizard"])
 
 
 def _resolve_current_temple_id(db: Session, current_user: User) -> int | None:
-    if current_user.temple_id:
-        return current_user.temple_id
-
-    first_temple = db.query(Temple.id).filter(Temple.is_active == True).order_by(Temple.id.asc()).first()
-    return first_temple.id if first_temple else None
+    return resolve_temple_id_for_user(db, current_user, fallback_to_first=True)
 
 
 @router.get('/status')

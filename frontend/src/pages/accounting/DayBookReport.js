@@ -3,6 +3,7 @@ import {
     Box, Typography, TextField, Button, Grid, Alert,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
+import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 
 const DayBookReport = ({ token }) => {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -12,7 +13,7 @@ const DayBookReport = ({ token }) => {
     const fetchDayBook = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/day-book?date=${date}`, {
+            const response = await fetchWithApiFallback(`/api/v1/journal-entries/reports/day-book?date=${date}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();

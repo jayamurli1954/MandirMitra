@@ -3,6 +3,7 @@ import {
     Box, Typography, TextField, Button, Grid, Alert,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
+import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 
 const CashBookReport = ({ token }) => {
     const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
@@ -13,7 +14,7 @@ const CashBookReport = ({ token }) => {
     const fetchCashBook = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/cash-book?from_date=${fromDate}&to_date=${toDate}`, {
+            const response = await fetchWithApiFallback(`/api/v1/journal-entries/reports/cash-book?from_date=${fromDate}&to_date=${toDate}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();

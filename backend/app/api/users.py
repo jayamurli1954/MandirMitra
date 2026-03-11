@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import log_action
 from app.core.database import get_db
+from app.core.temple_context import resolve_temple_id_for_user
 from app.core.password_policy import default_policy
 from app.core.role_permissions import get_user_role_context, resolve_role_input, assign_role_to_user
 from app.core.security import get_current_user, get_password_hash, verify_password
-from app.models.temple import Temple
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
@@ -26,11 +26,14 @@ def _is_admin_user(current_user: User) -> bool:
 
 
 def _resolve_temple_id(db: Session, current_user: User) -> int | None:
-    if current_user.temple_id:
-        return current_user.temple_id
+    return resolve_temple_id_for_user(db, current_user, fallback_to_first=True)
 
-    first_temple = db.query(Temple.id).filter(Temple.is_active == True).order_by(Temple.id.asc()).first()
-    return first_temple.id if first_temple else None
+
+def _ensure_user_in_scope(user: User, temple_id: int | None) -> None:
+    if temple_id is None:
+        return
+    if user.temple_id != temple_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
 
 def _serialize_user_response(db: Session, user: User, temple_id: int | None = None) -> dict:
@@ -193,10 +196,13 @@ def get_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if current_user.id != user_id and not _is_admin_user(current_user):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this user")
+    temple_id = _resolve_temple_id(db, current_user)
+    if current_user.id != user_id:
+        if not _is_admin_user(current_user):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this user")
+        _ensure_user_in_scope(user, temple_id)
 
-    return _serialize_user_response(db, user, temple_id=_resolve_temple_id(db, current_user))
+    return _serialize_user_response(db, user, temple_id=temple_id)
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -225,6 +231,9 @@ def update_user(
 
     if not is_admin and not is_own_profile:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this user")
+
+    if is_admin and not is_own_profile:
+        _ensure_user_in_scope(user, temple_id)
 
     if not is_admin:
         if user_data.role is not None or user_data.is_active is not None:
@@ -312,6 +321,9 @@ def delete_user(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    temple_id = _resolve_temple_id(db, current_user)
+    _ensure_user_in_scope(user, temple_id)
 
     user.is_active = False
     user.updated_at = datetime.utcnow().isoformat()

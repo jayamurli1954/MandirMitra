@@ -26,6 +26,7 @@ import {
 import Layout from '../../components/Layout';
 import MoneyOffIcon from '@mui/icons-material/MoneyOff';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 
 // Common expense types with their account mappings
 const EXPENSE_TYPES = [
@@ -96,7 +97,7 @@ function QuickExpense() {
   const fetchAccounts = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/accounts/`, {
+      const response = await fetchWithApiFallback('/api/v1/accounts/', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await response.json();
@@ -120,8 +121,8 @@ function QuickExpense() {
     try {
       const token = localStorage.getItem('token');
       const today = new Date().toISOString().split('T')[0];
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/?from_date=${today}&to_date=${today}&reference_type=expense`,
+      const response = await fetchWithApiFallback(
+        `/api/v1/journal-entries/?from_date=${today}&to_date=${today}&reference_type=expense`,
         {
           headers: { 'Authorization': `Bearer ${token}` },
         }
@@ -137,7 +138,7 @@ function QuickExpense() {
   const fetchPaymentAccounts = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/donations/payment-accounts`, {
+      const response = await fetchWithApiFallback('/api/v1/donations/payment-accounts', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await response.json();
@@ -236,10 +237,10 @@ function QuickExpense() {
 
       const requestMethod = editingExpenseId ? 'PUT' : 'POST';
       const requestUrl = editingExpenseId
-        ? `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${editingExpenseId}`
-        : `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/`;
+        ? `/api/v1/journal-entries/${editingExpenseId}`
+        : '/api/v1/journal-entries/';
 
-      const response = await fetch(requestUrl, {
+      const response = await fetchWithApiFallback(requestUrl, {
         method: requestMethod,
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -260,8 +261,8 @@ function QuickExpense() {
         let finalSeverity = 'success';
 
         if (!editingExpenseId && data?.id) {
-          const postResponse = await fetch(
-            `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${data.id}/post`,
+          const postResponse = await fetchWithApiFallback(
+            `/api/v1/journal-entries/${data.id}/post`,
             {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${token}` },
@@ -317,7 +318,7 @@ function QuickExpense() {
     try {
       setPostingEntryId(entryId);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${entryId}/post`, {
+      const response = await fetchWithApiFallback(`/api/v1/journal-entries/${entryId}/post`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -430,7 +431,7 @@ function QuickExpense() {
     try {
       setReversingEntryId(expense.id);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${expense.id}/cancel`, {
+      const response = await fetchWithApiFallback(`/api/v1/journal-entries/${expense.id}/cancel`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

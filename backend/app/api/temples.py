@@ -141,6 +141,10 @@ MODULE_FLAG_DEFAULTS = {
 }
 
 
+def _can_access_all_temples(current_user: User) -> bool:
+    return bool(current_user.is_superuser) or current_user.role == "super_admin"
+
+
 def _serialize_temple_response(temple) -> dict:
     payload = {}
     for field in _model_field_names(TempleResponse):
@@ -194,7 +198,14 @@ def _update_temple_columns(
     return set(values_to_update.keys())
 
 
-def _resolve_current_temple_id(db: Session, current_user: User) -> Optional[int]:
+def _resolve_current_temple_id(
+    db: Session,
+    current_user: User,
+    requested_temple_id: Optional[int] = None,
+) -> Optional[int]:
+    if requested_temple_id is not None and _can_access_all_temples(current_user):
+        return requested_temple_id
+
     if current_user.temple_id:
         return current_user.temple_id
 
@@ -228,10 +239,25 @@ def _validate_temple_or_trust_name(db: Session, temple_id: int, update_data: dic
 
 
 @router.get("/", response_model=List[TempleResponse])
-def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Get temples (for current user's temple)"""
-    temple_id = _resolve_current_temple_id(db, current_user)
-    if temple_id:
+def get_temples(
+    temple_id: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get temples available to the current user."""
+    if _can_access_all_temples(current_user):
+        query = db.query(Temple).filter(Temple.is_active == True)
+        if temple_id is not None:
+            query = query.filter(Temple.id == temple_id)
+
+        temples = query.order_by(Temple.id.asc()).all()
+        if not column_exists(db, "temples", "module_hundi_enabled"):
+            for temple in temples:
+                setattr(temple, "module_hundi_enabled", False)
+        return [_serialize_temple_response(temple) for temple in temples]
+
+    resolved_temple_id = _resolve_current_temple_id(db, current_user, requested_temple_id=temple_id)
+    if resolved_temple_id:
         # Use raw SQL to avoid missing column errors (module_hundi_enabled may not exist in DB)
 
         # Check if module_hundi_enabled column exists first
@@ -242,7 +268,7 @@ def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_
             # Query all columns including module_hundi_enabled
             result = db.execute(
                 text("SELECT * FROM temples WHERE id = :temple_id"),
-                {"temple_id": temple_id},
+                {"temple_id": resolved_temple_id},
             ).fetchone()
         else:
             # Query without module_hundi_enabled column
@@ -271,12 +297,11 @@ def get_temples(db: Session = Depends(get_db), current_user: User = Depends(get_
                     WHERE id = :temple_id
                 """
                 ),
-                {"temple_id": temple_id},
+                {"temple_id": resolved_temple_id},
             ).fetchone()
 
         if result:
-            # If column exists, use normal query
-            temple = db.query(Temple).filter(Temple.id == temple_id).first()
+            temple = db.query(Temple).filter(Temple.id == resolved_temple_id).first()
             if temple:
                 if not has_hundi_column:
                     setattr(temple, "module_hundi_enabled", False)
@@ -294,12 +319,14 @@ def get_temple(
     # Check if module_hundi_enabled column exists first
     has_hundi_column = column_exists(db, "temples", "module_hundi_enabled")
 
-    if has_hundi_column:
+    if has_hundi_column and not _can_access_all_temples(current_user):
         temple = (
             db.query(Temple)
             .filter(Temple.id == temple_id, Temple.id == current_user.temple_id)
             .first()
         )
+    elif has_hundi_column:
+        temple = db.query(Temple).filter(Temple.id == temple_id).first()
     else:
         # Query without module_hundi_enabled
         result = db.execute(
@@ -334,11 +361,12 @@ def get_temple(
 
 @router.get("/modules/config", response_model=dict)
 def get_module_config(
+    temple_id: Optional[int] = Query(default=None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get module configuration for current temple"""
-    temple_id = _resolve_current_temple_id(db, current_user)
-    if not temple_id:
+    resolved_temple_id = _resolve_current_temple_id(db, current_user, requested_temple_id=temple_id)
+    if not resolved_temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
     # Use raw SQL to avoid missing column errors (module_hundi_enabled may not exist in DB)
@@ -367,7 +395,7 @@ def get_module_config(
                 WHERE id = :temple_id
             """
             ),
-            {"temple_id": temple_id},
+            {"temple_id": resolved_temple_id},
         ).fetchone()
     else:
         result = db.execute(
@@ -390,7 +418,7 @@ def get_module_config(
                 WHERE id = :temple_id
             """
             ),
-            {"temple_id": temple_id},
+            {"temple_id": resolved_temple_id},
         ).fetchone()
 
     if not result:
@@ -455,84 +483,65 @@ def get_module_config(
 @router.put("/modules/config", response_model=dict)
 def update_module_config(
     config: ModuleConfigUpdate,
+    temple_id: Optional[int] = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Update module configuration for current temple"""
-    temple_id = _resolve_current_temple_id(db, current_user)
-    if not temple_id:
+    resolved_temple_id = _resolve_current_temple_id(db, current_user, requested_temple_id=temple_id)
+    if not resolved_temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
-    _ensure_temple_exists(db, temple_id)
+    _ensure_temple_exists(db, resolved_temple_id)
 
     update_data = config.dict(exclude_unset=True)
     allowed_fields = _model_field_names(ModuleConfigUpdate)
-    _update_temple_columns(db, temple_id, update_data, allowed_fields)
+    _update_temple_columns(db, resolved_temple_id, update_data, allowed_fields)
 
     db.commit()
-    return get_module_config(db=db, current_user=current_user)
+    return get_module_config(temple_id=resolved_temple_id, db=db, current_user=current_user)
 
 
 @router.put("/current", response_model=TempleResponse)
 def update_current_temple(
     update: TempleUpdate,
+    temple_id: Optional[int] = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Update general information for the current temple"""
-    temple_id = _resolve_current_temple_id(db, current_user)
-    if not temple_id:
+    resolved_temple_id = _resolve_current_temple_id(db, current_user, requested_temple_id=temple_id)
+    if not resolved_temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
-    _ensure_temple_exists(db, temple_id)
+    _ensure_temple_exists(db, resolved_temple_id)
 
     update_data = update.dict(exclude_unset=True)
-    _validate_temple_or_trust_name(db, temple_id, update_data)
+    _validate_temple_or_trust_name(db, resolved_temple_id, update_data)
     allowed_fields = _model_field_names(TempleUpdate)
-    _update_temple_columns(db, temple_id, update_data, allowed_fields)
+    _update_temple_columns(db, resolved_temple_id, update_data, allowed_fields)
 
     db.commit()
 
-    base_row = db.execute(
-        text(
-            """
-            SELECT id, name, slug, address, city, state, phone, email
-            FROM temples
-            WHERE id = :temple_id
-            """
-        ),
-        {"temple_id": temple_id},
-    ).fetchone()
-
-    if not base_row:
+    temple = db.query(Temple).filter(Temple.id == resolved_temple_id).first()
+    if not temple:
         raise HTTPException(status_code=404, detail="Temple not found")
-
-    base = base_row._mapping
-    module_config = get_module_config(db=db, current_user=current_user)
-
-    return {
-        "id": base["id"],
-        "name": base["name"],
-        "slug": base["slug"],
-        "address": base["address"],
-        "city": base["city"],
-        "state": base["state"],
-        "phone": base["phone"],
-        "email": base["email"],
-        **module_config,
-    }
+    if not column_exists(db, "temples", "module_hundi_enabled"):
+        setattr(temple, "module_hundi_enabled", False)
+    return _serialize_temple_response(temple)
 
 
 @router.post("/upload", response_model=dict)
 async def upload_temple_media(
     file: UploadFile = File(...),
     media_type: str = Query(..., description="logo or banner"),
+    temple_id: Optional[int] = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Upload temple media (logo or banner)"""
-    temple_id = _resolve_current_temple_id(db, current_user)
-    if not temple_id:
+    resolved_temple_id = _resolve_current_temple_id(db, current_user, requested_temple_id=temple_id)
+    if not resolved_temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
     if media_type not in {"logo", "banner"}:
         raise HTTPException(status_code=400, detail="media_type must be either 'logo' or 'banner'")
@@ -551,7 +560,7 @@ async def upload_temple_media(
     safe_filename = f"{media_type}_{uuid4().hex}{extension}"
 
     # Ensure uploads directory exists
-    upload_dir = UPLOAD_ROOT / "temples" / str(temple_id)
+    upload_dir = UPLOAD_ROOT / "temples" / str(resolved_temple_id)
     upload_dir.mkdir(parents=True, exist_ok=True)
     
     file_path = upload_dir / safe_filename
@@ -559,7 +568,7 @@ async def upload_temple_media(
         shutil.copyfileobj(file.file, buffer)
         
     # URL that will be stored in DB (assuming /uploads is served)
-    url = f"/uploads/temples/{temple_id}/{safe_filename}"
+    url = f"/uploads/temples/{resolved_temple_id}/{safe_filename}"
     
     return {"url": url}
 

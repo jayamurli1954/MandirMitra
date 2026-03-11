@@ -4,6 +4,7 @@ import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
+import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 
 const BankBookReport = ({ token, accounts }) => {
     const [selectedAccount, setSelectedAccount] = useState('');
@@ -22,7 +23,7 @@ const BankBookReport = ({ token, accounts }) => {
         }
         setLoading(true);
         try {
-            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/bank-book/${selectedAccount}?from_date=${fromDate}&to_date=${toDate}`, {
+            const response = await fetchWithApiFallback(`/api/v1/journal-entries/reports/bank-book/${selectedAccount}?from_date=${fromDate}&to_date=${toDate}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();

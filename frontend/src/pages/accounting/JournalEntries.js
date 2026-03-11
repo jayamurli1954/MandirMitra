@@ -34,6 +34,7 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MinimizeIcon from '@mui/icons-material/Minimize';
+import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 
 function JournalEntryRow({
   entry,
@@ -196,8 +197,8 @@ function JournalEntries() {
       const token = localStorage.getItem('token');
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/?from_date=${fromDateStr}&to_date=${toDateStr}`,
+      const response = await fetchWithApiFallback(
+        `/api/v1/journal-entries/?from_date=${fromDateStr}&to_date=${toDateStr}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -217,7 +218,7 @@ function JournalEntries() {
   const fetchAccounts = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/accounts/`, {
+      const response = await fetchWithApiFallback(`/api/v1/accounts/`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await response.json();
@@ -287,10 +288,10 @@ function JournalEntries() {
         })),
       };
 
-      const response = await fetch(
+      const response = await fetchWithApiFallback(
         editingEntryId
-          ? `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${editingEntryId}`
-          : `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/`,
+          ? `/api/v1/journal-entries/${editingEntryId}`
+          : `/api/v1/journal-entries/`,
         {
           method: editingEntryId ? 'PUT' : 'POST',
           headers: {
@@ -326,7 +327,7 @@ function JournalEntries() {
     try {
       setPostingEntryId(entry.id);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${entry.id}/post`, {
+      const response = await fetchWithApiFallback(`/api/v1/journal-entries/${entry.id}/post`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -357,7 +358,7 @@ function JournalEntries() {
     try {
       setReversingEntryId(entry.id);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/${entry.id}/cancel`, {
+      const response = await fetchWithApiFallback(`/api/v1/journal-entries/${entry.id}/cancel`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

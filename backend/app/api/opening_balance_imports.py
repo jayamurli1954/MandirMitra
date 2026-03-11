@@ -7,6 +7,7 @@ from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.temple_context import resolve_temple_id_for_user
 from app.core.security import get_current_user
 from app.models.accounting import Account, AccountType
 from app.models.user import User
@@ -83,7 +84,8 @@ async def import_opening_balances(
 ):
     """Import opening balances from CSV/XLSX for balance-sheet accounts."""
     _require_admin_access(current_user)
-    if not current_user.temple_id:
+    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=True)
+    if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
     if not file.filename:
         raise HTTPException(status_code=400, detail="File name is required")
@@ -94,7 +96,7 @@ async def import_opening_balances(
 
     accounts_by_code = {
         account.account_code: account
-        for account in db.query(Account).filter(Account.temple_id == current_user.temple_id).all()
+        for account in db.query(Account).filter(Account.temple_id == temple_id).all()
     }
 
     updated = []

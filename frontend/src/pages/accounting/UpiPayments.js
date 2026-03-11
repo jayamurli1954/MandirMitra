@@ -30,6 +30,7 @@ import Layout from '../../components/Layout';
 import PaymentIcon from '@mui/icons-material/Payment';
 import QrCodeIcon from '@mui/icons-material/QrCode';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 
 function UpiPayments() {
   const [devotees, setDevotees] = useState([]);
@@ -55,7 +56,7 @@ function UpiPayments() {
   const fetchDevotees = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/devotees/`, {
+      const response = await fetchWithApiFallback('/api/v1/devotees/', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -71,8 +72,8 @@ function UpiPayments() {
     try {
       const token = localStorage.getItem('token');
       const dateStr = selectedDate.toISOString().split('T')[0];
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/upi-payments/?from_date=${dateStr}&to_date=${dateStr}`,
+      const response = await fetchWithApiFallback(
+        `/api/v1/upi-payments/?from_date=${dateStr}&to_date=${dateStr}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -92,7 +93,7 @@ function UpiPayments() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/upi-payments/quick-log`, {
+      const response = await fetchWithApiFallback('/api/v1/upi-payments/quick-log', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
