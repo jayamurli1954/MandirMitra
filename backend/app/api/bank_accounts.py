@@ -9,9 +9,9 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from app.core.database import get_db
+from app.core.temple_context import resolve_temple_id_for_user
 from app.core.security import get_current_user
 from app.models.user import User
-from app.models.temple import Temple
 from app.models.upi_banking import BankAccount
 from app.models.accounting import Account, AccountType, AccountSubType
 
@@ -19,11 +19,7 @@ router = APIRouter(prefix="/api/v1/bank-accounts", tags=["bank-accounts"])
 
 
 def _resolve_temple_id(db: Session, current_user: User) -> int | None:
-    if current_user.temple_id:
-        return current_user.temple_id
-
-    first_temple = db.query(Temple.id).filter(Temple.is_active == True).order_by(Temple.id.asc()).first()
-    return first_temple.id if first_temple else None
+    return resolve_temple_id_for_user(db, current_user, fallback_to_first=True)
 
 
 # Pydantic Schemas

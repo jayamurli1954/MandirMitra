@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getApiBaseUrl } from '../utils/apiBaseUrl';
+import { buildActiveTempleHeaders } from '../utils/activeTemple';
 
 const api = axios.create({
   baseURL: getApiBaseUrl({ preferDirect: true }),
@@ -12,6 +13,7 @@ const api = axios.create({
 // Add token to requests
 api.interceptors.request.use(
   (config) => {
+    config.headers = buildActiveTempleHeaders(config.headers || {});
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

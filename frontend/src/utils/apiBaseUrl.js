@@ -1,10 +1,11 @@
+import { buildActiveTempleHeaders } from './activeTemple';
 const LOCAL_API_BASE_URL = 'http://localhost:8000';
 const PRODUCTION_FALLBACK_API_BASE_URL = (
-  process.env.REACT_APP_FALLBACK_API_URL || 'https://mandirmitra-backend.onrender.com'
+  process.env.REACT_APP_FALLBACK_API_URL || process.env.REACT_APP_API_URL || 'https://mandirmitra-backend.onrender.com'
 ).trim().replace(/\/$/, '');
 
 export function getApiBaseUrl(options = {}) {
-  const { preferDirect = false } = options;
+  const { preferDirect: _preferDirect = false } = options;
   const configuredBaseUrl = (process.env.REACT_APP_API_URL || '').trim().replace(/\/$/, '');
   if (configuredBaseUrl) {
     return configuredBaseUrl;
@@ -17,11 +18,7 @@ export function getApiBaseUrl(options = {}) {
     }
   }
 
-  if (preferDirect) {
-    return PRODUCTION_FALLBACK_API_BASE_URL;
-  }
-
-  return '';
+  return PRODUCTION_FALLBACK_API_BASE_URL;
 }
 
 export function buildApiUrl(path, options = {}) {
@@ -41,7 +38,8 @@ export async function fetchWithApiFallback(path, init = {}, options = {}) {
     const timer = window.setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      return await fetch(url, { ...init, signal: controller.signal });
+      const mergedHeaders = buildActiveTempleHeaders(init.headers || {});
+      return await fetch(url, { ...init, headers: mergedHeaders, signal: controller.signal });
     } catch (error) {
       lastError = error;
     } finally {

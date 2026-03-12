@@ -26,6 +26,7 @@ import BalanceSheetReport from './BalanceSheetReport';
 import DayBookReport from './DayBookReport';
 import CashBookReport from './CashBookReport';
 import BankBookReport from './BankBookReport';
+import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 
 const ALL_GT_ZERO_OPTION = '__ALL_GT_ZERO__';
 
@@ -65,7 +66,7 @@ function AccountingReports() {
   const fetchAccounts = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/accounts/`, {
+      const response = await fetchWithApiFallback(`/api/v1/accounts/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -83,8 +84,8 @@ function AccountingReports() {
     try {
       const token = localStorage.getItem('token');
       const asOfDate = toDate.toISOString().split('T')[0];
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/trial-balance?as_of_date=${asOfDate}`,
+      const response = await fetchWithApiFallback(
+        `/api/v1/journal-entries/reports/trial-balance?as_of_date=${asOfDate}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -123,8 +124,8 @@ function AccountingReports() {
         // Keep account scope aligned with Trial Balance non-zero listing.
         let candidateAccounts = accounts;
         try {
-          const tbResponse = await fetch(
-            `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/trial-balance?as_of_date=${toDateStr}`,
+          const tbResponse = await fetchWithApiFallback(
+            `/api/v1/journal-entries/reports/trial-balance?as_of_date=${toDateStr}`,
             {
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -149,8 +150,8 @@ function AccountingReports() {
         const ledgerResults = await Promise.all(
           candidateAccounts.map(async (account) => {
             try {
-              const response = await fetch(
-                `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/ledger/${account.id}?from_date=${fromDateStr}&to_date=${toDateStr}`,
+              const response = await fetchWithApiFallback(
+                `/api/v1/journal-entries/reports/ledger/${account.id}?from_date=${fromDateStr}&to_date=${toDateStr}`,
                 {
                   headers: {
                     'Authorization': `Bearer ${token}`,
@@ -202,8 +203,8 @@ function AccountingReports() {
         setLedger(null);
       } else {
         setLedgerErrors([]);
-        const response = await fetch(
-          `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/ledger/${selectedAccount}?from_date=${fromDateStr}&to_date=${toDateStr}`,
+        const response = await fetchWithApiFallback(
+          `/api/v1/journal-entries/reports/ledger/${selectedAccount}?from_date=${fromDateStr}&to_date=${toDateStr}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -229,8 +230,8 @@ function AccountingReports() {
       const token = localStorage.getItem('token');
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/profit-loss?from_date=${fromDateStr}&to_date=${toDateStr}`,
+      const response = await fetchWithApiFallback(
+        `/api/v1/journal-entries/reports/profit-loss?from_date=${fromDateStr}&to_date=${toDateStr}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -252,8 +253,8 @@ function AccountingReports() {
       const token = localStorage.getItem('token');
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/category-income?from_date=${fromDateStr}&to_date=${toDateStr}`,
+      const response = await fetchWithApiFallback(
+        `/api/v1/journal-entries/reports/category-income?from_date=${fromDateStr}&to_date=${toDateStr}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -275,8 +276,8 @@ function AccountingReports() {
       const token = localStorage.getItem('token');
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/top-donors?from_date=${fromDateStr}&to_date=${toDateStr}&limit=10`,
+      const response = await fetchWithApiFallback(
+        `/api/v1/journal-entries/reports/top-donors?from_date=${fromDateStr}&to_date=${toDateStr}&limit=10`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

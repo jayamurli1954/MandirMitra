@@ -17,6 +17,7 @@ import {
   CardContent,
   Switch,
   FormControlLabel,
+  MenuItem,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LockIcon from '@mui/icons-material/Lock';
@@ -26,11 +27,32 @@ import api from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
 import RolePermissionMatrix from '../components/RolePermissionMatrix';
 
+const ACTIVE_TEMPLE_STORAGE_KEY = 'active_temple_id_v1';
+
+const readActiveTempleId = () => {
+  const raw = localStorage.getItem(ACTIVE_TEMPLE_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const writeActiveTempleId = (templeId) => {
+  if (!templeId) {
+    localStorage.removeItem(ACTIVE_TEMPLE_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(ACTIVE_TEMPLE_STORAGE_KEY, String(templeId));
+};
+
 function Settings() {
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
   const [currentUser] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+  const [temples, setTemples] = useState([]);
+  const [selectedTempleId, setSelectedTempleId] = useState(() => readActiveTempleId());
   const [backupStatus, setBackupStatus] = useState(null);
   const [backupLoading, setBackupLoading] = useState(false);
   const [manualBackupLoading, setManualBackupLoading] = useState(false);
@@ -93,14 +115,24 @@ function Settings() {
     banner_url: '',
   });
 
-  useEffect(() => {
-    // Password protection disabled for demo - always fetch settings
-    // const isAuth = sessionStorage.getItem('settings_authenticated') === 'true';
-    // setAuthenticated(isAuth);
+  const canSwitchTemple = Boolean(currentUser.is_superuser) || currentUser.role === 'super_admin';
 
-    // Always fetch settings for demo
+  useEffect(() => {
     fetchSettings();
     fetchBackupStatus();
+  }, [selectedTempleId]);
+
+  useEffect(() => {
+    const handleActiveTempleChanged = (event) => {
+      const nextTempleId = Number.parseInt(String(event?.detail?.templeId || ''), 10);
+      if (Number.isInteger(nextTempleId) && nextTempleId > 0) {
+        writeActiveTempleId(nextTempleId);
+        setSelectedTempleId(nextTempleId);
+      }
+    };
+
+    window.addEventListener('active-temple-changed', handleActiveTempleChanged);
+    return () => window.removeEventListener('active-temple-changed', handleActiveTempleChanged);
   }, []);
 
   // Password protection disabled for demo - will be enabled later
@@ -124,51 +156,60 @@ function Settings() {
   //   }
   // };
 
+  const applyTempleSettings = (temple) => {
+    setSettings({
+      temple_name: temple.name || '',
+      name_kannada: temple.name_kannada || '',
+      name_sanskrit: temple.name_sanskrit || '',
+      address: temple.address || '',
+      city: temple.city || '',
+      state: temple.state || '',
+      pincode: temple.pincode || '',
+      phone: temple.phone || '',
+      email: temple.email || '',
+      website: temple.website || '',
+      financial_year_start: temple.financial_year_start_month || 4,
+      receipt_prefix_donation: temple.receipt_prefix_donation || 'DON',
+      receipt_prefix_seva: temple.receipt_prefix_seva || 'SEVA',
+      sms_enabled: false,
+      sms_reminder_days: 7,
+      email_enabled: false,
+      gst_applicable: temple.gst_applicable || false,
+      gstin: temple.gstin || '',
+      gst_registration_date: temple.gst_registration_date || '',
+      fcra_applicable: temple.fcra_applicable || false,
+      fcra_registration_number: temple.fcra_registration_number || '',
+      fcra_valid_from: temple.fcra_valid_from || '',
+      fcra_valid_to: temple.fcra_valid_to || '',
+      module_donations_enabled: temple.module_donations_enabled !== undefined ? temple.module_donations_enabled : true,
+      module_sevas_enabled: temple.module_sevas_enabled !== undefined ? temple.module_sevas_enabled : true,
+      module_inventory_enabled: temple.module_inventory_enabled !== undefined ? temple.module_inventory_enabled : false,
+      module_assets_enabled: temple.module_assets_enabled !== undefined ? temple.module_assets_enabled : false,
+      module_hr_enabled: temple.module_hr_enabled !== undefined ? temple.module_hr_enabled : false,
+      module_hundi_enabled: temple.module_hundi_enabled !== undefined ? temple.module_hundi_enabled : false,
+      module_accounting_enabled: temple.module_accounting_enabled !== undefined ? temple.module_accounting_enabled : true,
+      module_panchang_enabled: temple.module_panchang_enabled !== undefined ? temple.module_panchang_enabled : true,
+      logo_url: temple.logo_url || '',
+      banner_url: temple.banner_url || '',
+    });
+  };
+
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      // Fetch temple settings
       const response = await api.get('/api/v1/temples/');
-      if (response.data && response.data.length > 0) {
-        const temple = response.data[0];
-        setSettings({
-          temple_name: temple.name || '',
-          name_kannada: temple.name_kannada || '',
-          name_sanskrit: temple.name_sanskrit || '',
-          address: temple.address || '',
-          city: temple.city || '',
-          state: temple.state || '',
-          pincode: temple.pincode || '',
-          phone: temple.phone || '',
-          email: temple.email || '',
-          website: temple.website || '',
-          financial_year_start: temple.financial_year_start_month || 4,
-          receipt_prefix_donation: temple.receipt_prefix_donation || 'DON',
-          receipt_prefix_seva: temple.receipt_prefix_seva || 'SEVA',
-          sms_enabled: false, // Will be fetched from settings table
-          sms_reminder_days: 7,
-          email_enabled: false,
-          // GST
-          gst_applicable: temple.gst_applicable || false,
-          gstin: temple.gstin || '',
-          gst_registration_date: temple.gst_registration_date || '',
-          // FCRA
-          fcra_applicable: temple.fcra_applicable || false,
-          fcra_registration_number: temple.fcra_registration_number || '',
-          fcra_valid_from: temple.fcra_valid_from || '',
-          fcra_valid_to: temple.fcra_valid_to || '',
-          // Modules
-          module_donations_enabled: temple.module_donations_enabled !== undefined ? temple.module_donations_enabled : true,
-          module_sevas_enabled: temple.module_sevas_enabled !== undefined ? temple.module_sevas_enabled : true,
-          module_inventory_enabled: temple.module_inventory_enabled !== undefined ? temple.module_inventory_enabled : false,
-          module_assets_enabled: temple.module_assets_enabled !== undefined ? temple.module_assets_enabled : false,
-          module_hr_enabled: temple.module_hr_enabled !== undefined ? temple.module_hr_enabled : false,
-          module_hundi_enabled: temple.module_hundi_enabled !== undefined ? temple.module_hundi_enabled : false,
-          module_accounting_enabled: temple.module_accounting_enabled !== undefined ? temple.module_accounting_enabled : true,
-          module_panchang_enabled: temple.module_panchang_enabled !== undefined ? temple.module_panchang_enabled : true,
-          logo_url: temple.logo_url || '',
-          banner_url: temple.banner_url || '',
-        });
+      const templeList = Array.isArray(response.data) ? response.data : [];
+      setTemples(templeList);
+      if (templeList.length > 0) {
+        const activeTemple = (canSwitchTemple && selectedTempleId)
+          ? templeList.find((temple) => temple.id === selectedTempleId)
+          : null;
+        const temple = activeTemple || templeList[0];
+        if (temple?.id && temple.id !== selectedTempleId) {
+          writeActiveTempleId(temple.id);
+          setSelectedTempleId(temple.id);
+        }
+        applyTempleSettings(temple);
       }
     } catch (err) {
       console.error('Failed to load settings:', err);
@@ -243,7 +284,16 @@ function Settings() {
         admin_password: onboarding.admin_password,
       };
       const response = await api.post('/api/v1/temples/onboard', payload);
+      const createdTempleId = response?.data?.temple_id;
+      if (createdTempleId) {
+        writeActiveTempleId(createdTempleId);
+        setSelectedTempleId(createdTempleId);
+        window.dispatchEvent(new CustomEvent('active-temple-changed', {
+          detail: { templeId: createdTempleId },
+        }));
+      }
       showSuccess(`Onboarded ${response.data.temple_name} with admin ${response.data.admin_email}`);
+      await fetchSettings();
       setOnboarding({
             temple_name: '',
         trust_name: '',
@@ -282,7 +332,8 @@ function Settings() {
 
     try {
       setLoading(true);
-      const response = await api.post(`/api/v1/temples/upload?media_type=${type}`, formData, {
+      const templeQuery = canSwitchTemple && selectedTempleId ? `&temple_id=${selectedTempleId}` : '';
+      const response = await api.post(`/api/v1/temples/upload?media_type=${type}${templeQuery}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -316,7 +367,8 @@ function Settings() {
         module_panchang_enabled: settings.module_panchang_enabled,
       };
 
-      await api.put('/api/v1/temples/modules/config', moduleConfig);
+      const templeQuery = canSwitchTemple && selectedTempleId ? `?temple_id=${selectedTempleId}` : '';
+      await api.put(`/api/v1/temples/modules/config${templeQuery}`, moduleConfig);
 
       // 2. Save general temple information
       const financialYearStartMonth = Number.parseInt(settings.financial_year_start, 10);
@@ -346,7 +398,7 @@ function Settings() {
         banner_url: settings.banner_url,
       };
 
-      await api.put('/api/v1/temples/current', templeInfo);
+      await api.put(`/api/v1/temples/current${templeQuery}`, templeInfo);
 
       // 3. Refresh context
       await fetchSettings();
@@ -427,6 +479,43 @@ function Settings() {
         )}
 
         <Grid container spacing={3} sx={{ mt: 2 }}>
+          {canSwitchTemple && temples.length > 1 && (
+            <Grid item xs={12}>
+              <Card sx={{ borderLeft: '5px solid #2E7D32' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="success.main">
+                    Active Temple / Trust
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Choose which onboarded temple or trust you want to view and edit in Settings.
+                  </Typography>
+                  <TextField
+                    select
+                    fullWidth
+                    label="Temple / Trust"
+                    value={selectedTempleId ? String(selectedTempleId) : ''}
+                    onChange={(event) => {
+                      const nextTempleId = Number.parseInt(String(event.target.value), 10);
+                      if (!Number.isInteger(nextTempleId) || nextTempleId <= 0) {
+                        return;
+                      }
+                      writeActiveTempleId(nextTempleId);
+                      setSelectedTempleId(nextTempleId);
+                      window.dispatchEvent(new CustomEvent('active-temple-changed', {
+                        detail: { templeId: nextTempleId },
+                      }));
+                    }}
+                  >
+                    {temples.map((temple) => (
+                      <MenuItem key={temple.id} value={String(temple.id)}>
+                        {temple.name || temple.trust_name || `Temple ${temple.id}`}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
           {(['admin', 'super_admin', 'temple_manager'].includes(currentUser.role) || currentUser.is_superuser) && (
             <Grid item xs={12}>
               <Card sx={{ borderLeft: '5px solid #1565C0' }}>

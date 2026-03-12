@@ -3,6 +3,7 @@ import {
     Box, Typography, TextField, Button, Grid, Alert,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper
 } from '@mui/material';
+import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 
 const BalanceSheetReport = ({ token }) => {
     const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0]);
@@ -12,7 +13,7 @@ const BalanceSheetReport = ({ token }) => {
     const fetchBalanceSheet = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/v1/journal-entries/reports/balance-sheet?as_of_date=${asOfDate}`, {
+            const response = await fetchWithApiFallback(`/api/v1/journal-entries/reports/balance-sheet?as_of_date=${asOfDate}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();

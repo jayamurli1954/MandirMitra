@@ -17,6 +17,9 @@ import {
   Avatar,
   Button,
   Collapse,
+  FormControl,
+  MenuItem,
+  Select,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -90,6 +93,24 @@ const DEFAULT_MODULE_CONFIG = {
 const LAYOUT_CACHE_TTL_MS = 2 * 60 * 1000;
 const MODULE_CONFIG_CACHE_KEY = 'layout_module_config_cache_v1';
 const USER_PROFILE_CACHE_KEY = 'layout_user_profile_cache_v1';
+const ACTIVE_TEMPLE_STORAGE_KEY = 'active_temple_id_v1';
+
+const readActiveTempleId = () => {
+  const raw = localStorage.getItem(ACTIVE_TEMPLE_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const writeActiveTempleId = (templeId) => {
+  if (!templeId) {
+    localStorage.removeItem(ACTIVE_TEMPLE_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(ACTIVE_TEMPLE_STORAGE_KEY, String(templeId));
+};
 
 const readLayoutCache = (key) => {
   try {
@@ -144,6 +165,8 @@ function Layout({ children }) {
     }
     return JSON.parse(localStorage.getItem('user') || '{}');
   });
+  const [temples, setTemples] = useState([]);
+  const [activeTempleId, setActiveTempleId] = useState(() => readActiveTempleId());
 
   const systemRole = userInfo.system_role || userInfo.role;
   const modulePermissions = userInfo.module_permissions || {};
@@ -201,7 +224,6 @@ function Layout({ children }) {
       const cachedModuleConfig = readLayoutCache(MODULE_CONFIG_CACHE_KEY);
       if (cachedModuleConfig && typeof cachedModuleConfig === 'object') {
         setModuleConfig({ ...DEFAULT_MODULE_CONFIG, ...cachedModuleConfig });
-        return;
       }
 
       try {
@@ -215,19 +237,32 @@ function Layout({ children }) {
             Authorization: `Bearer ${token}`,
           },
         }, { timeoutMs: 12000 });
-        if (response.ok) {
-          const data = await response.json();
-          const temple = Array.isArray(data) ? data[0] : data;
-          const normalized = { ...DEFAULT_MODULE_CONFIG, ...(temple || {}) };
-          setModuleConfig(normalized);
-          writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalized);
+        if (!response.ok) {
+          return;
         }
+
+        const data = await response.json();
+        const templeList = Array.isArray(data) ? data : (data ? [data] : []);
+        setTemples(templeList);
+        if (!templeList.length) {
+          return;
+        }
+
+        const preferredTemple = templeList.find((temple) => temple.id === activeTempleId) || templeList[0];
+        if (preferredTemple?.id && preferredTemple.id !== activeTempleId) {
+          writeActiveTempleId(preferredTemple.id);
+          setActiveTempleId(preferredTemple.id);
+        }
+
+        const normalized = { ...DEFAULT_MODULE_CONFIG, ...(preferredTemple || {}) };
+        setModuleConfig(normalized);
+        writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalized);
       } catch (err) {
         console.error('Failed to fetch temple info', err);
       }
     };
     fetchTempleInfo();
-  }, []);
+  }, [activeTempleId]);
 
   useEffect(() => {
     const handleModuleConfigUpdated = (event) => {
@@ -242,6 +277,19 @@ function Layout({ children }) {
 
     window.addEventListener('module-config-updated', handleModuleConfigUpdated);
     return () => window.removeEventListener('module-config-updated', handleModuleConfigUpdated);
+  }, []);
+
+  useEffect(() => {
+    const handleActiveTempleChanged = (event) => {
+      const nextTempleId = Number.parseInt(String(event?.detail?.templeId || ''), 10);
+      if (Number.isInteger(nextTempleId) && nextTempleId > 0) {
+        writeActiveTempleId(nextTempleId);
+        setActiveTempleId(nextTempleId);
+      }
+    };
+
+    window.addEventListener('active-temple-changed', handleActiveTempleChanged);
+    return () => window.removeEventListener('active-temple-changed', handleActiveTempleChanged);
   }, []);
 
   useEffect(() => {
@@ -322,6 +370,7 @@ function Layout({ children }) {
     localStorage.removeItem('user');
     localStorage.removeItem(MODULE_CONFIG_CACHE_KEY);
     localStorage.removeItem(USER_PROFILE_CACHE_KEY);
+    localStorage.removeItem(ACTIVE_TEMPLE_STORAGE_KEY);
     setUserInfo({});
     navigate('/login');
   };
@@ -329,6 +378,22 @@ function Layout({ children }) {
   const visibleMenuItems = menuItems.filter((item) => isFeatureEnabled(item.moduleFlag) && hasModuleAccess(item.permissionKey));
   const showSevaSection = isFeatureEnabled('module_sevas_enabled') && hasModuleAccess('sevas');
   const showAccountingSection = isFeatureEnabled('module_accounting_enabled') && hasModuleAccess('accounting');
+
+  const handleActiveTempleChange = (event) => {
+    const nextTempleId = Number.parseInt(String(event.target.value), 10);
+    if (!Number.isInteger(nextTempleId) || nextTempleId <= 0) {
+      return;
+    }
+
+    writeActiveTempleId(nextTempleId);
+    setActiveTempleId(nextTempleId);
+    window.dispatchEvent(new CustomEvent('active-temple-changed', {
+      detail: { templeId: nextTempleId },
+    }));
+  };
+
+  const showTempleSwitcher = temples.length > 1 && (Boolean(userInfo.is_superuser) || systemRole === 'super_admin');
+  const currentTempleLabel = moduleConfig?.name || moduleConfig?.trust_name || 'MandirMitra';
 
   const drawer = (
     <Box sx={{ height: '100%', overflowY: 'auto' }}>
@@ -536,7 +601,7 @@ function Layout({ children }) {
                   lineHeight: 1.1,
                 }}
               >
-                {moduleConfig?.name || moduleConfig?.trust_name || 'MandirMitra'}
+                {currentTempleLabel}
               </Typography>
               <Typography
                 variant="caption"
@@ -550,6 +615,34 @@ function Layout({ children }) {
               >
                 Temple / Trust Management &amp; Accounting System
               </Typography>
+              {showTempleSwitcher && (
+                <FormControl
+                  variant="standard"
+                  size="small"
+                  sx={{
+                    mt: 0.5,
+                    minWidth: { xs: 180, sm: 240 },
+                    '& .MuiInputBase-root': { color: '#fff', fontSize: 14, fontWeight: 600 },
+                    '& .MuiSvgIcon-root': { color: '#fff' },
+                    '& .MuiInput-underline:before': { borderBottomColor: 'rgba(255,255,255,0.55)' },
+                    '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: '#fff' },
+                    '& .MuiInput-underline:after': { borderBottomColor: '#fff' },
+                  }}
+                >
+                  <Select
+                    value={activeTempleId ? String(activeTempleId) : ''}
+                    onChange={handleActiveTempleChange}
+                    disableUnderline
+                    displayEmpty
+                  >
+                    {temples.map((temple) => (
+                      <MenuItem key={temple.id} value={String(temple.id)}>
+                        {temple.name || temple.trust_name || `Temple ${temple.id}`}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
             </Box>
           </Box>
 

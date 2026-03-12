@@ -29,12 +29,13 @@ from typing import Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.temple_context import attach_requested_temple_context
 from app.models.user import User
 
 
@@ -173,7 +174,9 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 
 async def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme),
 ) -> User:
     """
     FastAPI dependency to get current authenticated user from JWT token.
@@ -196,4 +199,4 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
 
-    return user
+    return attach_requested_temple_context(user, request)
