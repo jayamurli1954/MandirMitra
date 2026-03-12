@@ -67,7 +67,7 @@ function Login() {
       if (err?.name === 'AbortError') {
         setError('Backend login request timed out. Please check whether the Render backend is awake and reachable.');
       } else if (err instanceof TypeError) {
-        setError('Cannot connect to backend server. Please check Netlify API configuration, Render service status, and CORS settings.');
+        setError('Cannot connect to backend server. Please check the backend URL, Render service status, and CORS settings.');
       } else {
         setError(err.message || 'Login failed. Please check your credentials.');
       }
