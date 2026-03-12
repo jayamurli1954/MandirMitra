@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 
+const SETUP_REDIRECT_EXEMPT_PATHS = new Set(['/profile']);
+
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
   const location = useLocation();
@@ -29,9 +31,10 @@ function ProtectedRoute({ children }) {
 
         const data = await response.json();
         const onWizardPage = location.pathname === '/setup-wizard';
+        const isSetupRedirectExempt = SETUP_REDIRECT_EXEMPT_PATHS.has(location.pathname);
         let redirectTo = null;
 
-        if (data.force_setup && !onWizardPage) {
+        if (data.force_setup && !onWizardPage && !isSetupRedirectExempt) {
           redirectTo = '/setup-wizard';
         } else if (onWizardPage && !data.can_manage_setup) {
           redirectTo = '/dashboard';
@@ -69,3 +72,4 @@ function ProtectedRoute({ children }) {
 }
 
 export default ProtectedRoute;
+
