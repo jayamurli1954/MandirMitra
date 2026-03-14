@@ -194,7 +194,10 @@ def ensure_temple_platform_access_columns(db: Session) -> None:
     writes_changed = add_column_if_missing("temples", "allow_platform_writes", "BOOLEAN")
 
     if column_exists(db, "temples", "allow_platform_writes"):
-        db.execute(text("UPDATE temples SET allow_platform_writes = 0 WHERE allow_platform_writes IS NULL"))
+        db.execute(
+            text("UPDATE temples SET allow_platform_writes = :allow_platform_writes WHERE allow_platform_writes IS NULL"),
+            {"allow_platform_writes": False},
+        )
 
     if owner_changed or writes_changed:
         db.commit()
