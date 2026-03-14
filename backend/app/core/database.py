@@ -96,6 +96,17 @@ def normalize_nullable_temple_module_flags(db: Session) -> None:
     db.commit()
 
 
+def get_single_active_temple_id(db: Session):
+    """Return the sole active temple id when exactly one active temple exists."""
+    active_temples = db.execute(
+        text(
+            "SELECT id FROM temples WHERE COALESCE(is_active, :is_active) = :is_active ORDER BY id ASC LIMIT 2"
+        ),
+        {"is_active": True},
+    ).fetchall()
+    return active_temples[0][0] if len(active_temples) == 1 else None
+
+
 def ensure_seva_tenant_columns(db: Session) -> None:
     """Ensure seva master and booking tables carry tenant context for SaaS mode."""
 
@@ -113,10 +124,7 @@ def ensure_seva_tenant_columns(db: Session) -> None:
     sevas_changed = add_integer_column_if_missing("sevas", "temple_id")
     bookings_changed = add_integer_column_if_missing("seva_bookings", "temple_id")
 
-    single_temple = db.execute(
-        text("SELECT id FROM temples WHERE is_active = 1 ORDER BY id ASC LIMIT 2")
-    ).fetchall()
-    single_temple_id = single_temple[0][0] if len(single_temple) == 1 else None
+    single_temple_id = get_single_active_temple_id(db)
 
     if column_exists(db, "sevas", "temple_id"):
         if single_temple_id is not None:
@@ -218,10 +226,7 @@ def ensure_audit_log_tenant_column(db: Session) -> None:
         )
     )
 
-    single_temple = db.execute(
-        text("SELECT id FROM temples WHERE is_active = 1 ORDER BY id ASC LIMIT 2")
-    ).fetchall()
-    single_temple_id = single_temple[0][0] if len(single_temple) == 1 else None
+    single_temple_id = get_single_active_temple_id(db)
     if single_temple_id is not None:
         db.execute(
             text("UPDATE audit_logs SET temple_id = :temple_id WHERE temple_id IS NULL"),
