@@ -121,18 +121,23 @@ function Donations() {
   }, []);
 
   const fetchCategories = async () => {
+    const fallbackCategories = [
+      'General Donation',
+      'Annadanam',
+      'Construction Fund',
+      'Gold/Silver Donation',
+      'Corpus Fund'
+    ];
+
     try {
-      // TODO: Replace with actual API endpoint
-      // For now, use default categories
-      setCategories([
-        'General Donation',
-        'Annadanam',
-        'Construction Fund',
-        'Gold/Silver Donation',
-        'Corpus Fund'
-      ]);
+      const response = await api.get('/api/v1/donations/categories/');
+      const categoryNames = Array.isArray(response.data)
+        ? response.data.map((cat) => cat?.name).filter(Boolean)
+        : [];
+      setCategories(categoryNames.length > 0 ? categoryNames : fallbackCategories);
     } catch (err) {
       console.error('Error fetching categories:', err);
+      setCategories(fallbackCategories);
     }
   };
 

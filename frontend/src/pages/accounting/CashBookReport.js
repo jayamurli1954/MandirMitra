@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-    Box, Typography, TextField, Button, Grid, Alert,
+    Box, TextField, Button, Grid, Alert,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
 import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
@@ -75,15 +75,15 @@ const CashBookReport = ({ token }) => {
                                     <TableCell>Date</TableCell>
                                     <TableCell>Entry #</TableCell>
                                     <TableCell>Narration</TableCell>
-                                    <TableCell align="right">Receipt (₹)</TableCell>
-                                    <TableCell align="right">Payment (₹)</TableCell>
-                                    <TableCell align="right">Balance (₹)</TableCell>
+                                    <TableCell align="right">Receipt (â‚¹)</TableCell>
+                                    <TableCell align="right">Payment (â‚¹)</TableCell>
+                                    <TableCell align="right">Balance (â‚¹)</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 <TableRow sx={{ bgcolor: '#FFF3E0' }}>
                                     <TableCell colSpan={5}><strong>Opening Balance</strong></TableCell>
-                                    <TableCell align="right"><strong>₹{(report.opening_balance || 0).toFixed(2)}</strong></TableCell>
+                                    <TableCell align="right"><strong>â‚¹{(report.opening_balance || 0).toFixed(2)}</strong></TableCell>
                                 </TableRow>
                                 {report.entries && report.entries.length > 0 ? (
                                     report.entries.map((entry, i) => (
@@ -93,7 +93,7 @@ const CashBookReport = ({ token }) => {
                                             <TableCell>{entry.narration}</TableCell>
                                             <TableCell align="right">{entry.receipt_amount > 0 ? entry.receipt_amount.toFixed(2) : '-'}</TableCell>
                                             <TableCell align="right">{entry.payment_amount > 0 ? entry.payment_amount.toFixed(2) : '-'}</TableCell>
-                                            <TableCell align="right">₹{entry.running_balance.toFixed(2)}</TableCell>
+                                            <TableCell align="right">â‚¹{entry.running_balance.toFixed(2)}</TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
@@ -101,9 +101,9 @@ const CashBookReport = ({ token }) => {
                                 )}
                                 <TableRow sx={{ bgcolor: '#FFF3E0' }}>
                                     <TableCell colSpan={3}><strong>Total</strong></TableCell>
-                                    <TableCell align="right"><strong>₹{(report.total_receipts || 0).toFixed(2)}</strong></TableCell>
-                                    <TableCell align="right"><strong>₹{(report.total_payments || 0).toFixed(2)}</strong></TableCell>
-                                    <TableCell align="right"><strong>Closing: ₹{(report.closing_balance || 0).toFixed(2)}</strong></TableCell>
+                                    <TableCell align="right"><strong>â‚¹{(report.total_receipts || 0).toFixed(2)}</strong></TableCell>
+                                    <TableCell align="right"><strong>â‚¹{(report.total_payments || 0).toFixed(2)}</strong></TableCell>
+                                    <TableCell align="right"><strong>Closing: â‚¹{(report.closing_balance || 0).toFixed(2)}</strong></TableCell>
                                 </TableRow>
                             </TableBody>
                         </Table>

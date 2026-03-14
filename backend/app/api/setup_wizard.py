@@ -8,8 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.temple_context import resolve_temple_id_for_user
+from app.core.temple_context import require_temple_id_for_user
 from app.core.security import get_current_user
+from app.models.accounting import JournalEntry
+from app.models.donation import Donation
+from app.models.seva import SevaBooking
 from app.models.temple import Temple
 from app.models.upi_banking import BankAccount
 from app.models.user import User
@@ -18,7 +21,7 @@ router = APIRouter(prefix="/api/v1/setup-wizard", tags=["setup-wizard"])
 
 
 def _resolve_current_temple_id(db: Session, current_user: User) -> int | None:
-    return resolve_temple_id_for_user(db, current_user, fallback_to_first=True)
+    return require_temple_id_for_user(db, current_user, active_only=False)
 
 
 @router.get('/status')
@@ -32,7 +35,7 @@ def get_setup_wizard_status(
 
     bootstrap_email = (settings.BOOTSTRAP_ADMIN_EMAIL or '').strip().lower()
     current_email = (current_user.email or '').strip().lower()
-    is_platform_super_admin = bool(current_user.is_superuser) or current_user.role == 'super_admin' or bool(bootstrap_email and current_email == bootstrap_email)
+    is_platform_super_admin = current_user.role == 'super_admin' or bool(bootstrap_email and current_email == bootstrap_email)
     can_manage_setup = current_user.role in {'admin', 'temple_manager'} and not is_platform_super_admin
 
     temple = db.query(Temple).filter(Temple.id == temple_id).first()
@@ -101,14 +104,33 @@ def get_setup_wizard_status(
         },
     ]
 
+    active_donations = db.query(Donation).filter(
+        Donation.temple_id == temple_id,
+        Donation.is_cancelled.isnot(True),
+    ).count()
+    active_seva_bookings = db.query(SevaBooking).filter(
+        SevaBooking.temple_id == temple_id,
+        SevaBooking.status != 'cancelled',
+    ).count()
+    accounting_entries = db.query(JournalEntry).filter(
+        JournalEntry.temple_id == temple_id,
+    ).count()
+
+    has_operational_activity = any([
+        active_donations > 0,
+        active_seva_bookings > 0,
+        accounting_entries > 0,
+    ])
+
     first_incomplete_required = next((index for index, step in enumerate(steps) if step['required'] and not step['completed']), None)
     required_complete = first_incomplete_required is None
+    force_setup = bool(can_manage_setup and not required_complete and not has_operational_activity)
 
     return {
         'temple_id': temple.id,
         'temple_name': temple.name,
         'can_manage_setup': can_manage_setup,
-        'force_setup': bool(can_manage_setup and not required_complete),
+        'force_setup': force_setup,
         'needs_setup': not required_complete,
         'setup_complete': required_complete,
         'is_platform_super_admin': is_platform_super_admin,
@@ -117,5 +139,9 @@ def get_setup_wizard_status(
         'summary': {
             'active_bank_accounts': active_bank_accounts,
             'active_users': active_users,
+            'active_donations': active_donations,
+            'active_seva_bookings': active_seva_bookings,
+            'accounting_entries': accounting_entries,
+            'has_operational_activity': has_operational_activity,
         },
     }

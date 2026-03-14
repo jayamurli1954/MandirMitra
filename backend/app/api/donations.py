@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access, resolve_temple_id_for_user
 from app.core.coa_bootstrap import ensure_default_coa_for_temple
 from app.core.audit import log_action, get_entity_dict
 from fastapi import Request
@@ -223,6 +224,8 @@ def create_donation(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email format"
             )
 
+    temple_id = require_temple_write_access(db, current_user, active_only=False)
+
     # Handle anonymous donations
     is_anonymous_donation = donation.is_anonymous if hasattr(donation, "is_anonymous") else False
 
@@ -243,7 +246,7 @@ def create_donation(
                 name="Anonymous Donor",
                 full_name="Anonymous Donor",
                 phone="0000000000",  # Dummy phone number
-                temple_id=current_user.temple_id if current_user else None,
+                temple_id=temple_id,
             )
             db.add(devotee)
             db.flush()
@@ -331,7 +334,7 @@ def create_donation(
                 state=donation.state,
                 country=donation.country or "India",
                 tags=tags_json,
-                temple_id=current_user.temple_id if current_user else None,
+                temple_id=temple_id,
             )
             db.add(devotee)
             db.flush()
@@ -378,7 +381,7 @@ def create_donation(
     category = db.query(DonationCategory).filter(DonationCategory.name == donation.category).first()
     if not category:
         category = DonationCategory(
-            name=donation.category, temple_id=current_user.temple_id if current_user else None
+            name=donation.category, temple_id=temple_id
         )
         db.add(category)
         db.flush()
@@ -595,7 +598,7 @@ def create_donation(
         )
 
     db_donation = Donation(
-        temple_id=current_user.temple_id if current_user else None,
+        temple_id=temple_id,
         devotee_id=devotee.id,
         category_id=category.id,
         receipt_number=receipt_number,
@@ -704,7 +707,7 @@ def create_donation(
             existing_item = (
                 db.query(Item)
                 .filter(
-                    Item.temple_id == current_user.temple_id if current_user else None,
+                    Item.temple_id == temple_id,
                     Item.name.ilike(donation.item_name),
                 )
                 .first()
@@ -715,7 +718,7 @@ def create_donation(
             else:
                 # Create new item
                 new_item = Item(
-                    temple_id=current_user.temple_id if current_user else None,
+                    temple_id=temple_id,
                     code=f"ITM-{db_donation.id:05d}",
                     name=donation.item_name,
                     description=donation.item_description
@@ -737,7 +740,7 @@ def create_donation(
             default_store = (
                 db.query(Store)
                 .filter(
-                    Store.temple_id == current_user.temple_id if current_user else None,
+                    Store.temple_id == temple_id,
                     Store.is_active == True,
                 )
                 .first()
@@ -747,7 +750,7 @@ def create_donation(
             else:
                 # Create default store if none exists
                 default_store = Store(
-                    temple_id=current_user.temple_id if current_user else None,
+                    temple_id=temple_id,
                     code="ST001",
                     name="Main Store",
                     is_active=True,
@@ -759,7 +762,7 @@ def create_donation(
         # Create stock movement for donation receipt
         movement_number = f"DON/{year}/{db_donation.id:05d}"
         stock_movement = StockMovement(
-            temple_id=current_user.temple_id if current_user else None,
+            temple_id=temple_id,
             movement_type=StockMovementType.PURCHASE,  # Treat donation as purchase
             movement_number=movement_number,
             movement_date=date.today(),
@@ -789,7 +792,7 @@ def create_donation(
             stock_balance.last_movement_id = stock_movement.id
         else:
             stock_balance = StockBalance(
-                temple_id=current_user.temple_id if current_user else None,
+                temple_id=temple_id,
                 item_id=item_id,
                 store_id=store_id,
                 quantity=donation.quantity,
@@ -816,7 +819,7 @@ def create_donation(
             default_category = (
                 db.query(AssetCategory)
                 .filter(
-                    AssetCategory.temple_id == current_user.temple_id if current_user else None,
+                    AssetCategory.temple_id == temple_id,
                     AssetCategory.name.ilike("%precious%"),
                 )
                 .first()
@@ -827,7 +830,7 @@ def create_donation(
                 default_category = (
                     db.query(AssetCategory)
                     .filter(
-                        AssetCategory.temple_id == current_user.temple_id if current_user else None
+                        AssetCategory.temple_id == temple_id
                     )
                     .first()
                 )
@@ -837,7 +840,7 @@ def create_donation(
                 # Generate asset number
                 asset_count = (
                     db.query(Asset)
-                    .filter(Asset.temple_id == current_user.temple_id if current_user else None)
+                    .filter(Asset.temple_id == temple_id)
                     .count()
                 )
                 asset_number = f"AST-{year}-{(asset_count + 1):05d}"
@@ -861,7 +864,7 @@ def create_donation(
 
                 # Create asset entry
                 new_asset = Asset(
-                    temple_id=current_user.temple_id if current_user else None,
+                    temple_id=temple_id,
                     asset_number=asset_number,
                     name=donation.item_name or "In-Kind Donation",
                     description=donation.item_description
@@ -907,7 +910,7 @@ def create_donation(
         db_donation.payment_account_id = getattr(donation, "payment_account_id", None)
         db_donation.bank_account_id = getattr(donation, "bank_account_id", None)
         journal_entry = post_donation_to_accounting(
-            db, db_donation, current_user.temple_id if current_user else None
+            db, db_donation, temple_id
         )
         message = "Donation recorded successfully and posted to accounting"
     except Exception as e:
@@ -1039,7 +1042,7 @@ def get_payment_accounts_for_donations(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get active cash and bank accounts for donation/seva payment selection."""
-    temple_id = current_user.temple_id if current_user else None
+    temple_id = require_temple_write_access(db, current_user, active_only=False)
     return _get_payment_accounts_for_temple(db, temple_id)
 
 
@@ -1048,7 +1051,7 @@ def get_bank_accounts_for_donations(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get list of active bank accounts for donation form (backward-compatible route)."""
-    temple_id = current_user.temple_id if current_user else None
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
     data = _get_payment_accounts_for_temple(db, temple_id)
     return data["bank_accounts"]
 
@@ -1132,15 +1135,15 @@ def get_donation(
     donation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a single donation by ID"""
-    donation = db.query(Donation).filter(Donation.id == donation_id).first()
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+    donation = (
+        db.query(Donation)
+        .filter(Donation.id == donation_id, Donation.temple_id == temple_id)
+        .first()
+    )
     if not donation:
         raise HTTPException(status_code=404, detail="Donation not found")
 
-    # Check temple access
-    if current_user.temple_id and donation.temple_id != current_user.temple_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    # Format response
     donation_type_value = donation.donation_type
     if isinstance(donation_type_value, str):
         try:
@@ -1186,6 +1189,31 @@ def get_donation(
         "weight_net": donation.weight_net if hasattr(donation, "weight_net") else None,
         "notes": donation.notes if hasattr(donation, "notes") else None,
     }
+
+
+@router.get("/{donation_id}/receipt/pdf")
+def get_donation_receipt_pdf(
+    donation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Generate PDF receipt for a donation."""
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+    donation = (
+        db.query(Donation)
+        .filter(Donation.id == donation_id, Donation.temple_id == temple_id)
+        .first()
+    )
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
+
+    buffer = _generate_receipt_pdf(donation, db)
+    receipt_number = donation.receipt_number or f"DON{donation.id}"
+    filename = f"donation_receipt_{receipt_number}.pdf"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 class DonationUpdate(BaseModel):
@@ -1679,7 +1707,7 @@ async def bulk_import_donations(
     - CSV: devotee_name, devotee_phone, amount, category, payment_mode, address, city, state, pincode, notes
     - Excel: Same columns
     """
-    temple_id = current_user.temple_id if current_user else None
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     # Read file
     contents = await file.read()
@@ -1875,7 +1903,7 @@ def generate_bulk_80g_certificates(
     Generate 80G certificates for multiple donations in batch
     Returns PDF with all certificates
     """
-    temple_id = current_user.temple_id if current_user else None
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     # Get donations
     donations = db.query(Donation).filter(

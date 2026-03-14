@@ -10,6 +10,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.temple_context import can_access_all_temples
 from app.models.role_permission import RolePermissionProfile, UserRoleAssignment
 from app.models.user import User
 
@@ -393,3 +394,39 @@ def get_user_role_context(db: Session, user: User, temple_id: int | None = None)
         "module_permissions": {key: True for key in MODULE_PERMISSION_KEYS},
         "action_permissions": {key: False for key in ACTION_PERMISSION_KEYS},
     }
+
+
+def has_action_permission(
+    db: Session,
+    user: User,
+    permission_key: str,
+    *,
+    temple_id: int | None = None,
+    allow_platform_super_admin: bool = True,
+) -> bool:
+    if allow_platform_super_admin and can_access_all_temples(user):
+        return True
+
+    role_context = get_user_role_context(db, user, temple_id=temple_id)
+    return bool(role_context["action_permissions"].get(permission_key, False))
+
+
+def require_action_permission(
+    db: Session,
+    user: User,
+    permission_key: str,
+    *,
+    temple_id: int | None = None,
+    detail: str | None = None,
+    allow_platform_super_admin: bool = True,
+) -> None:
+    if has_action_permission(
+        db,
+        user,
+        permission_key,
+        temple_id=temple_id,
+        allow_platform_super_admin=allow_platform_super_admin,
+    ):
+        return
+
+    raise PermissionError(detail or f"Missing required permission: {permission_key}")

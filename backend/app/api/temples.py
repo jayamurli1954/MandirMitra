@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db, column_exists
 from app.core.security import get_current_user
+from app.core.temple_context import has_temple_write_access, require_temple_write_access
 from app.models.temple import Temple
 from app.models.user import User
 
@@ -51,6 +52,11 @@ class TempleResponse(BaseModel):
     banner_url: Optional[str] = None
     opening_time: Optional[str] = None
     closing_time: Optional[str] = None
+    is_active: bool = True
+    platform_owner_user_id: Optional[int] = None
+    allow_platform_writes: bool = False
+    platform_can_write: bool = True
+    platform_access_mode: str = "editable"
 
     # Module Configuration
     module_donations_enabled: bool = True
@@ -142,7 +148,7 @@ MODULE_FLAG_DEFAULTS = {
 
 
 def _can_access_all_temples(current_user: User) -> bool:
-    return bool(current_user.is_superuser) or current_user.role == "super_admin"
+    return current_user.role == "super_admin"
 
 
 def _serialize_temple_response(temple) -> dict:
@@ -160,6 +166,26 @@ def _serialize_temple_response(temple) -> dict:
     if not payload.get("slug"):
         payload["slug"] = f"temple-{payload.get('id', 'current')}"
 
+    return payload
+
+
+def _attach_platform_access(payload: dict, temple: Temple, db: Session, current_user: User) -> dict:
+    allow_platform_writes = bool(getattr(temple, "allow_platform_writes", False))
+    platform_owner_user_id = getattr(temple, "platform_owner_user_id", None)
+    if _can_access_all_temples(current_user):
+        platform_can_write = has_temple_write_access(db, current_user, temple.id)
+        platform_access_mode = "editable" if platform_can_write else "read_only"
+    else:
+        platform_can_write = True
+        platform_access_mode = "editable"
+
+    payload.update({
+        "is_active": bool(getattr(temple, "is_active", True)),
+        "platform_owner_user_id": platform_owner_user_id,
+        "allow_platform_writes": allow_platform_writes,
+        "platform_can_write": platform_can_write,
+        "platform_access_mode": platform_access_mode,
+    })
     return payload
 
 
@@ -254,7 +280,7 @@ def get_temples(
         if not column_exists(db, "temples", "module_hundi_enabled"):
             for temple in temples:
                 setattr(temple, "module_hundi_enabled", False)
-        return [_serialize_temple_response(temple) for temple in temples]
+        return [_attach_platform_access(_serialize_temple_response(temple), temple, db, current_user) for temple in temples]
 
     resolved_temple_id = _resolve_current_temple_id(db, current_user, requested_temple_id=temple_id)
     if resolved_temple_id:
@@ -305,7 +331,7 @@ def get_temples(
             if temple:
                 if not has_hundi_column:
                     setattr(temple, "module_hundi_enabled", False)
-                return [_serialize_temple_response(temple)]
+                return [_attach_platform_access(_serialize_temple_response(temple), temple, db, current_user)]
     return []
 
 
@@ -356,7 +382,7 @@ def get_temple(
     if not temple:
         raise HTTPException(status_code=404, detail="Temple not found")
 
-    return _serialize_temple_response(temple)
+    return _attach_platform_access(_serialize_temple_response(temple), temple, db, current_user)
 
 
 @router.get("/modules/config", response_model=dict)
@@ -488,7 +514,7 @@ def update_module_config(
     current_user: User = Depends(get_current_user),
 ):
     """Update module configuration for current temple"""
-    resolved_temple_id = _resolve_current_temple_id(db, current_user, requested_temple_id=temple_id)
+    resolved_temple_id = require_temple_write_access(db, current_user, requested_temple_id=temple_id, active_only=False)
     if not resolved_temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
@@ -510,7 +536,7 @@ def update_current_temple(
     current_user: User = Depends(get_current_user),
 ):
     """Update general information for the current temple"""
-    resolved_temple_id = _resolve_current_temple_id(db, current_user, requested_temple_id=temple_id)
+    resolved_temple_id = require_temple_write_access(db, current_user, requested_temple_id=temple_id, active_only=False)
     if not resolved_temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
@@ -528,7 +554,7 @@ def update_current_temple(
         raise HTTPException(status_code=404, detail="Temple not found")
     if not column_exists(db, "temples", "module_hundi_enabled"):
         setattr(temple, "module_hundi_enabled", False)
-    return _serialize_temple_response(temple)
+    return _attach_platform_access(_serialize_temple_response(temple), temple, db, current_user)
 
 
 @router.post("/upload", response_model=dict)
@@ -540,7 +566,7 @@ async def upload_temple_media(
     current_user: User = Depends(get_current_user)
 ):
     """Upload temple media (logo or banner)"""
-    resolved_temple_id = _resolve_current_temple_id(db, current_user, requested_temple_id=temple_id)
+    resolved_temple_id = require_temple_write_access(db, current_user, requested_temple_id=temple_id, active_only=False)
     if not resolved_temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
     if media_type not in {"logo", "banner"}:

@@ -14,6 +14,7 @@ from app.licensing import (
     check_trial_status,
 )
 from app.core.security import get_current_user
+from app.core.temple_context import require_system_roles
 from app.models.user import User
 
 
@@ -58,11 +59,11 @@ class LicenseResponse(BaseModel):
 
 
 def _require_admin_license_access(current_user: User) -> None:
-    if current_user.role not in ["admin", "super_admin"] and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can manage license operations",
-        )
+    require_system_roles(
+        current_user,
+        {"admin"},
+        detail="Only admins can manage license operations",
+    )
 
 
 @router.post("/activate-trial", response_model=LicenseResponse)

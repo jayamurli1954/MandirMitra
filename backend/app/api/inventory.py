@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.inventory import (
     Store,
@@ -35,6 +36,26 @@ from app.models.vendor import Vendor
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
 
 
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
+def _get_store_in_scope(db: Session, store_id: int, temple_id: int) -> Store | None:
+    return db.query(Store).filter(Store.id == store_id, Store.temple_id == temple_id).first()
+
+
+def _get_item_in_scope(db: Session, item_id: int, temple_id: int) -> Item | None:
+    return db.query(Item).filter(Item.id == item_id, Item.temple_id == temple_id).first()
+
+
+def _get_stock_balance_in_scope(db: Session, item_id: int, store_id: int, temple_id: int) -> StockBalance | None:
+    return db.query(StockBalance).filter(StockBalance.item_id == item_id, StockBalance.store_id == store_id, StockBalance.temple_id == temple_id).first()
+
+
 # ===== INVENTORY ACCOUNT SETUP ENDPOINT =====
 
 
@@ -49,7 +70,7 @@ def setup_inventory_accounts(
     from app.models.accounting import Account, AccountType, AccountSubType
     from app.models.temple import Temple
 
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Get parent account (1000 - Assets)
     parent_account = (
@@ -582,16 +603,17 @@ def create_store(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new store/location"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Check if code already exists
     existing = (
         db.query(Store)
-        .filter(Store.temple_id == current_user.temple_id, Store.code == store_data.code)
+        .filter(Store.temple_id == temple_id, Store.code == store_data.code)
         .first()
     )
     if existing:
         raise HTTPException(status_code=400, detail="Store code already exists")
 
-    store = Store(**store_data.dict(), temple_id=current_user.temple_id)
+    store = Store(**store_data.dict(), temple_id=temple_id)
     db.add(store)
     db.commit()
     db.refresh(store)
@@ -605,7 +627,7 @@ def list_stores(
     current_user: User = Depends(get_current_user),
 ):
     """List all stores"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
     query = db.query(Store)
     if temple_id is not None:
         query = query.filter(Store.temple_id == temple_id)
@@ -622,9 +644,10 @@ def update_store(
     current_user: User = Depends(get_current_user),
 ):
     """Update a store"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     store = (
         db.query(Store)
-        .filter(Store.id == store_id, Store.temple_id == current_user.temple_id)
+        .filter(Store.id == store_id, Store.temple_id == temple_id)
         .first()
     )
 
@@ -649,16 +672,17 @@ def create_item(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new inventory item"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Check if code already exists
     existing = (
         db.query(Item)
-        .filter(Item.temple_id == current_user.temple_id, Item.code == item_data.code)
+        .filter(Item.temple_id == temple_id, Item.code == item_data.code)
         .first()
     )
     if existing:
         raise HTTPException(status_code=400, detail="Item code already exists")
 
-    item = Item(**item_data.dict(), temple_id=current_user.temple_id)
+    item = Item(**item_data.dict(), temple_id=temple_id)
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -670,9 +694,8 @@ def get_item(
     item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a specific item by ID"""
-    item = (
-        db.query(Item).filter(Item.id == item_id, Item.temple_id == current_user.temple_id).first()
-    )
+    temple_id = _resolve_temple_id(db, current_user)
+    item = _get_item_in_scope(db, item_id, temple_id)
 
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -688,7 +711,7 @@ def list_items(
     current_user: User = Depends(get_current_user),
 ):
     """List all items"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
     query = db.query(Item)
     if temple_id is not None:
         query = query.filter(Item.temple_id == temple_id)
@@ -707,9 +730,8 @@ def update_item(
     current_user: User = Depends(get_current_user),
 ):
     """Update an item"""
-    item = (
-        db.query(Item).filter(Item.id == item_id, Item.temple_id == current_user.temple_id).first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    item = _get_item_in_scope(db, item_id, temple_id)
 
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -727,9 +749,8 @@ def delete_item(
     item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete (deactivate) an item"""
-    item = (
-        db.query(Item).filter(Item.id == item_id, Item.temple_id == current_user.temple_id).first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    item = _get_item_in_scope(db, item_id, temple_id)
 
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -751,7 +772,7 @@ def get_inventory_summary(
     Get inventory summary statistics for dashboard
     Returns: total items, total stores, low stock items count, total inventory value
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Total items
     items_query = db.query(Item)
@@ -799,7 +820,7 @@ def list_stock_balances(
     current_user: User = Depends(get_current_user),
 ):
     """Get current stock balances"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     query = db.query(StockBalance).join(Item).join(Store)
     if temple_id is not None:
@@ -847,12 +868,13 @@ def create_purchase(
     current_user: User = Depends(get_current_user),
 ):
     """Record inventory purchase"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Validate item and store
-    item = db.query(Item).filter(Item.id == movement_data.item_id).first()
+    item = _get_item_in_scope(db, movement_data.item_id, temple_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    store = db.query(Store).filter(Store.id == movement_data.store_id).first()
+    store = _get_store_in_scope(db, movement_data.store_id, temple_id)
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
 
@@ -892,7 +914,7 @@ def create_purchase(
         reference_number=movement_data.reference_number,
         vendor_id=movement_data.vendor_id,
         notes=movement_data.notes,
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         created_by=current_user.id,
     )
     db.add(movement)
@@ -900,12 +922,7 @@ def create_purchase(
 
     # Update stock balance
     stock_balance = (
-        db.query(StockBalance)
-        .filter(
-            StockBalance.item_id == movement_data.item_id,
-            StockBalance.store_id == movement_data.store_id,
-        )
-        .first()
+        _get_stock_balance_in_scope(db, movement_data.item_id, movement_data.store_id, temple_id)
     )
 
     if not stock_balance:
@@ -914,7 +931,7 @@ def create_purchase(
             store_id=movement_data.store_id,
             quantity=0.0,
             value=0.0,
-            temple_id=current_user.temple_id,
+            temple_id=temple_id,
         )
         db.add(stock_balance)
         db.flush()
@@ -926,7 +943,7 @@ def create_purchase(
     stock_balance.last_movement_id = movement.id
 
     # Post to accounting
-    journal_entry = post_inventory_purchase_to_accounting(db, movement, current_user.temple_id)
+    journal_entry = post_inventory_purchase_to_accounting(db, movement, temple_id)
     if journal_entry:
         movement.journal_entry_id = journal_entry.id
         db.commit()
@@ -946,23 +963,19 @@ def create_issue(
     current_user: User = Depends(get_current_user),
 ):
     """Record inventory issue (consumption)"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Validate item and store
-    item = db.query(Item).filter(Item.id == movement_data.item_id).first()
+    item = _get_item_in_scope(db, movement_data.item_id, temple_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    store = db.query(Store).filter(Store.id == movement_data.store_id).first()
+    store = _get_store_in_scope(db, movement_data.store_id, temple_id)
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
 
     # Check stock availability
     stock_balance = (
-        db.query(StockBalance)
-        .filter(
-            StockBalance.item_id == movement_data.item_id,
-            StockBalance.store_id == movement_data.store_id,
-        )
-        .first()
+        _get_stock_balance_in_scope(db, movement_data.item_id, movement_data.store_id, temple_id)
     )
 
     if not stock_balance or stock_balance.quantity < movement_data.quantity:
@@ -1015,7 +1028,7 @@ def create_issue(
         issued_to=movement_data.issued_to,
         purpose=movement_data.purpose,
         notes=movement_data.notes,
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         created_by=current_user.id,
     )
     db.add(movement)
@@ -1028,7 +1041,7 @@ def create_issue(
     stock_balance.last_movement_id = movement.id
 
     # Post to accounting
-    journal_entry = post_inventory_issue_to_accounting(db, movement, current_user.temple_id)
+    journal_entry = post_inventory_issue_to_accounting(db, movement, temple_id)
     if journal_entry:
         movement.journal_entry_id = journal_entry.id
         db.commit()
@@ -1055,19 +1068,13 @@ def list_issue_movements(
     List all inventory issue (consumption) movements
     Can filter by date range, store, item, and purpose
     """
-    temple_id = current_user.temple_id if current_user.temple_id is not None else 0
-    
+    temple_id = _resolve_temple_id(db, current_user)
+
     # Build query
     query = db.query(StockMovement).filter(
-        StockMovement.movement_type == StockMovementType.ISSUE
+        StockMovement.movement_type == StockMovementType.ISSUE,
+        StockMovement.temple_id == temple_id,
     )
-    
-    # Filter by temple - join with Item or Store
-    if temple_id != 0:
-        query = query.join(Item).filter(Item.temple_id == temple_id)
-    else:
-        # Standalone mode - filter by store's temple_id
-        query = query.join(Store).filter(Store.temple_id == 0)
     
     # Apply filters
     if from_date:

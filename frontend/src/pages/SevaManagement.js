@@ -24,10 +24,10 @@ import {
   FormControlLabel,
   Alert,
   Chip,
-  Stack,
   Grid,
   CircularProgress,
   Tooltip,
+  InputAdornment,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -274,7 +274,7 @@ function SevaManagement() {
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box>
             <Typography variant="h4" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
-              🛕 Seva Management
+              Seva Management
             </Typography>
             <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.9)' }}>
               Add, edit, or delete temple sevas and services
@@ -347,11 +347,11 @@ function SevaManagement() {
                 <TableCell>
                   {seva.min_amount && seva.max_amount ? (
                     <Typography variant="body2">
-                      ₹{seva.min_amount} - ₹{seva.max_amount}
+                      {"\u20B9"}{seva.min_amount} - {"\u20B9"}{seva.max_amount}
                     </Typography>
                   ) : (
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      ₹{seva.amount}
+                      {"\u20B9"}{seva.amount}
                     </Typography>
                   )}
                 </TableCell>
@@ -476,7 +476,9 @@ function SevaManagement() {
                 type="number"
                 value={sevaForm.amount}
                 onChange={(e) => setSevaForm({...sevaForm, amount: parseFloat(e.target.value) || ''})}
-                InputProps={{ startAdornment: '₹' }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">{"\u20B9"}</InputAdornment>,
+                }}
                 fullWidth
                 required
               />
@@ -487,7 +489,9 @@ function SevaManagement() {
                 type="number"
                 value={sevaForm.min_amount}
                 onChange={(e) => setSevaForm({...sevaForm, min_amount: parseFloat(e.target.value) || ''})}
-                InputProps={{ startAdornment: '₹' }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">{"\u20B9"}</InputAdornment>,
+                }}
                 fullWidth
               />
             </Grid>
@@ -497,7 +501,9 @@ function SevaManagement() {
                 type="number"
                 value={sevaForm.max_amount}
                 onChange={(e) => setSevaForm({...sevaForm, max_amount: parseFloat(e.target.value) || ''})}
-                InputProps={{ startAdornment: '₹' }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">{"\u20B9"}</InputAdornment>,
+                }}
                 fullWidth
               />
             </Grid>

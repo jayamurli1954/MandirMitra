@@ -10,7 +10,11 @@ from typing import List, Optional
 from datetime import datetime, date
 
 from app.core.database import get_db
-from app.core.temple_context import resolve_temple_id_for_user
+from app.core.temple_context import (
+    require_system_roles,
+    require_temple_id_for_user,
+    require_temple_write_access_to_temple,
+)
 from app.core.security import get_current_user
 from app.core.coa_bootstrap import ensure_default_coa_for_temple
 from app.models.user import User
@@ -98,7 +102,7 @@ def get_account_balance(db: Session, account_id: int, as_of_date: Optional[date]
 
 def _resolve_temple_id(db: Session, current_user: User) -> int:
     """Resolve temple scope for the current request."""
-    return resolve_temple_id_for_user(db, current_user, fallback_to_first=True, active_only=False) or 0
+    return require_temple_id_for_user(db, current_user, active_only=False)
 
 
 def _seed_default_accounts_for_temple(
@@ -192,18 +196,14 @@ def initialize_default_accounts(
     Initialize default chart of accounts for current temple.
     Safe to run multiple times; only missing accounts are created.
     """
-    is_admin = (
-        current_user.role == "admin"
-        or current_user.role == "temple_manager"
-        or current_user.is_superuser
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail="Only admin users can initialize default accounts",
     )
-    if not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can initialize default accounts",
-        )
 
     temple_id = _resolve_temple_id(db, current_user)
+    require_temple_write_access_to_temple(db, current_user, temple_id)
     result = _seed_default_accounts_for_temple(db, temple_id, raise_on_error=True)
     result["temple_id"] = temple_id
     result["message"] = (
@@ -245,18 +245,14 @@ def create_account(
     Create new account
     Only admin users can create accounts
     """
-    # Check if user is admin or has superuser privileges
-    is_admin = (
-        current_user.role == "admin"
-        or current_user.role == "temple_manager"
-        or current_user.is_superuser
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail="Only admin users can create accounts",
     )
-    if not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only admin users can create accounts"
-        )
 
     temple_id = _resolve_temple_id(db, current_user)
+    require_temple_write_access_to_temple(db, current_user, temple_id)
 
     # Verify temple_id matches current user, when explicitly provided by client.
     if account_data.temple_id is not None and account_data.temple_id != temple_id:
@@ -340,18 +336,14 @@ def update_account(
     Account code can NEVER be changed
     Reason required for audit trail when making significant changes
     """
-    # Check if user is admin or has superuser privileges
-    is_admin = (
-        current_user.role == "admin"
-        or current_user.role == "temple_manager"
-        or current_user.is_superuser
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail="Only admin users can update accounts",
     )
-    if not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only admin users can update accounts"
-        )
 
     temple_id = _resolve_temple_id(db, current_user)
+    require_temple_write_access_to_temple(db, current_user, temple_id)
 
     account = (
         db.query(Account)

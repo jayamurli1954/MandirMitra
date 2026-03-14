@@ -4,6 +4,8 @@ from typing import Callable
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.temple_context import require_system_roles
+
 from app.models.accounting import (
     Account,
     JournalEntry,
@@ -19,8 +21,11 @@ def transfer_advance_booking_to_income(
     booking_id: int,
     current_user,
 ):
-    if current_user.role not in ["admin", "accountant", "temple_manager"] and not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Only authorized users can perform this action")
+    require_system_roles(
+        current_user,
+        {"admin", "accountant", "temple_manager"},
+        detail="Only authorized users can perform this action",
+    )
 
     booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
     if not booking:
@@ -305,8 +310,11 @@ def transfer_advance_bookings_batch(
     db: Session,
     current_user,
 ):
-    if current_user.role not in ["admin", "accountant", "temple_manager"] and not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Only authorized users can perform this action")
+    require_system_roles(
+        current_user,
+        {"admin", "accountant", "temple_manager"},
+        detail="Only authorized users can perform this action",
+    )
 
     temple_id = current_user.temple_id
     if not temple_id:
@@ -476,8 +484,11 @@ def create_accounting_for_booking(
     current_user,
     post_seva_to_accounting_fn: Callable,
 ):
-    if current_user.role not in ["admin", "accountant", "temple_manager"] and not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Only authorized users can perform this action")
+    require_system_roles(
+        current_user,
+        {"admin", "accountant", "temple_manager"},
+        detail="Only authorized users can perform this action",
+    )
 
     booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
     if not booking:

@@ -35,7 +35,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.temple_context import attach_requested_temple_context
+from app.core.temple_context import (
+    attach_requested_temple_context,
+    can_access_all_temples,
+    resolve_temple_id_for_user,
+)
 from app.models.user import User
 
 
@@ -199,4 +203,16 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
 
-    return attach_requested_temple_context(user, request)
+    user = attach_requested_temple_context(user, request)
+
+    requested_temple_id = getattr(user, "_requested_temple_id", None)
+    if requested_temple_id is not None and can_access_all_temples(user):
+        user.temple_id = resolve_temple_id_for_user(
+            db,
+            user,
+            requested_temple_id=requested_temple_id,
+            fallback_to_first=False,
+            active_only=False,
+        )
+
+    return user

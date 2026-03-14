@@ -52,9 +52,10 @@ function CategoryWiseDonationReport() {
     }
   };
 
+  // Initial report load should happen once on mount; later refreshes are user-driven.
   useEffect(() => {
     fetchReport();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleExport = (format) => {
     if (!reportData) return;
@@ -62,7 +63,7 @@ function CategoryWiseDonationReport() {
     const exportData = reportData.categories.map(cat => ({
       'Category': cat.category,
       'Count': cat.count,
-      'Amount (₹)': cat.amount,
+      'Amount (INR)': cat.amount,
     }));
 
     if (format === 'csv') {
@@ -141,7 +142,7 @@ function CategoryWiseDonationReport() {
                   <TableRow>
                     <TableCell><strong>Category</strong></TableCell>
                     <TableCell align="right"><strong>Count</strong></TableCell>
-                    <TableCell align="right"><strong>Amount (₹)</strong></TableCell>
+                    <TableCell align="right"><strong>Amount (INR)</strong></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>

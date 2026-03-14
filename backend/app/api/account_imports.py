@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.api.accounts import _resolve_temple_id, _seed_default_accounts_for_temple
 from app.core.database import get_db
+from app.core.role_permissions import require_action_permission
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_write_access_to_temple
 from app.models.accounting import Account, AccountSubType, AccountType
 from app.models.user import User
 from app.schemas.accounting import AccountCreate
@@ -44,7 +46,7 @@ CODE_TO_TYPE_MAP = {
 
 
 def _require_account_admin(current_user: User) -> None:
-    if current_user.role not in ["admin", "temple_manager"] and not current_user.is_superuser:
+    if current_user.role not in ["admin", "temple_manager", "accountant", "super_admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admin users can manage accounts",
@@ -123,6 +125,17 @@ async def import_legacy_accounts(
     """Import legacy account masters from CSV/XLSX into the current COA."""
     _require_account_admin(current_user)
     temple_id = _resolve_temple_id(db, current_user)
+    require_temple_write_access_to_temple(db, current_user, temple_id)
+    try:
+        require_action_permission(
+            db,
+            current_user,
+            "import_legacy_accounts",
+            temple_id=temple_id,
+            detail="You do not have permission to import legacy accounts",
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     _seed_default_accounts_for_temple(db, temple_id)
 
     if not file.filename:

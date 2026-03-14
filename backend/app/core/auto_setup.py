@@ -72,6 +72,9 @@ def setup_standalone_database():
 
 def is_standalone_mode() -> bool:
     """Check if running in standalone mode (for non-technical users)"""
+    if settings.DEPLOYMENT_MODE.lower() == "saas":
+        return False
+
     # Check if DATABASE_URL environment variable is explicitly set to SQLite
     if os.environ.get("DATABASE_URL", "").startswith("sqlite"):
         return True

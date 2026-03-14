@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.services.printer.printer_manager import get_printer_manager
 from app.services.printer.print_queue import get_print_queue
 from app.core.security import get_current_user
+from app.core.temple_context import require_system_roles
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/printers", tags=["Printers"])
@@ -22,11 +23,11 @@ class PrintRequest(BaseModel):
 
 def _require_printer_access(current_user: User) -> None:
     allowed_roles = {"admin", "super_admin", "temple_manager", "counter_staff", "accountant"}
-    if current_user.role not in allowed_roles and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have access to printer operations",
-        )
+    require_system_roles(
+        current_user,
+        allowed_roles,
+        detail="You do not have access to printer operations",
+    )
 
 
 @router.get("/", response_model=List[PrinterStatus])

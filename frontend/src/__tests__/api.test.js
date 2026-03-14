@@ -41,6 +41,7 @@ require('../services/api');
 
 beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     delete window.location;
     window.location = { href: '' };
 });
@@ -50,14 +51,14 @@ describe('API Service - Request Interceptor', () => {
         expect(requestInterceptor).toBeInstanceOf(Function);
     });
 
-    it('adds Authorization header when token exists in localStorage', () => {
-        localStorage.setItem('token', 'my-jwt-token');
+    it('adds Authorization header when token exists in sessionStorage', () => {
+        sessionStorage.setItem('mm_access_token_v1', 'my-jwt-token');
         const config = { headers: {} };
         const result = requestInterceptor(config);
         expect(result.headers.Authorization).toBe('Bearer my-jwt-token');
     });
 
-    it('does not add Authorization header when no token in localStorage', () => {
+    it('does not add Authorization header when no token in sessionStorage', () => {
         const config = { headers: {} };
         const result = requestInterceptor(config);
         expect(result.headers['Authorization']).toBeUndefined();
@@ -75,15 +76,15 @@ describe('API Service - Response Interceptor', () => {
         expect(responseSuccessInterceptor(fakeResponse)).toBe(fakeResponse);
     });
 
-    it('error handler clears localStorage and redirects to /login on 401', async () => {
-        localStorage.setItem('token', 'expired');
-        localStorage.setItem('user', '{"email":"a@b.com"}');
+    it('error handler clears auth session and redirects to /login on 401', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'expired');
+        sessionStorage.setItem('mm_current_user_v1', '{"email":"a@b.com"}');
 
         const error = { response: { status: 401, data: {} }, message: 'Unauthorized' };
         try { await responseErrorInterceptor(error); } catch (e) { }
 
-        expect(localStorage.getItem('token')).toBeNull();
-        expect(localStorage.getItem('user')).toBeNull();
+        expect(sessionStorage.getItem('mm_access_token_v1')).toBeNull();
+        expect(sessionStorage.getItem('mm_current_user_v1')).toBeNull();
         expect(window.location.href).toBe('/login');
     });
 

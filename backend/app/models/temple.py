@@ -2,7 +2,7 @@
 Temple Model - Master temple data
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, Text, Float
+from sqlalchemy import Column, Integer, String, Boolean, Text, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -123,6 +123,10 @@ class Temple(Base):
     # Status
     is_active = Column(Boolean, default=True, index=True)
 
+    # Platform governance (SaaS)
+    platform_owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    allow_platform_writes = Column(Boolean, default=False)
+
     # Timestamps
     created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
     updated_at = Column(
@@ -132,7 +136,8 @@ class Temple(Base):
     )
 
     # Relationships
-    users = relationship("User", back_populates="temple")
+    users = relationship("User", back_populates="temple", foreign_keys="User.temple_id")
+    platform_owner = relationship("User", foreign_keys=[platform_owner_user_id])
     donations = relationship("Donation", back_populates="temple")
     donation_categories = relationship("DonationCategory", back_populates="temple")
     devotees = relationship("Devotee", back_populates="temple")

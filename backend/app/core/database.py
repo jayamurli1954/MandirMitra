@@ -96,6 +96,190 @@ def normalize_nullable_temple_module_flags(db: Session) -> None:
     db.commit()
 
 
+def ensure_seva_tenant_columns(db: Session) -> None:
+    """Ensure seva master and booking tables carry tenant context for SaaS mode."""
+
+    def add_integer_column_if_missing(table_name: str, column_name: str) -> bool:
+        if column_exists(db, table_name, column_name):
+            return False
+
+        dialect = db.get_bind().dialect.name
+        if dialect == "sqlite":
+            db.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} INTEGER"))
+        else:
+            db.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {column_name} INTEGER"))
+        return True
+
+    sevas_changed = add_integer_column_if_missing("sevas", "temple_id")
+    bookings_changed = add_integer_column_if_missing("seva_bookings", "temple_id")
+
+    single_temple = db.execute(
+        text("SELECT id FROM temples WHERE is_active = 1 ORDER BY id ASC LIMIT 2")
+    ).fetchall()
+    single_temple_id = single_temple[0][0] if len(single_temple) == 1 else None
+
+    if column_exists(db, "sevas", "temple_id"):
+        if single_temple_id is not None:
+            db.execute(
+                text("UPDATE sevas SET temple_id = :temple_id WHERE temple_id IS NULL"),
+                {"temple_id": single_temple_id},
+            )
+
+    if column_exists(db, "seva_bookings", "temple_id"):
+        db.execute(
+            text(
+                """
+                UPDATE seva_bookings
+                SET temple_id = (
+                    SELECT users.temple_id
+                    FROM users
+                    WHERE users.id = seva_bookings.user_id
+                )
+                WHERE temple_id IS NULL
+                  AND user_id IS NOT NULL
+                """
+            )
+        )
+        db.execute(
+            text(
+                """
+                UPDATE seva_bookings
+                SET temple_id = (
+                    SELECT devotees.temple_id
+                    FROM devotees
+                    WHERE devotees.id = seva_bookings.devotee_id
+                )
+                WHERE temple_id IS NULL
+                  AND devotee_id IS NOT NULL
+                """
+            )
+        )
+        if single_temple_id is not None:
+            db.execute(
+                text(
+                    "UPDATE seva_bookings SET temple_id = :temple_id WHERE temple_id IS NULL"
+                ),
+                {"temple_id": single_temple_id},
+            )
+
+    if sevas_changed or bookings_changed:
+        db.commit()
+    else:
+        db.commit()
+
+
+
+def ensure_temple_platform_access_columns(db: Session) -> None:
+    """Ensure temple governance columns exist for SaaS platform read-only access."""
+
+    def add_column_if_missing(table_name: str, column_name: str, sql_type: str) -> bool:
+        if column_exists(db, table_name, column_name):
+            return False
+
+        dialect = db.get_bind().dialect.name
+        if dialect == "sqlite":
+            db.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {sql_type}"))
+        else:
+            db.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {column_name} {sql_type}"))
+        return True
+
+    owner_changed = add_column_if_missing("temples", "platform_owner_user_id", "INTEGER")
+    writes_changed = add_column_if_missing("temples", "allow_platform_writes", "BOOLEAN")
+
+    if column_exists(db, "temples", "allow_platform_writes"):
+        db.execute(text("UPDATE temples SET allow_platform_writes = 0 WHERE allow_platform_writes IS NULL"))
+
+    if owner_changed or writes_changed:
+        db.commit()
+    else:
+        db.commit()
+
+
+def ensure_audit_log_tenant_column(db: Session) -> None:
+    """Ensure audit logs carry tenant context for tenant-safe reporting."""
+
+    if not column_exists(db, "audit_logs", "temple_id"):
+        dialect = db.get_bind().dialect.name
+        if dialect == "sqlite":
+            db.execute(text("ALTER TABLE audit_logs ADD COLUMN temple_id INTEGER"))
+        else:
+            db.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS temple_id INTEGER"))
+
+    db.execute(
+        text(
+            """
+            UPDATE audit_logs
+            SET temple_id = (
+                SELECT users.temple_id
+                FROM users
+                WHERE users.id = audit_logs.user_id
+            )
+            WHERE temple_id IS NULL
+            """
+        )
+    )
+
+    single_temple = db.execute(
+        text("SELECT id FROM temples WHERE is_active = 1 ORDER BY id ASC LIMIT 2")
+    ).fetchall()
+    single_temple_id = single_temple[0][0] if len(single_temple) == 1 else None
+    if single_temple_id is not None:
+        db.execute(
+            text("UPDATE audit_logs SET temple_id = :temple_id WHERE temple_id IS NULL"),
+            {"temple_id": single_temple_id},
+        )
+    db.commit()
+
+
+def normalize_saas_superuser_flags(db: Session) -> None:
+    """Keep SaaS platform-admin semantics aligned with role == super_admin."""
+    if settings.DEPLOYMENT_MODE.lower() != 'saas':
+        return
+
+    users_table = Table('users', MetaData(), autoload_with=db.get_bind())
+    email_column = getattr(users_table.c, 'email', None)
+    role_column = getattr(users_table.c, 'role', None)
+    is_superuser_column = getattr(users_table.c, 'is_superuser', None)
+    updated_at_column = getattr(users_table.c, 'updated_at', None)
+
+    if email_column is None or role_column is None or is_superuser_column is None:
+        return
+
+    now_value = datetime.utcnow().isoformat() if updated_at_column is not None else None
+    bootstrap_email = (settings.BOOTSTRAP_ADMIN_EMAIL or '').strip().lower()
+
+    if bootstrap_email:
+        promote_values = {'role': 'super_admin', 'is_superuser': True}
+        if updated_at_column is not None:
+            promote_values['updated_at'] = now_value
+        db.execute(
+            users_table.update()
+            .where(func.lower(email_column) == bootstrap_email)
+            .values(**promote_values)
+        )
+
+    demote_values = {'is_superuser': False}
+    if updated_at_column is not None:
+        demote_values['updated_at'] = now_value
+
+    demote_query = users_table.update().where(
+        role_column != 'super_admin',
+        is_superuser_column == True,
+    )
+    if bootstrap_email:
+        demote_query = demote_query.where(func.lower(email_column) != bootstrap_email)
+    db.execute(demote_query.values(**demote_values))
+
+    promote_super_admin_values = {'is_superuser': True}
+    if updated_at_column is not None:
+        promote_super_admin_values['updated_at'] = now_value
+    db.execute(
+        users_table.update()
+        .where(role_column == 'super_admin', is_superuser_column != True)
+        .values(**promote_super_admin_values)
+    )
+    db.commit()
+
 def init_db():
     """
     Initialize database (create tables and optionally create bootstrap admin user)
@@ -154,6 +338,10 @@ def init_db():
     db = SessionLocal()
     try:
         normalize_nullable_temple_module_flags(db)
+        ensure_seva_tenant_columns(db)
+        ensure_temple_platform_access_columns(db)
+        ensure_audit_log_tenant_column(db)
+        normalize_saas_superuser_flags(db)
     finally:
         db.close()
 
@@ -162,7 +350,10 @@ def init_db():
     is_sqlite = db_url.startswith("sqlite")
 
     if is_sqlite:
-        print("[INFO] Standalone mode detected - admin user will be created from config")
+        if settings.is_standalone:
+            print("[INFO] Standalone mode detected - admin user will be created from config")
+        else:
+            print("[INFO] Local SQLite database detected in SaaS mode - skipping bootstrap admin auto-creation")
         return
 
     from app.core.security import get_password_hash

@@ -122,9 +122,10 @@ function SetupWizard() {
     }
   };
 
+  // Initial wizard bootstrap happens once on mount; later refreshes are explicit after saves.
   useEffect(() => {
     fetchWizardData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveTemple = async () => {
     const resolvedTempleName = (templeForm.name || '').trim();

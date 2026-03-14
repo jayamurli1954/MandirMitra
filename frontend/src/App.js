@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { LoadingProvider } from './contexts/LoadingContext';
+import { CurrentUserProvider } from './contexts/CurrentUserContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const Login = lazy(() => import('./pages/Login'));
@@ -21,6 +22,7 @@ const SevaManagement = lazy(() => import('./pages/SevaManagement'));
 const Settings = lazy(() => import('./pages/Settings'));
 const SetupWizard = lazy(() => import('./pages/SetupWizard'));
 const Profile = lazy(() => import('./pages/Profile'));
+const TempleDirectory = lazy(() => import('./pages/TempleDirectory'));
 const CategoryWiseDonationReport = lazy(() => import('./pages/CategoryWiseDonationReport'));
 const DetailedDonationReport = lazy(() => import('./pages/DetailedDonationReport'));
 const DetailedSevaReport = lazy(() => import('./pages/DetailedSevaReport'));
@@ -54,9 +56,10 @@ function App() {
       <CssBaseline />
       <NotificationProvider>
         <LoadingProvider>
-          <Router>
-            <Suspense fallback={<div style={{ padding: 16 }}>Loading...</div>}>
-              <Routes>
+          <CurrentUserProvider>
+            <Router>
+              <Suspense fallback={<div style={{ padding: 16 }}>Loading...</div>}>
+                <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -230,6 +233,14 @@ function App() {
               />
 
               <Route
+                path="/platform/temples"
+                element={
+                  <ProtectedRoute>
+                    <TempleDirectory />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/accounting/chart-of-accounts"
                 element={
                   <ProtectedRoute>
@@ -286,9 +297,10 @@ function App() {
                 }
               />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
-            </Suspense>
-          </Router>
+                </Routes>
+              </Suspense>
+            </Router>
+          </CurrentUserProvider>
         </LoadingProvider>
       </NotificationProvider>
     </ThemeProvider>
@@ -296,4 +308,9 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
 

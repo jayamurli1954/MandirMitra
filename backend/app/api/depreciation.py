@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.asset import Asset, DepreciationSchedule, AssetCategory, AssetStatus
 from app.models.accounting import (
@@ -24,6 +25,14 @@ from app.models.accounting import (
 from app.models.depreciation_methods import DepreciationCalculator, DepreciationMethod
 
 router = APIRouter(prefix="/api/v1/assets/depreciation", tags=["depreciation"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 # ===== PYDANTIC SCHEMAS =====
@@ -90,7 +99,7 @@ def calculate_depreciation(
     Calculate depreciation for an asset
     Uses the asset's configured depreciation method
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Get asset
     asset = (
@@ -327,7 +336,7 @@ def post_depreciation(
     Post depreciation to accounting
     Creates journal entry: Dr Depreciation Expense, Cr Accumulated Depreciation
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Get schedule
     schedule = (
@@ -466,9 +475,10 @@ def get_depreciation_schedule(
     current_user: User = Depends(get_current_user),
 ):
     """Get depreciation schedule for an asset"""
+    temple_id = _resolve_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
 
@@ -497,7 +507,7 @@ def calculate_depreciation_batch(
     Calculate depreciation for multiple assets at once
     Useful for monthly/yearly depreciation runs
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     if not period_start_date or not period_end_date:
         # Default to current period

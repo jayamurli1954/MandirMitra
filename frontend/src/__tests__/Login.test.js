@@ -7,6 +7,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import Login from '../pages/Login';
+import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 
 // Mock useNavigate
 const mockedNavigate = jest.fn();
@@ -15,8 +16,9 @@ jest.mock('react-router-dom', () => ({
     useNavigate: () => mockedNavigate,
 }));
 
-// Mock global fetch
-global.fetch = jest.fn();
+jest.mock('../utils/apiBaseUrl', () => ({
+    fetchWithApiFallback: jest.fn(),
+}));
 
 const renderLogin = () =>
     render(
@@ -40,7 +42,7 @@ describe('Login Page - Rendering', () => {
     it('renders email and password fields', () => {
         renderLogin();
         expect(screen.getByLabelText(/Email Address/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
+        expect(screen.getByLabelText(/^Password/i)).toBeInTheDocument();
     });
 
     it('renders the Sign In button', () => {
@@ -64,51 +66,71 @@ describe('Login Page - User Interaction', () => {
 
     it('updates password field on input', async () => {
         renderLogin();
-        const passwordInput = screen.getByLabelText(/Password/i);
+        const passwordInput = screen.getByLabelText(/^Password/i);
         await userEvent.type(passwordInput, 'secret123');
         expect(passwordInput.value).toBe('secret123');
     });
 
     it('password field type is password (hidden text)', () => {
         renderLogin();
-        expect(screen.getByLabelText(/Password/i)).toHaveAttribute('type', 'password');
+        expect(screen.getByLabelText(/^Password/i)).toHaveAttribute('type', 'password');
     });
 });
 
 describe('Login Page - Successful Login', () => {
-    it('stores token in localStorage and navigates to /brand-intro on success', async () => {
-        global.fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({ access_token: 'mock-token-123' }),
-        });
+    it('stores token in sessionStorage and navigates to /brand-intro on success', async () => {
+        fetchWithApiFallback
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ access_token: 'mock-token-123' }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    id: 1,
+                    email: 'admin@temple.com',
+                    role: 'admin',
+                    system_role: 'admin',
+                    is_superuser: false,
+                    module_permissions: {},
+                    action_permissions: {},
+                }),
+            });
 
         renderLogin();
         await userEvent.type(screen.getByLabelText(/Email Address/i), 'admin@temple.com');
-        await userEvent.type(screen.getByLabelText(/Password/i), 'admin123');
+        await userEvent.type(screen.getByLabelText(/^Password/i), 'admin123');
         fireEvent.click(screen.getByRole('button', { name: /Sign In/i }));
 
         await waitFor(() => {
-            expect(localStorage.getItem('token')).toBe('mock-token-123');
+            expect(sessionStorage.getItem('mm_access_token_v1')).toBe('mock-token-123');
             expect(sessionStorage.getItem('showBrandIntroAfterLogin')).toBe('1');
             expect(mockedNavigate).toHaveBeenCalledWith('/brand-intro');
         });
     });
 
     it('calls the correct login endpoint with form data', async () => {
-        global.fetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({ access_token: 'tok' }),
-        });
+        fetchWithApiFallback
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ access_token: 'tok' }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ email: 'admin@temple.com', role: 'admin', system_role: 'admin', is_superuser: false }),
+            });
 
         renderLogin();
         await userEvent.type(screen.getByLabelText(/Email Address/i), 'admin@temple.com');
-        await userEvent.type(screen.getByLabelText(/Password/i), 'pass');
+        await userEvent.type(screen.getByLabelText(/^Password/i), 'pass');
         fireEvent.click(screen.getByRole('button', { name: /Sign In/i }));
 
         await waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith(
+            expect(fetchWithApiFallback).toHaveBeenNthCalledWith(
+                1,
                 expect.stringContaining('/api/v1/login'),
-                expect.objectContaining({ method: 'POST' })
+                expect.objectContaining({ method: 'POST' }),
+                expect.any(Object)
             );
         });
     });
@@ -116,14 +138,14 @@ describe('Login Page - Successful Login', () => {
 
 describe('Login Page - Error States', () => {
     it('shows error alert when login fails with backend message', async () => {
-        global.fetch.mockResolvedValueOnce({
+        fetchWithApiFallback.mockResolvedValueOnce({
             ok: false,
             json: async () => ({ detail: 'Incorrect username or password' }),
         });
 
         renderLogin();
         await userEvent.type(screen.getByLabelText(/Email Address/i), 'wrong@temple.com');
-        await userEvent.type(screen.getByLabelText(/Password/i), 'badpass');
+        await userEvent.type(screen.getByLabelText(/^Password/i), 'badpass');
         fireEvent.click(screen.getByRole('button', { name: /Sign In/i }));
 
         await waitFor(() => {
@@ -133,11 +155,11 @@ describe('Login Page - Error States', () => {
     });
 
     it('shows error alert when fetch throws (network error)', async () => {
-        global.fetch.mockRejectedValueOnce(new Error('Network Error'));
+        fetchWithApiFallback.mockRejectedValueOnce(new Error('Network Error'));
 
         renderLogin();
         await userEvent.type(screen.getByLabelText(/Email Address/i), 'admin@temple.com');
-        await userEvent.type(screen.getByLabelText(/Password/i), 'pass123');
+        await userEvent.type(screen.getByLabelText(/^Password/i), 'pass123');
         fireEvent.click(screen.getByRole('button', { name: /Sign In/i }));
 
         await waitFor(() => {
@@ -146,14 +168,14 @@ describe('Login Page - Error States', () => {
     });
 
     it('does not navigate on failed login', async () => {
-        global.fetch.mockResolvedValueOnce({
+        fetchWithApiFallback.mockResolvedValueOnce({
             ok: false,
             json: async () => ({ detail: 'Forbidden' }),
         });
 
         renderLogin();
         await userEvent.type(screen.getByLabelText(/Email Address/i), 'a@b.com');
-        await userEvent.type(screen.getByLabelText(/Password/i), 'bad');
+        await userEvent.type(screen.getByLabelText(/^Password/i), 'bad');
         fireEvent.click(screen.getByRole('button', { name: /Sign In/i }));
 
         await waitFor(() => {
@@ -165,11 +187,11 @@ describe('Login Page - Error States', () => {
 describe('Login Page - Loading State', () => {
     it('disables the Sign In button while loading', async () => {
         // Never resolve so we can check intermediate loading state
-        global.fetch.mockImplementationOnce(() => new Promise(() => { }));
+        fetchWithApiFallback.mockImplementationOnce(() => new Promise(() => { }));
 
         renderLogin();
         await userEvent.type(screen.getByLabelText(/Email Address/i), 'a@temple.com');
-        await userEvent.type(screen.getByLabelText(/Password/i), 'pass');
+        await userEvent.type(screen.getByLabelText(/^Password/i), 'pass');
         fireEvent.click(screen.getByRole('button', { name: /Sign In/i }));
 
         // After click, loading starts â€“ the submit button becomes disabled while fetch pending

@@ -27,6 +27,9 @@ def list_bookings(
         joinedload(SevaBooking.priest),
     )
 
+    if column_exists(db, "seva_bookings", "temple_id") and getattr(current_user, "temple_id", None) is not None:
+        query = query.filter(SevaBooking.temple_id == current_user.temple_id)
+
     if current_user.role != "admin":
         query = query.filter(SevaBooking.user_id == current_user.id)
 
@@ -43,7 +46,10 @@ def list_bookings(
 
 
 def get_booking(db: Session, booking_id: int, current_user):
-    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    booking_query = db.query(SevaBooking).filter(SevaBooking.id == booking_id)
+    if column_exists(db, "seva_bookings", "temple_id") and getattr(current_user, "temple_id", None) is not None:
+        booking_query = booking_query.filter(SevaBooking.temple_id == current_user.temple_id)
+    booking = booking_query.first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
@@ -57,6 +63,7 @@ def create_booking(
     db: Session,
     booking_data: SevaBookingCreate,
     current_user,
+    temple_id: Optional[int],
     get_seva_safely_fn: Callable,
     post_seva_to_accounting_fn: Callable,
 ):
@@ -136,6 +143,7 @@ def create_booking(
     booking_status = SevaBookingStatus.PENDING if seva.requires_approval else SevaBookingStatus.CONFIRMED
 
     booking_columns = {
+        "temple_id": temple_id,
         "seva_id": booking_data.seva_id,
         "devotee_id": booking_data.devotee_id,
         "user_id": current_user.id,
@@ -248,12 +256,12 @@ def create_booking(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to create booking: {str(e)}")
 
-    if current_user and current_user.temple_id:
+    if temple_id is not None:
         try:
             post_seva_to_accounting_fn(
                 db,
                 booking,
-                current_user.temple_id,
+                temple_id,
                 payment_account_id=selected_payment_account_id,
             )
         except Exception as e:
@@ -296,7 +304,10 @@ def update_booking(
     booking_data: SevaBookingUpdate,
     current_user,
 ):
-    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    booking_query = db.query(SevaBooking).filter(SevaBooking.id == booking_id)
+    if column_exists(db, "seva_bookings", "temple_id") and getattr(current_user, "temple_id", None) is not None:
+        booking_query = booking_query.filter(SevaBooking.temple_id == current_user.temple_id)
+    booking = booking_query.first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
@@ -318,7 +329,10 @@ def cancel_booking(
     reason: Optional[str],
     current_user,
 ):
-    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    booking_query = db.query(SevaBooking).filter(SevaBooking.id == booking_id)
+    if column_exists(db, "seva_bookings", "temple_id") and getattr(current_user, "temple_id", None) is not None:
+        booking_query = booking_query.filter(SevaBooking.temple_id == current_user.temple_id)
+    booking = booking_query.first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 

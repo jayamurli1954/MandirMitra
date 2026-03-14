@@ -26,7 +26,9 @@ import {
 import Layout from '../../components/Layout';
 import MoneyOffIcon from '@mui/icons-material/MoneyOff';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import { useCurrentUser } from '../../contexts/CurrentUserContext';
 import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
+import { getAccessToken } from '../../utils/authStorage';
 
 // Common expense types with their account mappings
 const EXPENSE_TYPES = [
@@ -69,8 +71,12 @@ const LEGACY_EXPENSE_CODE_MAP = {
 };
 
 function QuickExpense() {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const canReverseEntries = Boolean(user.action_permissions?.reverse_accounting_entries) || user.role === 'admin';
+  const { user, loading: currentUserLoading } = useCurrentUser();
+  const canReverseEntries = !currentUserLoading && (
+    Boolean(user?.action_permissions?.reverse_accounting_entries)
+    || ['admin', 'super_admin'].includes(user?.role)
+    || Boolean(user?.is_superuser)
+  );
   const [accounts, setAccounts] = useState([]);
   const [paymentAccounts, setPaymentAccounts] = useState({ cash_accounts: [], bank_accounts: [] });
   const [todayExpenses, setTodayExpenses] = useState([]);
@@ -96,7 +102,7 @@ function QuickExpense() {
 
   const fetchAccounts = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback('/api/v1/accounts/', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -119,7 +125,7 @@ function QuickExpense() {
 
   const fetchTodayExpenses = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const today = new Date().toISOString().split('T')[0];
       const response = await fetchWithApiFallback(
         `/api/v1/journal-entries/?from_date=${today}&to_date=${today}&reference_type=expense`,
@@ -137,7 +143,7 @@ function QuickExpense() {
 
   const fetchPaymentAccounts = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback('/api/v1/donations/payment-accounts', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -212,7 +218,7 @@ function QuickExpense() {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const entryDateTime = String(expenseDate).includes('T') ? expenseDate : `${expenseDate}T00:00:00`;
       const payload = {
         entry_date: entryDateTime,
@@ -317,7 +323,7 @@ function QuickExpense() {
   const handlePostDraft = async (entryId, entryNumber) => {
     try {
       setPostingEntryId(entryId);
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback(`/api/v1/journal-entries/${entryId}/post`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
@@ -430,7 +436,7 @@ function QuickExpense() {
 
     try {
       setReversingEntryId(expense.id);
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback(`/api/v1/journal-entries/${expense.id}/cancel`, {
         method: 'POST',
         headers: {

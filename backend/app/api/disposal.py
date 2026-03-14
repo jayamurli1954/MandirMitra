@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.asset import Asset, AssetDisposal, AssetStatus, DisposalType
 from app.models.accounting import (
@@ -23,6 +24,14 @@ from app.models.accounting import (
 )
 
 router = APIRouter(prefix="/api/v1/assets/disposal", tags=["disposal"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 # ===== PYDANTIC SCHEMAS =====
@@ -73,7 +82,7 @@ def dispose_asset(
     - Cr Asset Account
     - Cr Gain on Disposal (if gain)
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Get asset
     asset = db.query(Asset).filter(Asset.id == asset_id, Asset.temple_id == temple_id).first()
@@ -273,7 +282,7 @@ def get_disposal_history(
     """Get disposal history for an asset"""
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == _resolve_temple_id(db, current_user))
         .first()
     )
 

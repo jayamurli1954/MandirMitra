@@ -3,13 +3,15 @@ Vendor API Endpoints
 Manage vendors/suppliers for temple services
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.schemas.vendor import VendorCreate, VendorUpdate, VendorResponse
@@ -17,22 +19,27 @@ from app.schemas.vendor import VendorCreate, VendorUpdate, VendorResponse
 router = APIRouter(prefix="/api/v1/vendors", tags=["vendors"])
 
 
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
 def generate_vendor_code(db: Session, temple_id: int) -> str:
-    """
-    Generate unique vendor code
-    Format: VEND001, VEND002, etc.
-    """
-    # Get last vendor code for this temple
+    """Generate unique vendor code for the active tenant."""
     last_vendor = (
-        db.query(Vendor).filter(Vendor.temple_id == temple_id).order_by(Vendor.id.desc()).first()
+        db.query(Vendor)
+        .filter(Vendor.temple_id == temple_id)
+        .order_by(Vendor.id.desc())
+        .first()
     )
 
     if last_vendor and last_vendor.vendor_code:
-        # Extract number and increment
         try:
-            last_num = int(last_vendor.vendor_code.replace("VEND", ""))
-            new_num = last_num + 1
-        except:
+            new_num = int(last_vendor.vendor_code.replace("VEND", "")) + 1
+        except Exception:
             new_num = 1
     else:
         new_num = 1
@@ -51,20 +58,15 @@ def list_vendors(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get list of vendors with optional filters
-    """
-    query = db.query(Vendor).filter(Vendor.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Vendor).filter(Vendor.temple_id == temple_id)
 
     if vendor_type:
         query = query.filter(Vendor.vendor_type == vendor_type)
-
     if is_active is not None:
         query = query.filter(Vendor.is_active == is_active)
-
     if is_preferred is not None:
         query = query.filter(Vendor.is_preferred == is_preferred)
-
     if search:
         search_filter = f"%{search}%"
         query = query.filter(
@@ -73,26 +75,17 @@ def list_vendors(
             | (Vendor.phone.ilike(search_filter))
         )
 
-    vendors = query.order_by(Vendor.vendor_name).limit(limit).offset(offset).all()
-    return vendors
+    return query.order_by(Vendor.vendor_name).limit(limit).offset(offset).all()
 
 
 @router.get("/{vendor_id}", response_model=VendorResponse)
 def get_vendor(
     vendor_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    """
-    Get vendor by ID
-    """
-    vendor = (
-        db.query(Vendor)
-        .filter(Vendor.id == vendor_id, Vendor.temple_id == current_user.temple_id)
-        .first()
-    )
-
+    temple_id = _resolve_temple_id(db, current_user)
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.temple_id == temple_id).first()
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
-
     return vendor
 
 
@@ -102,22 +95,18 @@ def create_vendor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Create new vendor
-    """
-    # Verify temple_id matches current user
-    if vendor_data.temple_id != current_user.temple_id:
+    temple_id = _resolve_write_temple_id(db, current_user)
+    if vendor_data.temple_id is not None and vendor_data.temple_id != temple_id:
         raise HTTPException(status_code=403, detail="Cannot create vendor for different temple")
 
-    # Generate vendor code
-    vendor_code = generate_vendor_code(db, current_user.temple_id)
+    vendor_payload = vendor_data.dict()
+    vendor_payload["temple_id"] = temple_id
+    vendor_payload["vendor_code"] = generate_vendor_code(db, temple_id)
 
-    # Create vendor
-    vendor = Vendor(vendor_code=vendor_code, **vendor_data.dict())
+    vendor = Vendor(**vendor_payload)
     db.add(vendor)
     db.commit()
     db.refresh(vendor)
-
     return vendor
 
 
@@ -128,27 +117,18 @@ def update_vendor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Update vendor
-    """
-    vendor = (
-        db.query(Vendor)
-        .filter(Vendor.id == vendor_id, Vendor.temple_id == current_user.temple_id)
-        .first()
-    )
-
+    temple_id = _resolve_write_temple_id(db, current_user)
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.temple_id == temple_id).first()
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
 
-    # Update fields
-    update_data = vendor_data.dict(exclude_unset=True)
-    for field, value in update_data.items():
+    for field, value in vendor_data.dict(exclude_unset=True).items():
         setattr(vendor, field, value)
 
+    vendor.temple_id = temple_id
     vendor.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(vendor)
-
     return vendor
 
 
@@ -156,45 +136,29 @@ def update_vendor(
 def delete_vendor(
     vendor_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    """
-    Delete (deactivate) vendor
-    Vendors with transactions are deactivated, not deleted
-    """
-    vendor = (
-        db.query(Vendor)
-        .filter(Vendor.id == vendor_id, Vendor.temple_id == current_user.temple_id)
-        .first()
-    )
-
+    temple_id = _resolve_write_temple_id(db, current_user)
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.temple_id == temple_id).first()
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
 
-    # Check if vendor has sponsorships
-    has_transactions = len(vendor.sponsorships) > 0
-
-    if has_transactions:
-        # Cannot delete, only deactivate
+    if len(vendor.sponsorships) > 0:
         vendor.is_active = False
         vendor.updated_at = datetime.utcnow()
         db.commit()
         return {"message": "Vendor deactivated (has transaction history)"}
-    else:
-        # Can safely delete
-        db.delete(vendor)
-        db.commit()
-        return {"message": "Vendor deleted successfully"}
+
+    db.delete(vendor)
+    db.commit()
+    return {"message": "Vendor deleted successfully"}
 
 
 @router.get("/types/list")
 def get_vendor_types(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """
-    Get list of unique vendor types used in the system
-    """
+    temple_id = _resolve_temple_id(db, current_user)
     types = (
         db.query(Vendor.vendor_type)
-        .filter(Vendor.temple_id == current_user.temple_id, Vendor.vendor_type.isnot(None))
+        .filter(Vendor.temple_id == temple_id, Vendor.vendor_type.isnot(None))
         .distinct()
         .all()
     )
-
-    return [t[0] for t in types if t[0]]
+    return [value for (value,) in types if value]

@@ -11,6 +11,7 @@ from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.devotee import Devotee
 from app.models.inkind_sponsorship import (
@@ -37,6 +38,18 @@ from app.schemas.inkind import (
 )
 
 router = APIRouter(prefix="/api/v1/inkind-donations", tags=["inkind-donations"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
+def _get_inkind_donation_in_scope(db: Session, donation_id: int, temple_id: int) -> InKindDonation | None:
+    return db.query(InKindDonation).filter(InKindDonation.id == donation_id, InKindDonation.temple_id == temple_id).first()
 
 
 # ===== HELPER FUNCTIONS =====
@@ -341,14 +354,16 @@ def create_inkind_donation(
     """
     Create new in-kind donation
     """
+    temple_id = _resolve_write_temple_id(db, current_user)
+
     # Verify temple_id matches current user
-    if donation_data.temple_id != current_user.temple_id:
+    if donation_data.temple_id != temple_id:
         raise HTTPException(status_code=403, detail="Cannot create donation for different temple")
 
     # Verify devotee exists
     devotee = (
         db.query(Devotee)
-        .filter(Devotee.id == donation_data.devotee_id, Devotee.temple_id == current_user.temple_id)
+        .filter(Devotee.id == donation_data.devotee_id, Devotee.temple_id == temple_id)
         .first()
     )
 
@@ -357,7 +372,7 @@ def create_inkind_donation(
 
     # Create in-kind donation record
     inkind_donation = InKindDonation(
-        temple_id=donation_data.temple_id,
+        temple_id=temple_id,
         devotee_id=donation_data.devotee_id,
         receipt_date=donation_data.receipt_date,
         donation_type=donation_data.donation_type,
@@ -389,13 +404,13 @@ def create_inkind_donation(
 
     # Generate receipt number
     receipt_number = generate_inkind_receipt_number(
-        db, current_user.temple_id, donation_data.donation_type
+        db, temple_id, donation_data.donation_type
     )
     inkind_donation.receipt_number = receipt_number
 
     # Post to accounting
     journal_entry = post_inkind_to_accounts(
-        db, current_user.temple_id, inkind_donation, current_user
+        db, temple_id, inkind_donation, current_user
     )
     if journal_entry:
         inkind_donation.journal_entry_id = journal_entry.id
@@ -424,7 +439,8 @@ def list_inkind_donations(
     """
     Get list of in-kind donations with filters
     """
-    query = db.query(InKindDonation).filter(InKindDonation.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(InKindDonation).filter(InKindDonation.temple_id == temple_id)
 
     if donation_type:
         query = query.filter(InKindDonation.donation_type == donation_type)
@@ -463,13 +479,8 @@ def get_inkind_donation(
     """
     Get in-kind donation by ID
     """
-    donation = (
-        db.query(InKindDonation)
-        .filter(
-            InKindDonation.id == donation_id, InKindDonation.temple_id == current_user.temple_id
-        )
-        .first()
-    )
+    temple_id = _resolve_temple_id(db, current_user)
+    donation = _get_inkind_donation_in_scope(db, donation_id, temple_id)
 
     if not donation:
         raise HTTPException(status_code=404, detail="In-kind donation not found")
@@ -491,13 +502,8 @@ def update_inkind_donation(
     """
     Update in-kind donation
     """
-    donation = (
-        db.query(InKindDonation)
-        .filter(
-            InKindDonation.id == donation_id, InKindDonation.temple_id == current_user.temple_id
-        )
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    donation = _get_inkind_donation_in_scope(db, donation_id, temple_id)
 
     if not donation:
         raise HTTPException(status_code=404, detail="In-kind donation not found")
@@ -530,8 +536,9 @@ def record_consumption(
     """
     Record consumption of in-kind donation (mainly for consumables)
     """
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Verify temple_id matches current user
-    if consumption_data.temple_id != current_user.temple_id:
+    if consumption_data.temple_id != temple_id:
         raise HTTPException(
             status_code=403, detail="Cannot record consumption for different temple"
         )
@@ -541,7 +548,7 @@ def record_consumption(
         db.query(InKindDonation)
         .filter(
             InKindDonation.id == consumption_data.inkind_donation_id,
-            InKindDonation.temple_id == current_user.temple_id,
+            InKindDonation.temple_id == temple_id,
         )
         .first()
     )
@@ -559,7 +566,7 @@ def record_consumption(
     # Create consumption record
     consumption = InKindConsumption(
         inkind_donation_id=consumption_data.inkind_donation_id,
-        temple_id=consumption_data.temple_id,
+        temple_id=temple_id,
         consumption_date=consumption_data.consumption_date,
         quantity_consumed=consumption_data.quantity_consumed,
         purpose=consumption_data.purpose,
@@ -579,7 +586,7 @@ def record_consumption(
 
     # Post to accounting
     journal_entry = post_consumption_to_accounts(
-        db, current_user.temple_id, consumption, inkind_donation, current_user
+        db, temple_id, consumption, inkind_donation, current_user
     )
     if journal_entry:
         consumption.journal_entry_id = journal_entry.id
@@ -597,21 +604,16 @@ def get_consumption_history(
     """
     Get consumption history for a specific in-kind donation
     """
+    temple_id = _resolve_temple_id(db, current_user)
     # Verify donation exists and belongs to temple
-    donation = (
-        db.query(InKindDonation)
-        .filter(
-            InKindDonation.id == donation_id, InKindDonation.temple_id == current_user.temple_id
-        )
-        .first()
-    )
+    donation = _get_inkind_donation_in_scope(db, donation_id, temple_id)
 
     if not donation:
         raise HTTPException(status_code=404, detail="In-kind donation not found")
 
     consumptions = (
         db.query(InKindConsumption)
-        .filter(InKindConsumption.inkind_donation_id == donation_id)
+        .filter(InKindConsumption.inkind_donation_id == donation_id, InKindConsumption.temple_id == temple_id)
         .order_by(InKindConsumption.consumption_date.desc())
         .all()
     )
@@ -631,8 +633,9 @@ def get_inventory_summary(
     """
     Get inventory summary grouped by donation type and item category
     """
+    temple_id = _resolve_temple_id(db, current_user)
     query = db.query(InKindDonation).filter(
-        InKindDonation.temple_id == current_user.temple_id,
+        InKindDonation.temple_id == temple_id,
         InKindDonation.status.in_(
             [InKindStatus.RECEIVED, InKindStatus.IN_STOCK, InKindStatus.IN_USE]
         ),

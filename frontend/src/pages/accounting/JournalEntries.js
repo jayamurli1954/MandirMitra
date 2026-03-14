@@ -34,7 +34,9 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MinimizeIcon from '@mui/icons-material/Minimize';
+import { useCurrentUser } from '../../contexts/CurrentUserContext';
 import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
+import { getAccessToken } from '../../utils/authStorage';
 
 function JournalEntryRow({
   entry,
@@ -71,7 +73,7 @@ function JournalEntryRow({
         <TableCell>{entry.entry_number}</TableCell>
         <TableCell>{new Date(entry.entry_date).toLocaleDateString()}</TableCell>
         <TableCell>{entry.narration}</TableCell>
-        <TableCell align="right">₹{entry.total_amount.toFixed(2)}</TableCell>
+        <TableCell align="right">â‚¹{entry.total_amount.toFixed(2)}</TableCell>
         <TableCell>
           <Chip label={entry.status} color={getStatusColor(entry.status)} size="small" />
         </TableCell>
@@ -119,8 +121,8 @@ function JournalEntryRow({
                   <TableRow>
                     <TableCell><strong>Account</strong></TableCell>
                     <TableCell><strong>Description</strong></TableCell>
-                    <TableCell align="right"><strong>Debit (₹)</strong></TableCell>
-                    <TableCell align="right"><strong>Credit (₹)</strong></TableCell>
+                    <TableCell align="right"><strong>Debit (â‚¹)</strong></TableCell>
+                    <TableCell align="right"><strong>Credit (â‚¹)</strong></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -142,12 +144,12 @@ function JournalEntryRow({
                     <TableCell colSpan={2}><strong>TOTAL</strong></TableCell>
                     <TableCell align="right">
                       <strong>
-                        ₹{entry.journal_lines.reduce((sum, line) => sum + line.debit_amount, 0).toFixed(2)}
+                        â‚¹{entry.journal_lines.reduce((sum, line) => sum + line.debit_amount, 0).toFixed(2)}
                       </strong>
                     </TableCell>
                     <TableCell align="right">
                       <strong>
-                        ₹{entry.journal_lines.reduce((sum, line) => sum + line.credit_amount, 0).toFixed(2)}
+                        â‚¹{entry.journal_lines.reduce((sum, line) => sum + line.credit_amount, 0).toFixed(2)}
                       </strong>
                     </TableCell>
                   </TableRow>
@@ -162,8 +164,12 @@ function JournalEntryRow({
 }
 
 function JournalEntries() {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const canReverseEntries = Boolean(user.action_permissions?.reverse_accounting_entries) || user.role === 'admin';
+  const { user, loading: currentUserLoading } = useCurrentUser();
+  const canReverseEntries = !currentUserLoading && (
+    Boolean(user?.action_permissions?.reverse_accounting_entries)
+    || ['admin', 'super_admin'].includes(user?.role)
+    || Boolean(user?.is_superuser)
+  );
   const [entries, setEntries] = useState([]);
   const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), 3, 1)); // April 1st
   const [toDate, setToDate] = useState(new Date());
@@ -186,15 +192,16 @@ function JournalEntries() {
     { account_id: '', debit_amount: '', credit_amount: '', description: '' },
   ]);
 
+  // Initial data load happens once on mount; later refreshes are explicit from filters/actions.
   useEffect(() => {
     fetchEntries();
     fetchAccounts();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchEntries = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
       const response = await fetchWithApiFallback(
@@ -217,7 +224,7 @@ function JournalEntries() {
 
   const fetchAccounts = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback(`/api/v1/accounts/`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -274,7 +281,7 @@ function JournalEntries() {
         return;
       }
 
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const payload = {
         entry_date: entryDate,
         narration,
@@ -326,7 +333,7 @@ function JournalEntries() {
   const handlePostEntry = async (entry) => {
     try {
       setPostingEntryId(entry.id);
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback(`/api/v1/journal-entries/${entry.id}/post`, {
         method: 'POST',
         headers: {
@@ -357,7 +364,7 @@ function JournalEntries() {
 
     try {
       setReversingEntryId(entry.id);
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback(`/api/v1/journal-entries/${entry.id}/cancel`, {
         method: 'POST',
         headers: {
@@ -701,10 +708,10 @@ function JournalEntries() {
                 <Box sx={{ bgcolor: '#fff3e0', p: 2, borderRadius: 1 }}>
                   <Grid container spacing={2}>
                     <Grid item xs={6}>
-                      <Typography variant="body2">Total Debit: ₹{totalDebit.toFixed(2)}</Typography>
+                      <Typography variant="body2">Total Debit: â‚¹{totalDebit.toFixed(2)}</Typography>
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography variant="body2">Total Credit: ₹{totalCredit.toFixed(2)}</Typography>
+                      <Typography variant="body2">Total Credit: â‚¹{totalCredit.toFixed(2)}</Typography>
                     </Grid>
                     <Grid item xs={12}>
                       <Typography
@@ -712,8 +719,8 @@ function JournalEntries() {
                         color={totalDebit === totalCredit && totalDebit > 0 ? 'success.main' : 'error.main'}
                       >
                         {totalDebit === totalCredit && totalDebit > 0
-                          ? '✓ Entry is balanced'
-                          : '✗ Entry must be balanced (debits = credits)'}
+                          ? 'âœ“ Entry is balanced'
+                          : 'âœ— Entry must be balanced (debits = credits)'}
                       </Typography>
                     </Grid>
                   </Grid>

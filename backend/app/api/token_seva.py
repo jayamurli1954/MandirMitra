@@ -12,6 +12,7 @@ import json
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.token_seva import (
     TokenInventory,
     TokenSale,
@@ -22,11 +23,18 @@ from app.models.token_seva import (
 from app.models.seva import Seva
 from app.models.devotee import Devotee
 from app.models.user import User
-from app.models.temple import Temple
 from app.models.accounting import JournalEntry, JournalLine, Account
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/token-seva", tags=["token-seva"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 # Pydantic Schemas
@@ -80,7 +88,7 @@ def add_token_inventory(
     current_user: User = Depends(get_current_user),
 ):
     """Add pre-printed tokens to inventory"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     created_tokens = []
     for token_data in tokens:
@@ -146,7 +154,7 @@ def record_token_sale(
     current_user: User = Depends(get_current_user),
 ):
     """Record a token sale"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Find available token
     token = (
@@ -169,14 +177,14 @@ def record_token_sale(
     if token.seva_id != sale_data.seva_id:
         raise HTTPException(status_code=400, detail="Token seva_id does not match sale seva_id")
 
-    seva = db.query(Seva).filter(Seva.id == sale_data.seva_id).first()
+    seva = db.query(Seva).filter(Seva.id == sale_data.seva_id, Seva.temple_id == temple_id).first()
     if not seva:
         raise HTTPException(status_code=404, detail="Seva not found")
 
     # Get or create devotee if provided
     devotee_id = sale_data.devotee_id
     if sale_data.devotee_phone and not devotee_id:
-        devotee = db.query(Devotee).filter(Devotee.phone == sale_data.devotee_phone).first()
+        devotee = db.query(Devotee).filter(Devotee.phone == sale_data.devotee_phone, Devotee.temple_id == temple_id).first()
         if devotee:
             devotee_id = devotee.id
         elif sale_data.devotee_name:
@@ -325,7 +333,7 @@ def get_token_sales(
     current_user: User = Depends(get_current_user),
 ):
     """Get token sales with filters"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     query = db.query(TokenSale).filter(TokenSale.temple_id == temple_id)
 
@@ -344,7 +352,7 @@ def get_token_sales(
 
     result = []
     for sale in sales:
-        seva = db.query(Seva).filter(Seva.id == sale.seva_id).first()
+        seva = db.query(Seva).filter(Seva.id == sale.seva_id, Seva.temple_id == temple_id).first()
         result.append(
             TokenSaleResponse(
                 id=sale.id,
@@ -369,7 +377,7 @@ def get_token_inventory_status(
     current_user: User = Depends(get_current_user),
 ):
     """Get token inventory status by seva"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     query = db.query(
         TokenInventory.seva_id, TokenInventory.status, func.count(TokenInventory.id).label("count")
@@ -384,7 +392,7 @@ def get_token_inventory_status(
     status_by_seva = {}
     for seva_id, status, count in results:
         if seva_id not in status_by_seva:
-            seva = db.query(Seva).filter(Seva.id == seva_id).first()
+            seva = db.query(Seva).filter(Seva.id == seva_id, Seva.temple_id == temple_id).first()
             status_by_seva[seva_id] = {
                 "seva_id": seva_id,
                 "seva_name": seva.name_english if seva else "Unknown",
@@ -403,7 +411,7 @@ def create_reconciliation(
     current_user: User = Depends(get_current_user),
 ):
     """Create daily token reconciliation"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
     recon_date = reconciliation_data.reconciliation_date
 
     # Check if reconciliation already exists
@@ -516,7 +524,7 @@ def approve_reconciliation(
         db.query(TokenReconciliation)
         .filter(
             TokenReconciliation.id == reconciliation_id,
-            TokenReconciliation.temple_id == current_user.temple_id,
+            TokenReconciliation.temple_id == _resolve_write_temple_id(db, current_user),
         )
         .first()
     )
@@ -544,7 +552,7 @@ def get_reconciliation(
     reconciliation = (
         db.query(TokenReconciliation)
         .filter(
-            TokenReconciliation.temple_id == current_user.temple_id,
+            TokenReconciliation.temple_id == _resolve_temple_id(db, current_user),
             TokenReconciliation.reconciliation_date == date,
         )
         .first()

@@ -8,6 +8,7 @@ from typing import Optional, List, Dict
 
 from app.core.database import get_db
 from app.models.user import User
+from app.core.temple_context import require_temple_id_for_user
 from app.core.security import get_current_user
 from app.schemas.panchang_display_settings import (
     PanchangDisplaySettingsCreate,
@@ -29,13 +30,10 @@ def get_display_settings(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get panchang display settings for the temple"""
-    if not current_user.temple_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="User is not associated with a temple"
-        )
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     service = PanchangDisplaySettingsService(db)
-    settings = service.get_or_create_default(current_user.temple_id)
+    settings = service.get_or_create_default(temple_id)
 
     return settings
 
@@ -51,7 +49,7 @@ def get_display_settings_by_temple(
 ):
     """Get panchang display settings for a specific temple"""
     # Check if user has permission (admin or same temple)
-    if not current_user.is_superuser and current_user.temple_id != temple_id:
+    if current_user.role != "super_admin" and current_user.temple_id != temple_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access this temple's settings",
@@ -77,7 +75,7 @@ def create_display_settings(
 ):
     """Create panchang display settings"""
     # Check permissions
-    if not current_user.is_superuser:
+    if current_user.role != "super_admin":
         if not current_user.temple_id or current_user.temple_id != settings_data.temple_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -105,15 +103,12 @@ def update_display_settings(
     current_user: User = Depends(get_current_user),
 ):
     """Update panchang display settings"""
-    if not current_user.temple_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="User is not associated with a temple"
-        )
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     service = PanchangDisplaySettingsService(db)
 
     try:
-        settings = service.update(current_user.temple_id, settings_data)
+        settings = service.update(temple_id, settings_data)
         return settings
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -133,7 +128,7 @@ def update_display_settings_by_temple(
 ):
     """Update panchang display settings for a specific temple"""
     # Check permissions
-    if not current_user.is_superuser and current_user.temple_id != temple_id:
+    if current_user.role != "super_admin" and current_user.temple_id != temple_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this temple's settings",
@@ -158,15 +153,12 @@ def apply_preset(
     preset_name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Apply a preset configuration to panchang display settings"""
-    if not current_user.temple_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="User is not associated with a temple"
-        )
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     service = PanchangDisplaySettingsService(db)
 
     try:
-        settings = service.apply_preset(current_user.temple_id, preset_name)
+        settings = service.apply_preset(temple_id, preset_name)
         return settings
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -182,13 +174,10 @@ def reset_to_defaults(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Reset panchang display settings to defaults"""
-    if not current_user.temple_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="User is not associated with a temple"
-        )
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     service = PanchangDisplaySettingsService(db)
-    settings = service.reset_to_defaults(current_user.temple_id)
+    settings = service.reset_to_defaults(temple_id)
 
     return settings
 
@@ -216,13 +205,10 @@ def delete_display_settings(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete panchang display settings"""
-    if not current_user.temple_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="User is not associated with a temple"
-        )
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     service = PanchangDisplaySettingsService(db)
-    deleted = service.delete(current_user.temple_id)
+    deleted = service.delete(temple_id)
 
     if not deleted:
         raise HTTPException(

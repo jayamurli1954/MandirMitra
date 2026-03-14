@@ -297,6 +297,8 @@ def bootstrap_temple_and_admin(
             slug=final_slug,
             primary_deity=primary_deity,
             is_active=True,
+            platform_owner_user_id=None,
+            allow_platform_writes=False,
         )
         db.add(temple)
         db.flush()
@@ -308,7 +310,7 @@ def bootstrap_temple_and_admin(
             full_name=full_name,
             role="temple_manager",
             is_active=True,
-            is_superuser=True,
+            is_superuser=False,
         )
         db.add(admin_user)
         db.commit()

@@ -22,6 +22,7 @@ from typing import List, Optional
 from datetime import datetime, date
 
 from app.core.database import get_db
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.core.security import get_current_user
 from app.core.integrity_check import calculate_integrity_hash
 from app.core.audit_log import write_to_audit_log
@@ -82,6 +83,10 @@ def generate_entry_number(db: Session, temple_id: Optional[int]) -> str:
 def validate_journal_entry(journal_lines: List, db: Session, temple_id: Optional[int]):
     return _svc_validate_journal_entry(journal_lines, db, temple_id)
 
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
 # ===== JOURNAL ENTRY CRUD =====
 
 
@@ -103,12 +108,8 @@ def list_journal_entries(
     Get list of journal entries with filters
     Can filter by account code to find entries affecting specific accounts
     """
-    # Handle standalone mode (temple_id can be None)
-    if current_user.temple_id is not None:
-        query = db.query(JournalEntry).filter(JournalEntry.temple_id == current_user.temple_id)
-    else:
-        # In standalone mode, show entries with temple_id=0 (default for standalone)
-        query = db.query(JournalEntry).filter(JournalEntry.temple_id == 0)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(JournalEntry).filter(JournalEntry.temple_id == temple_id)
 
     if status_filter:
         query = query.filter(JournalEntry.status == status_filter)
@@ -125,11 +126,10 @@ def list_journal_entries(
     # Filter by account code if provided
     if account_code:
         # Find account by code
-        account_filter = [Account.account_code == account_code]
-        if current_user.temple_id is not None:
-            account_filter.append(Account.temple_id == current_user.temple_id)
-        else:
-            account_filter.append(Account.temple_id == 0)
+        account_filter = [
+            Account.account_code == account_code,
+            Account.temple_id == temple_id,
+        ]
 
         account = db.query(Account).filter(*account_filter).first()
         if account:
@@ -177,9 +177,10 @@ def get_journal_entry(
     """
     Get journal entry by ID
     """
+    temple_id = _resolve_temple_id(db, current_user)
     entry = (
         db.query(JournalEntry)
-        .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == current_user.temple_id)
+        .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == temple_id)
         .first()
     )
 
@@ -204,17 +205,13 @@ def create_journal_entry(
     """
     Create new journal entry (in draft status)
     """
-    # Get temple_id from request or current user (for standalone mode)
-    temple_id = entry_data.temple_id if entry_data.temple_id is not None else current_user.temple_id
+    resolved_temple_id = require_temple_write_access(db, current_user, active_only=False)
+    temple_id = entry_data.temple_id if entry_data.temple_id is not None else resolved_temple_id
 
-    # Verify temple_id matches current user (if both are set)
-    if entry_data.temple_id is not None and current_user.temple_id is not None:
-        if entry_data.temple_id != current_user.temple_id:
-            raise HTTPException(status_code=403, detail="Cannot create entry for different temple")
+    if temple_id != resolved_temple_id:
+        raise HTTPException(status_code=403, detail="Cannot create entry for different temple")
 
-    # In standalone mode, use 0 as default temple_id (since DB requires non-null)
-    # But we'll store None in the response schema
-    effective_temple_id = temple_id if temple_id is not None else 0
+    effective_temple_id = temple_id
 
     # Validate journal entry
     total_amount = validate_journal_entry(entry_data.journal_lines, db, temple_id)
@@ -230,7 +227,7 @@ def create_journal_entry(
         narration=entry_data.narration,
         reference_type=entry_data.reference_type,
         reference_id=entry_data.reference_id,
-        temple_id=effective_temple_id,  # Use effective_temple_id (0 for standalone mode)
+        temple_id=effective_temple_id,
         total_amount=total_amount,
         status=JournalEntryStatus.DRAFT,
         created_by=current_user.id,
@@ -292,9 +289,10 @@ def update_journal_entry(
     Update a draft journal entry
     Only draft entries can be updated
     """
+    effective_temple_id = require_temple_write_access(db, current_user, active_only=False)
     entry = (
         db.query(JournalEntry)
-        .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == current_user.temple_id)
+        .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == effective_temple_id)
         .first()
     )
 
@@ -319,7 +317,7 @@ def update_journal_entry(
         db.query(JournalLine).filter(JournalLine.journal_entry_id == entry_id).delete()
 
         # Validate new lines
-        total_amount = validate_journal_entry(update_data.journal_lines, db, current_user.temple_id)
+        total_amount = validate_journal_entry(update_data.journal_lines, db, effective_temple_id)
 
         # Create new lines
         for line_data in update_data.journal_lines:
@@ -392,8 +390,7 @@ def post_journal_entry(
     Post a draft journal entry
     Posted entries cannot be modified
     """
-    # Handle standalone mode consistently with list/create endpoints
-    effective_temple_id = current_user.temple_id if current_user.temple_id is not None else 0
+    effective_temple_id = require_temple_write_access(db, current_user, active_only=False)
     entry = (
         db.query(JournalEntry)
         .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == effective_temple_id)
@@ -410,8 +407,7 @@ def post_journal_entry(
         )
 
     # Revalidate before posting
-    validation_temple_id = current_user.temple_id if current_user.temple_id is not None else None
-    validate_journal_entry(entry.journal_lines, db, validation_temple_id)
+    validate_journal_entry(entry.journal_lines, db, effective_temple_id)
 
     # Post entry
     entry.status = JournalEntryStatus.POSTED
@@ -467,9 +463,10 @@ def cancel_journal_entry(
             detail="Only admin users can cancel journal entries",
         )
 
+    effective_temple_id = require_temple_write_access(db, current_user, active_only=False)
     entry = (
         db.query(JournalEntry)
-        .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == current_user.temple_id)
+        .filter(JournalEntry.id == entry_id, JournalEntry.temple_id == effective_temple_id)
         .first()
     )
 
@@ -506,7 +503,7 @@ def cancel_journal_entry(
 
     # Create reversing entry
     # Use the same entry_date as the original entry so reversal appears in same period
-    reversal_number = generate_entry_number(db, current_user.temple_id)
+    reversal_number = generate_entry_number(db, effective_temple_id)
     reversal_entry = JournalEntry(
         entry_number=reversal_number,
         entry_date=entry.entry_date,  # Use same date as original entry
@@ -582,7 +579,7 @@ def get_trial_balance(
     - Other parent accounts similarly aggregated
     """
     # For standalone mode, handle temple_id = None
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Get all accounts for temple (including inactive) so Trial Balance is always
     # derived from the full ledger history and remains arithmetically complete.
@@ -817,7 +814,7 @@ def get_account_ledger(
     Shows all transactions for a specific account
     """
     # For standalone mode, handle temple_id = None
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     account_filter = [Account.id == account_id]
     if temple_id is not None:
@@ -934,7 +931,7 @@ def get_profit_loss_statement(
     Shows categorized income and expenses with net surplus/deficit
     """
     # For standalone mode, handle temple_id = None
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Get all income accounts (41000-49999) with balances
     income_filter = [
@@ -1158,7 +1155,7 @@ def get_category_income_report(
     Breaks down income by donation categories, seva types, etc.
     """
     # For standalone mode, handle temple_id = None
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Get donation income (4100-4199)
     donation_filter = [
@@ -1316,7 +1313,7 @@ def get_top_donors_report(
     Shows top donors by total donation amount
     """
     # For standalone mode, handle temple_id = None
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Get donations with devotee info
     donor_filter = [
@@ -1403,7 +1400,7 @@ def get_balance_sheet(
     Format: Schedule III compliant (adapted for trusts)
     """
     # For standalone mode, handle temple_id = None
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Calculate previous year date if needed
     previous_year_date = None
@@ -1739,7 +1736,7 @@ def get_day_book(
     Generate Day Book - All transactions for a specific day
     Shows all receipts and payments for the day with opening/closing balance
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Get all journal entries for the day
     entry_filter = [
@@ -1904,7 +1901,7 @@ def get_cash_book(
     Generate Cash Book - All cash transactions for a date range
     Shows all cash receipts and payments with running balance
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Get cash accounts
     cash_account_filter = [
@@ -2043,7 +2040,7 @@ def get_bank_book(
     Generate Bank Book - All bank transactions for a specific bank account
     Shows deposits, withdrawals, and cheque tracking
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Get bank account
     account_filter = [Account.id == account_id]
@@ -2735,7 +2732,7 @@ def debug_account_transactions(
     Helps identify why trial balance shows unexpected balances
     """
     # Find account
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
     account_filter = [Account.account_code == account_code, Account.is_active == True]
     if temple_id is not None:
         account_filter.append(Account.temple_id == temple_id)

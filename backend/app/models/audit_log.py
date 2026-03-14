@@ -22,6 +22,7 @@ class AuditLog(Base):
 
     # User who performed the action
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    temple_id = Column(Integer, ForeignKey("temples.id"), nullable=True, index=True)
     user_name = Column(String(200), nullable=False)  # Denormalized for performance
     user_email = Column(String(100), nullable=False)  # Denormalized for performance
     user_role = Column(String(50), nullable=False)  # Denormalized for performance

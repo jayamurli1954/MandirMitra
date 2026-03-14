@@ -6,8 +6,6 @@ import {
   TextField,
   Button,
   Grid,
-  Card,
-  CardContent,
   Table,
   TableBody,
   TableCell,
@@ -31,9 +29,10 @@ import PaymentIcon from '@mui/icons-material/Payment';
 import QrCodeIcon from '@mui/icons-material/QrCode';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
+import { getAccessToken } from '../../utils/authStorage';
 
 function UpiPayments() {
-  const [devotees, setDevotees] = useState([]);
+  const [_devotees, setDevotees] = useState([]);
   const [payments, setPayments] = useState([]);
   const [formData, setFormData] = useState({
     devotee_phone: '',
@@ -48,14 +47,15 @@ function UpiPayments() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
 
+  // Payments reload intentionally follows the selected date; devotee prefetch is not needed here.
   useEffect(() => {
     fetchDevotees();
     fetchPayments();
-  }, [selectedDate]);
+  }, [selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchDevotees = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback('/api/v1/devotees/', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -70,7 +70,7 @@ function UpiPayments() {
 
   const fetchPayments = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const dateStr = selectedDate.toISOString().split('T')[0];
       const response = await fetchWithApiFallback(
         `/api/v1/upi-payments/?from_date=${dateStr}&to_date=${dateStr}`,
@@ -92,7 +92,7 @@ function UpiPayments() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback('/api/v1/upi-payments/quick-log', {
         method: 'POST',
         headers: {
@@ -173,7 +173,7 @@ function UpiPayments() {
 
                 <TextField
                   fullWidth
-                  label="Amount (₹) *"
+                  label={'Amount (\u20B9) *'}
                   name="amount"
                   type="number"
                   value={formData.amount}
@@ -290,7 +290,7 @@ function UpiPayments() {
                             })}
                           </TableCell>
                           <TableCell>{payment.sender_phone || 'N/A'}</TableCell>
-                          <TableCell>₹{payment.amount.toFixed(2)}</TableCell>
+                          <TableCell>{'\u20B9'}{payment.amount.toFixed(2)}</TableCell>
                           <TableCell>
                             <Chip
                               label={payment.payment_purpose}
@@ -315,7 +315,7 @@ function UpiPayments() {
               {payments.length > 0 && (
                 <Box sx={{ mt: 2, p: 2, bgcolor: '#FFF3E0', borderRadius: 1 }}>
                   <Typography variant="h6">
-                    Total: ₹{payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
+                    Total: {'\u20B9'}{payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
                   </Typography>
                 </Box>
               )}
@@ -345,7 +345,7 @@ function UpiPayments() {
                   Amount
                 </Typography>
                 <Typography variant="h5" color="success.main" gutterBottom>
-                  ₹{receiptDialog.data.amount.toFixed(2)}
+                  {'\u20B9'}{receiptDialog.data.amount.toFixed(2)}
                 </Typography>
 
                 <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mt: 2 }}>

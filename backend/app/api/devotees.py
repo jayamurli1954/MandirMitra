@@ -15,6 +15,7 @@ from openpyxl import load_workbook
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.core.data_masking import mask_phone_for_user, mask_address_for_user, mask_email_for_user
 from app.models.devotee import Devotee
 from app.models.user import User
@@ -23,6 +24,18 @@ from app.models.seva import SevaBooking, SevaBookingStatus
 from pydantic import BaseModel, EmailStr
 
 router = APIRouter(prefix="/api/v1/devotees", tags=["devotees"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
+def _get_devotee_in_scope(db: Session, devotee_id: int, temple_id: int) -> Devotee | None:
+    return db.query(Devotee).filter(Devotee.id == devotee_id, Devotee.temple_id == temple_id).first()
 
 
 # Pydantic Schemas
@@ -128,7 +141,7 @@ class DevoteeResponse(DevoteeBase):
         family_head_name = None
         if devotee.family_head_id:
             family_head = (
-                db.query(Devotee).filter(Devotee.id == devotee.family_head_id).first()
+                db.query(Devotee).filter(Devotee.id == devotee.family_head_id, Devotee.temple_id == devotee.temple_id).first()
                 if db
                 else None
             )
@@ -225,11 +238,8 @@ def get_devotees(
     current_user: User = Depends(get_current_user),
 ):
     """Get list of devotees (with data masking based on permissions)"""
-    query = db.query(Devotee)
-
-    # Apply temple filter
-    if current_user.temple_id:
-        query = query.filter(Devotee.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Devotee).filter(Devotee.temple_id == temple_id)
 
     # Search filter
     if search:
@@ -268,7 +278,7 @@ def search_devotee_by_mobile(
     """
     from typing import List as ListType
 
-    temple_id = current_user.temple_id if current_user else None
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Clean up mobile number (remove spaces, dashes)
     clean_mobile = mobile.strip().replace(" ", "").replace("-", "")
@@ -411,9 +421,8 @@ def get_devotee_analytics(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get devotee analytics and metrics"""
-    query = db.query(Devotee)
-    if current_user.temple_id:
-        query = query.filter(Devotee.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Devotee).filter(Devotee.temple_id == temple_id)
 
     total_devotees = query.count()
     active_devotees = query.filter(Devotee.is_active == True).count()
@@ -426,7 +435,7 @@ def get_devotee_analytics(
     # Devotees with donations
     devotees_with_donations = (
         db.query(func.count(func.distinct(Donation.devotee_id)))
-        .filter(Donation.temple_id == current_user.temple_id if current_user.temple_id else True)
+        .filter(Donation.temple_id == temple_id)
         .scalar()
         or 0
     )
@@ -438,8 +447,7 @@ def get_devotee_analytics(
         .group_by(Devotee.id, Devotee.name)
     )
 
-    if current_user.temple_id:
-        top_donors_query = top_donors_query.filter(Donation.temple_id == current_user.temple_id)
+    top_donors_query = top_donors_query.filter(Donation.temple_id == temple_id)
 
     top_donors = top_donors_query.order_by(func.sum(Donation.amount).desc()).limit(10).all()
 
@@ -447,10 +455,7 @@ def get_devotee_analytics(
     family_groups_count = db.query(func.count(func.distinct(Devotee.family_head_id))).filter(
         Devotee.family_head_id.isnot(None)
     )
-    if current_user.temple_id:
-        family_groups_count = family_groups_count.filter(
-            Devotee.temple_id == current_user.temple_id
-        )
+    family_groups_count = family_groups_count.filter(Devotee.temple_id == temple_id)
     family_groups_count = family_groups_count.scalar() or 0
 
     return {
@@ -542,9 +547,8 @@ def find_duplicate_devotees(
     """
     Find potential duplicate devotees based on phone, name, or email similarity
     """
-    query = db.query(Devotee)
-    if current_user.temple_id:
-        query = query.filter(Devotee.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Devotee).filter(Devotee.temple_id == temple_id)
 
     all_devotees = query.all()
     duplicates = []
@@ -612,8 +616,8 @@ def get_upcoming_birthdays(
 
     query = db.query(Devotee).filter(Devotee.date_of_birth.isnot(None))
 
-    if current_user.temple_id:
-        query = query.filter(Devotee.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = query.filter(Devotee.temple_id == temple_id)
 
     all_devotees = query.all()
     upcoming_birthdays = []
@@ -646,7 +650,8 @@ def get_devotee(
     devotee_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a specific devotee (with data masking based on permissions)"""
-    devotee = db.query(Devotee).filter(Devotee.id == devotee_id).first()
+    temple_id = _resolve_temple_id(db, current_user)
+    devotee = _get_devotee_in_scope(db, devotee_id, temple_id)
     if not devotee:
         raise HTTPException(status_code=404, detail="Devotee not found")
     return DevoteeResponse.from_orm_with_masking(devotee, current_user, db)
@@ -659,7 +664,7 @@ def create_devotee(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new devotee"""
-    temple_id = current_user.temple_id if current_user else None
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Normalize phone number (same logic as search)
     clean_phone = devotee.phone.strip().replace(" ", "").replace("-", "")
@@ -793,7 +798,7 @@ def create_devotee(
         receive_sms=devotee.receive_sms if devotee.receive_sms is not None else True,
         receive_email=devotee.receive_email if devotee.receive_email is not None else True,
         tags=tags_json,
-        temple_id=current_user.temple_id if current_user else None,
+        temple_id=temple_id,
     )
     db.add(db_devotee)
     db.commit()
@@ -809,7 +814,8 @@ def update_devotee(
     current_user: User = Depends(get_current_user),
 ):
     """Update a devotee"""
-    db_devotee = db.query(Devotee).filter(Devotee.id == devotee_id).first()
+    temple_id = _resolve_write_temple_id(db, current_user)
+    db_devotee = _get_devotee_in_scope(db, devotee_id, temple_id)
     if not db_devotee:
         raise HTTPException(status_code=404, detail="Devotee not found")
 
@@ -839,7 +845,8 @@ def delete_devotee(
     devotee_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a devotee"""
-    db_devotee = db.query(Devotee).filter(Devotee.id == devotee_id).first()
+    temple_id = _resolve_write_temple_id(db, current_user)
+    db_devotee = _get_devotee_in_scope(db, devotee_id, temple_id)
     if not db_devotee:
         raise HTTPException(status_code=404, detail="Devotee not found")
 
@@ -859,11 +866,12 @@ def merge_devotees(
     Merge duplicate devotees into one primary devotee
     Transfers all donations and bookings to primary devotee
     """
-    primary = db.query(Devotee).filter(Devotee.id == primary_id).first()
+    temple_id = _resolve_write_temple_id(db, current_user)
+    primary = _get_devotee_in_scope(db, primary_id, temple_id)
     if not primary:
         raise HTTPException(status_code=404, detail="Primary devotee not found")
 
-    duplicates = db.query(Devotee).filter(Devotee.id.in_(duplicate_ids)).all()
+    duplicates = db.query(Devotee).filter(Devotee.id.in_(duplicate_ids), Devotee.temple_id == temple_id).all()
     if len(duplicates) != len(duplicate_ids):
         raise HTTPException(status_code=404, detail="Some duplicate devotees not found")
 
@@ -905,7 +913,7 @@ def merge_devotees(
         )
 
         # Transfer family relationships
-        db.query(Devotee).filter(Devotee.family_head_id == dup.id).update(
+        db.query(Devotee).filter(Devotee.family_head_id == dup.id, Devotee.temple_id == temple_id).update(
             {Devotee.family_head_id: primary.id}
         )
 
@@ -927,11 +935,12 @@ def link_family_member(
     current_user: User = Depends(get_current_user),
 ):
     """Link a devotee to a family head"""
-    devotee = db.query(Devotee).filter(Devotee.id == devotee_id).first()
+    temple_id = _resolve_write_temple_id(db, current_user)
+    devotee = _get_devotee_in_scope(db, devotee_id, temple_id)
     if not devotee:
         raise HTTPException(status_code=404, detail="Devotee not found")
 
-    family_head = db.query(Devotee).filter(Devotee.id == family_head_id).first()
+    family_head = _get_devotee_in_scope(db, family_head_id, temple_id)
     if not family_head:
         raise HTTPException(status_code=404, detail="Family head not found")
 
@@ -951,7 +960,8 @@ def update_devotee_tags(
     current_user: User = Depends(get_current_user),
 ):
     """Update devotee tags"""
-    devotee = db.query(Devotee).filter(Devotee.id == devotee_id).first()
+    temple_id = _resolve_write_temple_id(db, current_user)
+    devotee = _get_devotee_in_scope(db, devotee_id, temple_id)
     if not devotee:
         raise HTTPException(status_code=404, detail="Devotee not found")
 
@@ -968,7 +978,8 @@ def get_family_members(
     devotee_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get all family members of a devotee"""
-    devotee = db.query(Devotee).filter(Devotee.id == devotee_id).first()
+    temple_id = _resolve_temple_id(db, current_user)
+    devotee = _get_devotee_in_scope(db, devotee_id, temple_id)
     if not devotee:
         raise HTTPException(status_code=404, detail="Devotee not found")
 
@@ -978,7 +989,7 @@ def get_family_members(
     # Get all family members
     family_members = (
         db.query(Devotee)
-        .filter(or_(Devotee.family_head_id == family_head_id, Devotee.id == family_head_id))
+        .filter(or_(Devotee.family_head_id == family_head_id, Devotee.id == family_head_id), Devotee.temple_id == temple_id)
         .all()
     )
 
@@ -995,10 +1006,7 @@ def bulk_import_devotees(
     Bulk import devotees from CSV or Excel file
     Returns summary of successful imports, skipped (duplicates), and errors
     """
-    temple_id = current_user.temple_id if current_user else None
-
-    if not temple_id:
-        raise HTTPException(status_code=400, detail="Temple ID is required")
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Validate file type
     file_extension = file.filename.split(".")[-1].lower() if file.filename else ""

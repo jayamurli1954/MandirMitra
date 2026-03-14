@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.accounting import (
     Account,
@@ -37,6 +38,14 @@ from app.schemas.financial_closing import (
 router = APIRouter(prefix="/api/v1/financial-closing", tags=["financial-closing"])
 
 
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
 @router.post("/financial-years", response_model=FinancialYearResponse)
 def create_financial_year(
     year_data: FinancialYearCreate,
@@ -49,6 +58,8 @@ def create_financial_year(
             status_code=403, detail="Only admins and accountants can create financial years"
         )
 
+    temple_id = _resolve_write_temple_id(db, current_user)
+
     # Check if year code already exists
     existing = (
         db.query(FinancialYear).filter(FinancialYear.year_code == year_data.year_code).first()
@@ -59,7 +70,7 @@ def create_financial_year(
         )
 
     financial_year = FinancialYear(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         year_code=year_data.year_code,
         start_date=year_data.start_date,
         end_date=year_data.end_date,
@@ -76,9 +87,9 @@ def get_financial_years(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get all financial years"""
+    temple_id = _resolve_temple_id(db, current_user)
     query = db.query(FinancialYear)
-    if current_user.temple_id:
-        query = query.filter(FinancialYear.temple_id == current_user.temple_id)
+    query = query.filter(FinancialYear.temple_id == temple_id)
 
     return query.order_by(FinancialYear.start_date.desc()).all()
 
@@ -88,11 +99,11 @@ def get_active_financial_year(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get the currently active financial year"""
+    temple_id = _resolve_temple_id(db, current_user)
     query = db.query(FinancialYear).filter(
         FinancialYear.is_active == True, FinancialYear.is_closed == False
     )
-    if current_user.temple_id:
-        query = query.filter(FinancialYear.temple_id == current_user.temple_id)
+    query = query.filter(FinancialYear.temple_id == temple_id)
 
     financial_year = query.first()
     if not financial_year:
@@ -114,7 +125,7 @@ def close_month(
     if current_user.role not in ["admin", "accountant"]:
         raise HTTPException(status_code=403, detail="Only admins and accountants can close periods")
 
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Get financial year
     financial_year = (
@@ -353,7 +364,7 @@ def close_year(
             status_code=403, detail="Only admins and accountants can close financial years"
         )
 
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Get financial year
     financial_year = (
@@ -531,10 +542,10 @@ def get_period_closings(
     current_user: User = Depends(get_current_user),
 ):
     """Get all period closings"""
+    temple_id = _resolve_temple_id(db, current_user)
     query = db.query(PeriodClosing)
 
-    if current_user.temple_id:
-        query = query.filter(PeriodClosing.temple_id == current_user.temple_id)
+    query = query.filter(PeriodClosing.temple_id == temple_id)
 
     if financial_year_id:
         query = query.filter(PeriodClosing.financial_year_id == financial_year_id)
@@ -613,7 +624,7 @@ def get_closing_summary(
     current_user: User = Depends(get_current_user),
 ):
     """Get summary for period closing"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Calculate income and expenses
     income_accounts = db.query(Account).filter(

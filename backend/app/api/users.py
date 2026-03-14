@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import log_action
 from app.core.database import get_db
-from app.core.temple_context import resolve_temple_id_for_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access_to_temple
 from app.core.password_policy import default_policy
 from app.core.role_permissions import get_user_role_context, resolve_role_input, assign_role_to_user
 from app.core.security import get_current_user, get_password_hash, verify_password
@@ -22,11 +22,11 @@ router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
 
 def _is_admin_user(current_user: User) -> bool:
-    return current_user.role in {"admin", "temple_manager"} or bool(current_user.is_superuser)
+    return current_user.role in {"admin", "temple_manager", "super_admin"}
 
 
 def _resolve_temple_id(db: Session, current_user: User) -> int | None:
-    return resolve_temple_id_for_user(db, current_user, fallback_to_first=True)
+    return require_temple_id_for_user(db, current_user, active_only=False)
 
 
 def _ensure_user_in_scope(user: User, temple_id: int | None) -> None:
@@ -50,7 +50,7 @@ def _serialize_user_response(db: Session, user: User, temple_id: int | None = No
         "module_permissions": role_context["module_permissions"],
         "action_permissions": role_context["action_permissions"],
         "is_active": user.is_active,
-        "is_superuser": user.is_superuser,
+        "is_superuser": bool(user.is_superuser) and user.role == "super_admin",
         "last_login_at": user.last_login_at,
         "created_at": user.created_at,
     }
@@ -112,6 +112,7 @@ def create_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
 
     temple_id = _resolve_temple_id(db, current_user)
+    require_temple_write_access_to_temple(db, current_user, temple_id)
 
     try:
         system_role, role_key, role_label = resolve_role_input(db, temple_id, user_data.role)
@@ -234,6 +235,7 @@ def update_user(
 
     if is_admin and not is_own_profile:
         _ensure_user_in_scope(user, temple_id)
+        require_temple_write_access_to_temple(db, current_user, temple_id)
 
     if not is_admin:
         if user_data.role is not None or user_data.is_active is not None:
@@ -324,6 +326,7 @@ def delete_user(
 
     temple_id = _resolve_temple_id(db, current_user)
     _ensure_user_in_scope(user, temple_id)
+    require_temple_write_access_to_temple(db, current_user, temple_id)
 
     user.is_active = False
     user.updated_at = datetime.utcnow().isoformat()

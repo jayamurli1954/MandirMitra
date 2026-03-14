@@ -1,3 +1,4 @@
+﻿/* eslint-disable no-irregular-whitespace */
 import React, { useState, useEffect } from 'react';
 import {
     Box,
@@ -5,10 +6,6 @@ import {
     Paper,
     Grid,
     Button,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
     TextField,
     Table,
     TableBody,
@@ -17,9 +14,6 @@ import {
     TableHead,
     TableRow,
     Chip,
-    Alert,
-    CircularProgress,
-    Divider,
     Card,
     CardContent,
     CardActions,
@@ -33,16 +27,17 @@ import { useNotification } from '../../contexts/NotificationContext';
 
 const FinancialClosing = () => {
     const { showSuccess, showError } = useNotification();
-    const [financialYears, setFinancialYears] = useState([]);
+    const [_financialYears, setFinancialYears] = useState([]);
     const [activeYear, setActiveYear] = useState(null);
     const [closings, setClosings] = useState([]);
     const [loading, setLoading] = useState(false);
     const [summary, setSummary] = useState(null);
     const [closingDate, setClosingDate] = useState(new Date().toISOString().split('T')[0]);
 
+    // Initial load happens once on mount; later refreshes are explicit after closing actions.
     useEffect(() => {
         fetchData();
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchData = async () => {
         setLoading(true);
@@ -66,7 +61,7 @@ const FinancialClosing = () => {
         }
     };
 
-    const fetchSummary = async (yearId) => {
+    const fetchSummary = async (_yearId) => {
         try {
             // For summary, we need a period. Let's assume current month for now or let user select
             const today = new Date();
@@ -208,15 +203,15 @@ const FinancialClosing = () => {
                                     <Grid container spacing={2} sx={{ mt: 1 }}>
                                         <Grid item xs={4}>
                                             <Typography variant="caption" color="textSecondary">Total Income</Typography>
-                                            <Typography variant="body1" fontWeight="bold">₹{summary.total_income.toLocaleString()}</Typography>
+                                            <Typography variant="body1" fontWeight="bold">Rs {summary.total_income.toLocaleString()}</Typography>
                                         </Grid>
                                         <Grid item xs={4}>
                                             <Typography variant="caption" color="textSecondary">Total Expenses</Typography>
-                                            <Typography variant="body1" fontWeight="bold">₹{summary.total_expenses.toLocaleString()}</Typography>
+                                            <Typography variant="body1" fontWeight="bold">Rs {summary.total_expenses.toLocaleString()}</Typography>
                                         </Grid>
                                         <Grid item xs={4}>
                                             <Typography variant="caption" color="textSecondary">Net Surplus</Typography>
-                                            <Typography variant="body1" fontWeight="bold" color="success.main">₹{summary.net_surplus.toLocaleString()}</Typography>
+                                            <Typography variant="body1" fontWeight="bold" color="success.main">Rs {summary.net_surplus.toLocaleString()}</Typography>
                                         </Grid>
                                     </Grid>
                                 </Box>
@@ -253,10 +248,10 @@ const FinancialClosing = () => {
                                                 />
                                             </TableCell>
                                             <TableCell>{new Date(closing.closing_date).toLocaleDateString()}</TableCell>
-                                            <TableCell align="right">₹{closing.total_income.toLocaleString()}</TableCell>
-                                            <TableCell align="right">₹{closing.total_expenses.toLocaleString()}</TableCell>
+                                            <TableCell align="right">Rs {closing.total_income.toLocaleString()}</TableCell>
+                                            <TableCell align="right">Rs {closing.total_expenses.toLocaleString()}</TableCell>
                                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                                                ₹{closing.net_surplus.toLocaleString()}
+                                                Rs {closing.net_surplus.toLocaleString()}
                                             </TableCell>
                                             <TableCell>{new Date(closing.completed_at).toLocaleString()}</TableCell>
                                             <TableCell>

@@ -6,6 +6,25 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import App from '../App';
 
+jest.mock('../components/ProtectedRoute', () => ({
+    __esModule: true,
+    default: ({ children }) => (globalThis.sessionStorage.getItem('mm_access_token_v1') ? children : <div data-testid="login-page">Login Page</div>),
+}));
+jest.mock('../contexts/CurrentUserContext', () => ({
+    __esModule: true,
+    CurrentUserProvider: ({ children }) => <>{children}</>,
+    useCurrentUser: () => ({ user: {}, loading: false, refreshUser: jest.fn(), setCurrentUser: jest.fn(), clearCurrentUser: jest.fn() }),
+}));
+jest.mock('../contexts/NotificationContext', () => ({
+    __esModule: true,
+    NotificationProvider: ({ children }) => <>{children}</>,
+    useNotification: () => ({ showSuccess: jest.fn(), showError: jest.fn(), showInfo: jest.fn(), showWarning: jest.fn() }),
+}));
+jest.mock('../contexts/LoadingContext', () => ({
+    __esModule: true,
+    LoadingProvider: ({ children }) => <>{children}</>,
+}));
+
 // Mock all page components to keep tests fast and focused on routing
 jest.mock('../pages/Login', () => () => <div data-testid="login-page">Login Page</div>);
 jest.mock('../pages/BrandIntro', () => () => <div data-testid="brand-intro-page">Brand Intro</div>);
@@ -37,76 +56,77 @@ const renderAppAt = (url) => {
 
 beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
 });
 
 describe('App - Routing', () => {
-    it('renders Login page at /login', () => {
+    it('renders Login page at /login', async () => {
         renderAppAt('/login');
-        expect(screen.getByTestId('login-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('login-page')).toBeInTheDocument();
     });
 
-    it('redirects to /login when accessing /dashboard without token', () => {
+    it('redirects to /login when accessing /dashboard without token', async () => {
         renderAppAt('/dashboard');
-        expect(screen.getByTestId('login-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('login-page')).toBeInTheDocument();
     });
 
-    it('renders Dashboard when authenticated and accessing /dashboard', () => {
-        localStorage.setItem('token', 'valid-token');
+    it('renders Dashboard when authenticated and accessing /dashboard', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'valid-token');
         renderAppAt('/dashboard');
-        expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('dashboard-page')).toBeInTheDocument();
     });
 
-    it('renders Brand Intro when authenticated and accessing /brand-intro', () => {
-        localStorage.setItem('token', 'valid-token');
+    it('renders Brand Intro when authenticated and accessing /brand-intro', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'valid-token');
         renderAppAt('/brand-intro');
-        expect(screen.getByTestId('brand-intro-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('brand-intro-page')).toBeInTheDocument();
     });
 
-    it('renders Devotees page when authenticated and accessing /devotees', () => {
-        localStorage.setItem('token', 'valid-token');
+    it('renders Devotees page when authenticated and accessing /devotees', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'valid-token');
         renderAppAt('/devotees');
-        expect(screen.getByTestId('devotees-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('devotees-page')).toBeInTheDocument();
     });
 
-    it('renders Donations page when authenticated and accessing /donations', () => {
-        localStorage.setItem('token', 'valid-token');
+    it('renders Donations page when authenticated and accessing /donations', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'valid-token');
         renderAppAt('/donations');
-        expect(screen.getByTestId('donations-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('donations-page')).toBeInTheDocument();
     });
 
-    it('renders Sevas page when authenticated and accessing /sevas', () => {
-        localStorage.setItem('token', 'valid-token');
+    it('renders Sevas page when authenticated and accessing /sevas', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'valid-token');
         renderAppAt('/sevas');
-        expect(screen.getByTestId('sevas-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('sevas-page')).toBeInTheDocument();
     });
 
-    it('renders SevaManagement page at /sevas/manage', () => {
-        localStorage.setItem('token', 'valid-token');
+    it('renders SevaManagement page at /sevas/manage', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'valid-token');
         renderAppAt('/sevas/manage');
-        expect(screen.getByTestId('seva-management-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('seva-management-page')).toBeInTheDocument();
     });
 
-    it('renders Settings page at /settings', () => {
-        localStorage.setItem('token', 'valid-token');
+    it('renders Settings page at /settings', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'valid-token');
         renderAppAt('/settings');
-        expect(screen.getByTestId('settings-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('settings-page')).toBeInTheDocument();
     });
 
-    it('renders Panchang page at /panchang', () => {
-        localStorage.setItem('token', 'valid-token');
+    it('renders Panchang page at /panchang', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'valid-token');
         renderAppAt('/panchang');
-        expect(screen.getByTestId('panchang-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('panchang-page')).toBeInTheDocument();
     });
 
-    it('redirects to /dashboard from / when authenticated', () => {
-        localStorage.setItem('token', 'valid-token');
+    it('redirects to /dashboard from / when authenticated', async () => {
+        sessionStorage.setItem('mm_access_token_v1', 'valid-token');
         renderAppAt('/');
-        expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('dashboard-page')).toBeInTheDocument();
     });
 
-    it('redirects to /login from / when not authenticated', () => {
+    it('redirects to /login from / when not authenticated', async () => {
         renderAppAt('/');
-        expect(screen.getByTestId('login-page')).toBeInTheDocument();
+        expect(await screen.findByTestId('login-page')).toBeInTheDocument();
     });
 });
 

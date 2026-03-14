@@ -45,6 +45,8 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import SavingsIcon from '@mui/icons-material/Savings';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import { useCurrentUser } from '../contexts/CurrentUserContext';
+import { clearAuthSession, getAccessToken, hasAccessToken } from '../utils/authStorage';
 
 const drawerWidth = 260;
 
@@ -59,6 +61,7 @@ const menuItems = [
   { text: 'Reports', icon: <AssessmentIcon />, path: '/reports', moduleFlag: 'module_reports_enabled', permissionKey: 'reports' },
   { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', moduleFlag: 'module_panchang_enabled', permissionKey: 'panchang' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', permissionKey: 'settings' },
+  { text: 'Temples / Trusts', icon: <TempleHinduIcon />, path: '/platform/temples', superAdminOnly: true },
 ];
 
 const sevaMenuItems = [
@@ -92,7 +95,6 @@ const DEFAULT_MODULE_CONFIG = {
 
 const LAYOUT_CACHE_TTL_MS = 2 * 60 * 1000;
 const MODULE_CONFIG_CACHE_KEY = 'layout_module_config_cache_v1';
-const USER_PROFILE_CACHE_KEY = 'layout_user_profile_cache_v1';
 const ACTIVE_TEMPLE_STORAGE_KEY = 'active_temple_id_v1';
 
 const readActiveTempleId = () => {
@@ -152,26 +154,25 @@ const writeLayoutCache = (key, value, ttlMs = LAYOUT_CACHE_TTL_MS) => {
 };
 
 function Layout({ children }) {
+  const { user, clearUser, loading: currentUserLoading } = useCurrentUser();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(true);
   const [sevasOpen, setSevasOpen] = useState(true);
   const [moduleConfig, setModuleConfig] = useState(DEFAULT_MODULE_CONFIG);
   const navigate = useNavigate();
   const location = useLocation();
-  const [userInfo, setUserInfo] = useState(() => {
-    const cachedProfile = readLayoutCache(USER_PROFILE_CACHE_KEY);
-    if (cachedProfile && typeof cachedProfile === 'object') {
-      return cachedProfile;
-    }
-    return JSON.parse(localStorage.getItem('user') || '{}');
-  });
   const [temples, setTemples] = useState([]);
   const [activeTempleId, setActiveTempleId] = useState(() => readActiveTempleId());
+  const userInfo = user || {};
 
   const systemRole = userInfo.system_role || userInfo.role;
   const modulePermissions = userInfo.module_permissions || {};
   const actionPermissions = userInfo.action_permissions || {};
+  const hasResolvedCurrentUser = Boolean(userInfo.id || userInfo.email || userInfo.role || userInfo.system_role || userInfo.is_superuser);
   const hasModuleAccess = (permissionKey) => {
+    if ((currentUserLoading && hasAccessToken()) || (!hasResolvedCurrentUser && hasAccessToken())) {
+      return false;
+    }
     if (userInfo.is_superuser) {
       return true;
     }
@@ -184,6 +185,9 @@ function Layout({ children }) {
     return true;
   };
   const hasActionAccess = (permissionKey) => {
+    if ((currentUserLoading && hasAccessToken()) || (!hasResolvedCurrentUser && hasAccessToken())) {
+      return false;
+    }
     if (userInfo.is_superuser) {
       return true;
     }
@@ -203,7 +207,7 @@ function Layout({ children }) {
   };
 
   const isSevaManager =
-    hasActionAccess('manage_seva_master') || ['admin', 'super_admin', 'temple_manager'].includes(systemRole) || Boolean(userInfo.is_superuser);
+    !currentUserLoading && (hasActionAccess('manage_seva_master') || ['admin', 'super_admin', 'temple_manager'].includes(systemRole) || Boolean(userInfo.is_superuser));
   const canApproveReschedule = hasActionAccess('approve_seva_reschedule') || isSevaManager;
 
   const visibleSevaMenuItems = sevaMenuItems.filter((item) => {
@@ -218,6 +222,7 @@ function Layout({ children }) {
 
   const displayName =
     userInfo.full_name || userInfo.name || (userInfo.email ? userInfo.email.split('@')[0] : '') || 'Admin';
+  const isPlatformSuperAdmin = Boolean(userInfo.is_superuser) || systemRole === 'super_admin';
 
   useEffect(() => {
     const fetchTempleInfo = async () => {
@@ -227,7 +232,7 @@ function Layout({ children }) {
       }
 
       try {
-        const token = localStorage.getItem('token');
+        const token = getAccessToken();
         if (!token) {
           return;
         }
@@ -292,70 +297,7 @@ function Layout({ children }) {
     return () => window.removeEventListener('active-temple-changed', handleActiveTempleChanged);
   }, []);
 
-  useEffect(() => {
-    const handleProfileUpdated = (event) => {
-      if (event?.detail && typeof event.detail === 'object') {
-        const merged = {
-          ...(JSON.parse(localStorage.getItem('user') || '{}')),
-          ...event.detail,
-        };
-        setUserInfo(merged);
-        localStorage.setItem('user', JSON.stringify(merged));
-        writeLayoutCache(USER_PROFILE_CACHE_KEY, merged);
-      }
-    };
 
-    const fetchCurrentUser = async () => {
-      const cachedProfile = readLayoutCache(USER_PROFILE_CACHE_KEY);
-      if (cachedProfile && (cachedProfile.id || cachedProfile.email)) {
-        setUserInfo(cachedProfile);
-        return;
-      }
-
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          return;
-        }
-
-        const response = await fetchWithApiFallback('/api/v1/users/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }, { timeoutMs: 12000 });
-        if (!response.ok) {
-          return;
-        }
-
-        const data = await response.json();
-        const normalized = {
-          ...(JSON.parse(localStorage.getItem('user') || '{}')),
-          id: data.id,
-          email: data.email,
-          full_name: data.full_name,
-          name: data.full_name || data.email,
-          role: data.system_role || data.role,
-          system_role: data.system_role || data.role,
-          role_key: data.role_key,
-          role_label: data.role_label,
-          phone: data.phone || '',
-          module_permissions: data.module_permissions || {},
-          action_permissions: data.action_permissions || {},
-          is_superuser: Boolean(data.is_superuser),
-        };
-        setUserInfo(normalized);
-        localStorage.setItem('user', JSON.stringify(normalized));
-        writeLayoutCache(USER_PROFILE_CACHE_KEY, normalized);
-      } catch (err) {
-        console.error('Failed to fetch current user profile', err);
-      }
-    };
-
-    window.addEventListener('user-profile-updated', handleProfileUpdated);
-    fetchCurrentUser();
-
-    return () => window.removeEventListener('user-profile-updated', handleProfileUpdated);
-  }, []);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -366,16 +308,20 @@ function Layout({ children }) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearAuthSession();
     localStorage.removeItem(MODULE_CONFIG_CACHE_KEY);
-    localStorage.removeItem(USER_PROFILE_CACHE_KEY);
     localStorage.removeItem(ACTIVE_TEMPLE_STORAGE_KEY);
-    setUserInfo({});
+    clearUser();
+    window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: { clear: true } }));
     navigate('/login');
   };
 
-  const visibleMenuItems = menuItems.filter((item) => isFeatureEnabled(item.moduleFlag) && hasModuleAccess(item.permissionKey));
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (item.superAdminOnly && !isPlatformSuperAdmin) {
+      return false;
+    }
+    return isFeatureEnabled(item.moduleFlag) && hasModuleAccess(item.permissionKey);
+  });
   const showSevaSection = isFeatureEnabled('module_sevas_enabled') && hasModuleAccess('sevas');
   const showAccountingSection = isFeatureEnabled('module_accounting_enabled') && hasModuleAccess('accounting');
 
@@ -392,7 +338,7 @@ function Layout({ children }) {
     }));
   };
 
-  const showTempleSwitcher = temples.length > 1 && (Boolean(userInfo.is_superuser) || systemRole === 'super_admin');
+  const showTempleSwitcher = temples.length > 1 && isPlatformSuperAdmin;
   const currentTempleLabel = moduleConfig?.name || moduleConfig?.trust_name || 'MandirMitra';
 
   const drawer = (
@@ -712,3 +658,5 @@ function Layout({ children }) {
 }
 
 export default Layout;
+
+

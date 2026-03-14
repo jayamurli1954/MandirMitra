@@ -21,9 +21,6 @@ def get_payment_accounts_for_temple(db: Session, temple_id: Optional[int]) -> di
     from app.models.upi_banking import BankAccount
 
     if not temple_id:
-        first_temple = db.query(Temple.id).order_by(Temple.id.asc()).first()
-        temple_id = first_temple.id if first_temple else None
-    if not temple_id:
         return {"cash_accounts": [], "bank_accounts": []}
 
     cash_accounts = (

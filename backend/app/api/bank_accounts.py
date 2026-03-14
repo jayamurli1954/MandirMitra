@@ -9,7 +9,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.core.temple_context import resolve_temple_id_for_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access_to_temple
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.upi_banking import BankAccount
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/v1/bank-accounts", tags=["bank-accounts"])
 
 
 def _resolve_temple_id(db: Session, current_user: User) -> int | None:
-    return resolve_temple_id_for_user(db, current_user, fallback_to_first=True)
+    return require_temple_id_for_user(db, current_user, active_only=False)
 
 
 # Pydantic Schemas
@@ -81,6 +81,7 @@ def get_bank_accounts(
 ):
     """Get all bank accounts for the temple"""
     temple_id = _resolve_temple_id(db, current_user)
+    require_temple_write_access_to_temple(db, current_user, temple_id)
     if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
@@ -102,6 +103,7 @@ def create_bank_account(
 ):
     """Create a new bank account"""
     temple_id = _resolve_temple_id(db, current_user)
+    require_temple_write_access_to_temple(db, current_user, temple_id)
     if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 
@@ -208,6 +210,7 @@ def update_bank_account(
 ):
     """Update a bank account"""
     temple_id = _resolve_temple_id(db, current_user)
+    require_temple_write_access_to_temple(db, current_user, temple_id)
     if not temple_id:
         raise HTTPException(status_code=404, detail="Temple not found")
 

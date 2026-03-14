@@ -11,6 +11,7 @@ from datetime import date, datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.inventory import Item, Store, StockBalance, StockMovement, StockMovementType
@@ -48,6 +49,34 @@ from app.api.inventory import (
 router = APIRouter(prefix="/api/v1/purchase-orders", tags=["purchase-orders"])
 
 
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
+def _get_vendor_in_scope(db: Session, vendor_id: int, temple_id: int) -> Vendor | None:
+    return db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.temple_id == temple_id).first()
+
+
+def _get_item_in_scope(db: Session, item_id: int, temple_id: int) -> Item | None:
+    return db.query(Item).filter(Item.id == item_id, Item.temple_id == temple_id).first()
+
+
+def _get_store_in_scope(db: Session, store_id: int, temple_id: int) -> Store | None:
+    return db.query(Store).filter(Store.id == store_id, Store.temple_id == temple_id).first()
+
+
+def _get_po_in_scope(db: Session, po_id: int, temple_id: int) -> PurchaseOrder | None:
+    return db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id, PurchaseOrder.temple_id == temple_id).first()
+
+
+def _get_stock_balance_in_scope(db: Session, item_id: int, store_id: int, temple_id: int) -> StockBalance | None:
+    return db.query(StockBalance).filter(StockBalance.item_id == item_id, StockBalance.store_id == store_id, StockBalance.temple_id == temple_id).first()
+
+
 # ===== PURCHASE ORDER ENDPOINTS =====
 
 
@@ -56,11 +85,10 @@ def create_purchase_order(
     po_data: POCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Create a new Purchase Order"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Verify vendor
     vendor = (
-        db.query(Vendor)
-        .filter(Vendor.id == po_data.vendor_id, Vendor.temple_id == current_user.temple_id)
-        .first()
+        _get_vendor_in_scope(db, po_data.vendor_id, temple_id)
     )
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
@@ -70,7 +98,7 @@ def create_purchase_order(
     prefix = f"PO/{year}/"
     last_po = (
         db.query(PurchaseOrder)
-        .filter(PurchaseOrder.po_number.like(f"{prefix}%"))
+        .filter(PurchaseOrder.po_number.like(f"{prefix}%"), PurchaseOrder.temple_id == temple_id)
         .order_by(PurchaseOrder.id.desc())
         .first()
     )
@@ -92,7 +120,7 @@ def create_purchase_order(
 
     # Create PO
     po = PurchaseOrder(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         po_number=po_number,
         po_date=po_data.po_date,
         vendor_id=po_data.vendor_id,
@@ -111,11 +139,11 @@ def create_purchase_order(
     # Create PO items
     for item_data in po_data.items:
         # Verify item and store
-        item = db.query(Item).filter(Item.id == item_data.item_id).first()
+        item = _get_item_in_scope(db, item_data.item_id, temple_id)
         if not item:
             raise HTTPException(status_code=404, detail=f"Item {item_data.item_id} not found")
 
-        store = db.query(Store).filter(Store.id == item_data.store_id).first()
+        store = _get_store_in_scope(db, item_data.store_id, temple_id)
         if not store:
             raise HTTPException(status_code=404, detail=f"Store {item_data.store_id} not found")
 
@@ -148,7 +176,8 @@ def get_purchase_orders(
     current_user: User = Depends(get_current_user),
 ):
     """Get all Purchase Orders"""
-    query = db.query(PurchaseOrder).filter(PurchaseOrder.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(PurchaseOrder).filter(PurchaseOrder.temple_id == temple_id)
 
     if status:
         query = query.filter(PurchaseOrder.status == status)
@@ -168,11 +197,8 @@ def get_purchase_order(
     po_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a specific Purchase Order"""
-    po = (
-        db.query(PurchaseOrder)
-        .filter(PurchaseOrder.id == po_id, PurchaseOrder.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_temple_id(db, current_user)
+    po = _get_po_in_scope(db, po_id, temple_id)
     if not po:
         raise HTTPException(status_code=404, detail="Purchase Order not found")
 
@@ -184,11 +210,8 @@ def submit_purchase_order(
     po_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Submit PO for approval"""
-    po = (
-        db.query(PurchaseOrder)
-        .filter(PurchaseOrder.id == po_id, PurchaseOrder.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    po = _get_po_in_scope(db, po_id, temple_id)
     if not po:
         raise HTTPException(status_code=404, detail="Purchase Order not found")
 
@@ -215,11 +238,8 @@ def approve_purchase_order(
     if current_user.role not in ["admin", "accountant"]:
         raise HTTPException(status_code=403, detail="Only admins and accountants can approve POs")
 
-    po = (
-        db.query(PurchaseOrder)
-        .filter(PurchaseOrder.id == po_id, PurchaseOrder.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    po = _get_po_in_scope(db, po_id, temple_id)
     if not po:
         raise HTTPException(status_code=404, detail="Purchase Order not found")
 
@@ -253,11 +273,10 @@ def create_grn(
     current_user: User = Depends(get_current_user),
 ):
     """Create a Goods Receipt Note"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Verify vendor
     vendor = (
-        db.query(Vendor)
-        .filter(Vendor.id == grn_data.vendor_id, Vendor.temple_id == current_user.temple_id)
-        .first()
+        _get_vendor_in_scope(db, grn_data.vendor_id, temple_id)
     )
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
@@ -266,7 +285,7 @@ def create_grn(
     year = grn_data.grn_date.year
     prefix = f"GRN/{year}/"
     last_grn = (
-        db.query(GRN).filter(GRN.grn_number.like(f"{prefix}%")).order_by(GRN.id.desc()).first()
+        db.query(GRN).filter(GRN.grn_number.like(f"{prefix}%"), GRN.temple_id == temple_id).order_by(GRN.id.desc()).first()
     )
 
     new_num = 1
@@ -284,7 +303,7 @@ def create_grn(
 
     # Create GRN
     grn = GRN(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         grn_number=grn_number,
         grn_date=grn_data.grn_date,
         po_id=grn_data.po_id,
@@ -300,7 +319,7 @@ def create_grn(
 
     # Create GRN items and stock movements
     for item_data in grn_data.items:
-        item = db.query(Item).filter(Item.id == item_data.item_id).first()
+        item = _get_item_in_scope(db, item_data.item_id, temple_id)
         if not item:
             raise HTTPException(status_code=404, detail=f"Item {item_data.item_id} not found")
 
@@ -330,7 +349,7 @@ def create_grn(
             prefix = f"PUR/{year}/"
             last_movement = (
                 db.query(StockMovement)
-                .filter(StockMovement.movement_number.like(f"{prefix}%"))
+                .filter(StockMovement.movement_number.like(f"{prefix}%"), StockMovement.temple_id == temple_id)
                 .order_by(StockMovement.id.desc())
                 .first()
             )
@@ -360,7 +379,7 @@ def create_grn(
                 expiry_date=item_data.expiry_date,
                 batch_number=item_data.batch_number,
                 notes=f"GRN: {grn_number}",
-                temple_id=current_user.temple_id,
+                temple_id=temple_id,
                 created_by=current_user.id,
             )
             db.add(movement)
@@ -368,12 +387,7 @@ def create_grn(
 
             # Update stock balance
             stock_balance = (
-                db.query(StockBalance)
-                .filter(
-                    StockBalance.item_id == item_data.item_id,
-                    StockBalance.store_id == item_data.store_id,
-                )
-                .first()
+                _get_stock_balance_in_scope(db, item_data.item_id, item_data.store_id, temple_id)
             )
 
             if not stock_balance:
@@ -382,7 +396,7 @@ def create_grn(
                     store_id=item_data.store_id,
                     quantity=0.0,
                     value=0.0,
-                    temple_id=current_user.temple_id,
+                    temple_id=temple_id,
                 )
                 db.add(stock_balance)
                 db.flush()
@@ -402,7 +416,7 @@ def create_grn(
 
             # Post to accounting
             journal_entry = post_inventory_purchase_to_accounting(
-                db, movement, current_user.temple_id
+                db, movement, temple_id
             )
             if journal_entry:
                 movement.journal_entry_id = journal_entry.id
@@ -420,7 +434,7 @@ def create_grn(
 
     # Update PO status if all items received
     if grn_data.po_id:
-        po = db.query(PurchaseOrder).filter(PurchaseOrder.id == grn_data.po_id).first()
+        po = _get_po_in_scope(db, grn_data.po_id, temple_id)
         if po:
             all_received = all(
                 item.received_quantity >= item.ordered_quantity for item in po.po_items
@@ -450,7 +464,8 @@ def get_grns(
     current_user: User = Depends(get_current_user),
 ):
     """Get all GRNs"""
-    query = db.query(GRN).filter(GRN.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(GRN).filter(GRN.temple_id == temple_id)
 
     if po_id:
         query = query.filter(GRN.po_id == po_id)
@@ -475,13 +490,10 @@ def create_gin(
     current_user: User = Depends(get_current_user),
 ):
     """Create a Goods Issue Note"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Verify store
     store = (
-        db.query(Store)
-        .filter(
-            Store.id == gin_data.issued_from_store_id, Store.temple_id == current_user.temple_id
-        )
-        .first()
+        _get_store_in_scope(db, gin_data.issued_from_store_id, temple_id)
     )
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
@@ -490,7 +502,7 @@ def create_gin(
     year = gin_data.gin_date.year
     prefix = f"GIN/{year}/"
     last_gin = (
-        db.query(GIN).filter(GIN.gin_number.like(f"{prefix}%")).order_by(GIN.id.desc()).first()
+        db.query(GIN).filter(GIN.gin_number.like(f"{prefix}%"), GIN.temple_id == temple_id).order_by(GIN.id.desc()).first()
     )
 
     new_num = 1
@@ -505,7 +517,7 @@ def create_gin(
 
     # Create GIN
     gin = GIN(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         gin_number=gin_number,
         gin_date=gin_data.gin_date,
         status=GINStatus.DRAFT,
@@ -520,18 +532,13 @@ def create_gin(
 
     # Create GIN items
     for item_data in gin_data.items:
-        item = db.query(Item).filter(Item.id == item_data.item_id).first()
+        item = _get_item_in_scope(db, item_data.item_id, temple_id)
         if not item:
             raise HTTPException(status_code=404, detail=f"Item {item_data.item_id} not found")
 
         # Check stock availability
         stock_balance = (
-            db.query(StockBalance)
-            .filter(
-                StockBalance.item_id == item_data.item_id,
-                StockBalance.store_id == gin_data.issued_from_store_id,
-            )
-            .first()
+            _get_stock_balance_in_scope(db, item_data.item_id, gin_data.issued_from_store_id, temple_id)
         )
 
         if not stock_balance or stock_balance.quantity < item_data.issued_quantity:
@@ -564,7 +571,7 @@ def create_gin(
         prefix = f"ISS/{year}/"
         last_movement = (
             db.query(StockMovement)
-            .filter(StockMovement.movement_number.like(f"{prefix}%"))
+            .filter(StockMovement.movement_number.like(f"{prefix}%"), StockMovement.temple_id == temple_id)
             .order_by(StockMovement.id.desc())
             .first()
         )
@@ -592,7 +599,7 @@ def create_gin(
             purpose=gin_data.purpose,
             gin_id=gin.id,
             notes=f"GIN: {gin_number}",
-            temple_id=current_user.temple_id,
+            temple_id=temple_id,
             created_by=current_user.id,
         )
         db.add(movement)
@@ -605,7 +612,7 @@ def create_gin(
         stock_balance.last_movement_id = movement.id
 
         # Post to accounting
-        journal_entry = post_inventory_issue_to_accounting(db, movement, current_user.temple_id)
+        journal_entry = post_inventory_issue_to_accounting(db, movement, temple_id)
         if journal_entry:
             movement.journal_entry_id = journal_entry.id
 
@@ -628,7 +635,8 @@ def get_gins(
     current_user: User = Depends(get_current_user),
 ):
     """Get all GINs"""
-    query = db.query(GIN).filter(GIN.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(GIN).filter(GIN.temple_id == temple_id)
 
     if store_id:
         query = query.filter(GIN.issued_from_store_id == store_id)

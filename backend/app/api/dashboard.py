@@ -9,8 +9,8 @@ from sqlalchemy import func, and_, or_
 from datetime import date, datetime, timedelta
 from typing import Dict
 
-from app.core.database import get_db
-from app.core.temple_context import resolve_temple_id_for_user
+from app.core.database import get_db, column_exists
+from app.core.temple_context import require_system_roles, require_temple_id_for_user
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.donation import Donation
@@ -31,7 +31,7 @@ def get_dashboard_stats(
     - Today's donations and cumulative (month/year)
     - Today's sevas and cumulative (month/year)
     """
-    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=False)
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     today = date.today()
     current_month = today.month
@@ -54,9 +54,13 @@ def get_dashboard_stats(
 
     # ===== DONATIONS =====
 
+    donations_support_temple = column_exists(db, "donations", "temple_id") and hasattr(Donation, "temple_id")
+    seva_bookings_support_temple = column_exists(db, "seva_bookings", "temple_id") and hasattr(SevaBooking, "temple_id")
+    active_donation_filter = or_(Donation.is_cancelled == False, Donation.is_cancelled.is_(None))
+
     # Today's donations
-    today_filter = [Donation.donation_date == today, Donation.is_cancelled == False]
-    if temple_id is not None:
+    today_filter = [Donation.donation_date == today, active_donation_filter]
+    if temple_id is not None and donations_support_temple:
         today_filter.append(Donation.temple_id == temple_id)
 
     today_donations_query = (
@@ -72,9 +76,9 @@ def get_dashboard_stats(
     month_filter = [
         Donation.donation_date >= month_start,
         Donation.donation_date < month_end,
-        Donation.is_cancelled == False,
+        active_donation_filter,
     ]
-    if temple_id is not None:
+    if temple_id is not None and donations_support_temple:
         month_filter.append(Donation.temple_id == temple_id)
 
     month_donations_query = (
@@ -90,9 +94,9 @@ def get_dashboard_stats(
     year_filter = [
         Donation.donation_date >= year_start,
         Donation.donation_date < year_end,
-        Donation.is_cancelled == False,
+        active_donation_filter,
     ]
-    if temple_id is not None:
+    if temple_id is not None and donations_support_temple:
         year_filter.append(Donation.temple_id == temple_id)
 
     year_donations_query = (
@@ -117,7 +121,7 @@ def get_dashboard_stats(
         SevaBooking.created_at <= today_end,
         SevaBooking.status != SevaBookingStatus.CANCELLED,
     ]
-    if temple_id is not None:
+    if temple_id is not None and seva_bookings_support_temple:
         today_seva_filters.append(SevaBooking.temple_id == temple_id)
 
     today_sevas_query = (
@@ -141,7 +145,7 @@ def get_dashboard_stats(
         SevaBooking.created_at < month_end_dt,
         SevaBooking.status != SevaBookingStatus.CANCELLED,
     ]
-    if temple_id is not None:
+    if temple_id is not None and seva_bookings_support_temple:
         month_seva_filters.append(SevaBooking.temple_id == temple_id)
 
     month_sevas_query = (
@@ -165,7 +169,7 @@ def get_dashboard_stats(
         SevaBooking.created_at < year_end_dt,
         SevaBooking.status != SevaBookingStatus.CANCELLED,
     ]
-    if temple_id is not None:
+    if temple_id is not None and seva_bookings_support_temple:
         year_seva_filters.append(SevaBooking.temple_id == temple_id)
 
     year_sevas_query = (
@@ -209,7 +213,7 @@ def get_sacred_events(
     Get upcoming sacred events for Ready Reckoner widget
     Returns pre-calculated dates for Nakshatra, Ekadashi, Pradosha, etc.
     """
-    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=False)
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     # Get temple's panchang settings for location
     panchang_settings = (
@@ -250,13 +254,13 @@ def trigger_pre_calculation(
     Args:
         days_ahead: Number of days to calculate ahead (default: 30)
     """
-    # Check permissions
-    if current_user.role not in ["admin", "temple_manager"] and not current_user.is_superuser:
-        from fastapi import HTTPException
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail="Only admins can trigger pre-calculation",
+    )
 
-        raise HTTPException(status_code=403, detail="Only admins can trigger pre-calculation")
-
-    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=False)
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     # Get temple's panchang settings for location
     panchang_settings = (
@@ -307,7 +311,7 @@ def find_nakshatra_dates(
     Returns:
         Dict with nakshatra info and next occurrence dates
     """
-    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=False)
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     # Get temple's panchang settings for location
     panchang_settings = (

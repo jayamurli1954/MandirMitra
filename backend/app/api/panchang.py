@@ -9,6 +9,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from app.core.database import get_db
+from app.core.temple_context import require_temple_id_for_user
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.panchang_display_settings import PanchangDisplaySettings
@@ -58,7 +59,8 @@ def get_today_panchang(
         now = datetime.now()
         logger.info(f"Calculating panchang for {now}")
 
-        lat, lon, city = _resolve_panchang_location(db, current_user.temple_id)
+        temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+        lat, lon, city = _resolve_panchang_location(db, temple_id)
         logger.info(f"Using location: {city} ({lat}, {lon})")
 
         # Calculate real panchang using Swiss Ephemeris with temple's location
@@ -101,7 +103,8 @@ def get_panchang_for_date(
     logger = logging.getLogger(__name__)
 
     try:
-        lat, lon, city = _resolve_panchang_location(db, current_user.temple_id)
+        temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+        lat, lon, city = _resolve_panchang_location(db, temple_id)
 
         # Use morning reference time for practical day-level seva lookup.
         dt = datetime.combine(target_date, time(hour=6, minute=0, second=0))
@@ -159,7 +162,8 @@ def generate_kundli(
         if not temple_name:
             from app.models.temple import Temple
 
-            temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
+            temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+            temple = db.query(Temple).filter(Temple.id == temple_id).first()
             temple_name = temple.name if temple else "MandirMitra Temple"
 
         # Generate Kundli data

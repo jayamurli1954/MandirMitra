@@ -23,10 +23,12 @@ import DownloadIcon from '@mui/icons-material/Download';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
+import { useCurrentUser } from '../contexts/CurrentUserContext';
 import api from '../services/api';
 
 function Reports() {
   const navigate = useNavigate();
+  const { user, loading: currentUserLoading } = useCurrentUser();
   const [loading, setLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState(new Date(new Date().setDate(1))); // First day of month
   const [dateTo, setDateTo] = useState(new Date());
@@ -40,6 +42,11 @@ function Reports() {
     { value: 'category', label: 'Category-wise' },
     { value: 'devotee', label: 'Devotee-wise' },
   ];
+  const canApproveReschedule = !currentUserLoading && (
+    Boolean(user?.action_permissions?.approve_seva_reschedule)
+    || ['admin', 'temple_manager', 'super_admin'].includes(user?.role)
+    || Boolean(user?.is_superuser)
+  );
 
   const fetchReport = async () => {
     try {
@@ -96,9 +103,10 @@ function Reports() {
     }
   };
 
+  // Auto-refresh when report type changes; date-range refresh remains user-driven.
   useEffect(() => {
     fetchReport();
-  }, [reportType]);
+  }, [reportType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -189,7 +197,7 @@ function Reports() {
       {/* Quick Links to New Reports */}
       <Paper sx={{ p: 3, mt: 2, mb: 3, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
         <Typography variant="h6" sx={{ color: '#fff', mb: 2, fontWeight: 'bold' }}>
-          📊 Available Reports
+          Available Reports
         </Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6} md={3}>
@@ -232,9 +240,7 @@ function Reports() {
               3-Day Seva Schedule
             </Button>
           </Grid>
-          {(Boolean(JSON.parse(localStorage.getItem('user') || '{}').action_permissions?.approve_seva_reschedule) || ['admin', 'temple_manager'].includes(
-            JSON.parse(localStorage.getItem('user') || '{}').role
-          )) && (
+          {canApproveReschedule && (
             <Grid item xs={12} sm={6} md={3}>
               <Button
                 fullWidth

@@ -18,6 +18,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.audit import log_action, get_entity_dict
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.hr import (
     Employee,
     Department,
@@ -65,6 +66,14 @@ from app.schemas.hr import (
 router = APIRouter(prefix="/api/v1/hr", tags=["hr"])
 
 
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
 def get_enum_value(enum_obj, enum_class):
     """Safely extract enum value from enum object or string"""
     if enum_obj is None:
@@ -89,10 +98,11 @@ def create_department(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new department"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Check if code already exists
     existing = (
         db.query(Department)
-        .filter(Department.temple_id == current_user.temple_id, Department.code == dept_data.code)
+        .filter(Department.temple_id == temple_id, Department.code == dept_data.code)
         .first()
     )
 
@@ -102,7 +112,7 @@ def create_department(
         )
 
     department = Department(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         code=dept_data.code,
         name=dept_data.name,
         description=dept_data.description,
@@ -124,7 +134,8 @@ def list_departments(
     current_user: User = Depends(get_current_user),
 ):
     """Get list of departments"""
-    query = db.query(Department).filter(Department.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Department).filter(Department.temple_id == temple_id)
 
     if active_only:
         query = query.filter(Department.is_active == True)
@@ -140,9 +151,10 @@ def get_department(
     current_user: User = Depends(get_current_user),
 ):
     """Get department by ID"""
+    temple_id = _resolve_temple_id(db, current_user)
     dept = (
         db.query(Department)
-        .filter(Department.id == dept_id, Department.temple_id == current_user.temple_id)
+        .filter(Department.id == dept_id, Department.temple_id == temple_id)
         .first()
     )
     if not dept:
@@ -158,9 +170,10 @@ def update_department(
     current_user: User = Depends(get_current_user),
 ):
     """Update department"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     dept = (
         db.query(Department)
-        .filter(Department.id == dept_id, Department.temple_id == current_user.temple_id)
+        .filter(Department.id == dept_id, Department.temple_id == temple_id)
         .first()
     )
     if not dept:
@@ -180,9 +193,10 @@ def deactivate_department(
     current_user: User = Depends(get_current_user),
 ):
     """Deactivate a department"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     dept = (
         db.query(Department)
-        .filter(Department.id == dept_id, Department.temple_id == current_user.temple_id)
+        .filter(Department.id == dept_id, Department.temple_id == temple_id)
         .first()
     )
     if not dept:
@@ -204,10 +218,11 @@ def create_designation(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new designation"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     existing = (
         db.query(Designation)
         .filter(
-            Designation.temple_id == current_user.temple_id, Designation.code == desig_data.code
+            Designation.temple_id == temple_id, Designation.code == desig_data.code
         )
         .first()
     )
@@ -218,7 +233,7 @@ def create_designation(
         )
 
     designation = Designation(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         code=desig_data.code,
         name=desig_data.name,
         description=desig_data.description,
@@ -241,7 +256,8 @@ def list_designations(
     current_user: User = Depends(get_current_user),
 ):
     """Get list of designations"""
-    query = db.query(Designation).filter(Designation.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Designation).filter(Designation.temple_id == temple_id)
 
     if active_only:
         query = query.filter(Designation.is_active == True)
@@ -286,11 +302,12 @@ def create_employee(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new employee"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Verify department and designation exist
     department = (
         db.query(Department)
         .filter(
-            Department.id == emp_data.department_id, Department.temple_id == current_user.temple_id
+            Department.id == emp_data.department_id, Department.temple_id == temple_id
         )
         .first()
     )
@@ -302,7 +319,7 @@ def create_employee(
         db.query(Designation)
         .filter(
             Designation.id == emp_data.designation_id,
-            Designation.temple_id == current_user.temple_id,
+            Designation.temple_id == temple_id,
         )
         .first()
     )
@@ -313,13 +330,13 @@ def create_employee(
     # Generate employee code if not provided
     employee_code = emp_data.employee_code
     if not employee_code or employee_code.strip() == "":
-        employee_code = generate_employee_code(db, current_user.temple_id)
+        employee_code = generate_employee_code(db, temple_id)
     else:
         # Check if code already exists
         existing = (
             db.query(Employee)
             .filter(
-                Employee.temple_id == current_user.temple_id,
+                Employee.temple_id == temple_id,
                 Employee.employee_code == employee_code,
             )
             .first()
@@ -338,7 +355,7 @@ def create_employee(
     full_name = " ".join(name_parts)
 
     employee = Employee(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         employee_code=employee_code,
         first_name=emp_data.first_name,
         middle_name=emp_data.middle_name,
@@ -398,7 +415,8 @@ def list_employees(
     current_user: User = Depends(get_current_user),
 ):
     """Get list of employees"""
-    query = db.query(Employee).filter(Employee.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Employee).filter(Employee.temple_id == temple_id)
 
     if status_filter:
         query = query.filter(Employee.status == status_filter)
@@ -438,9 +456,10 @@ def get_employee(
     employee_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get employee details"""
+    temple_id = _resolve_temple_id(db, current_user)
     employee = (
         db.query(Employee)
-        .filter(Employee.id == employee_id, Employee.temple_id == current_user.temple_id)
+        .filter(Employee.id == employee_id, Employee.temple_id == temple_id)
         .first()
     )
 
@@ -464,9 +483,10 @@ def update_employee(
     current_user: User = Depends(get_current_user),
 ):
     """Update employee"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     employee = (
         db.query(Employee)
-        .filter(Employee.id == employee_id, Employee.temple_id == current_user.temple_id)
+        .filter(Employee.id == employee_id, Employee.temple_id == temple_id)
         .first()
     )
 
@@ -530,10 +550,11 @@ def create_salary_component(
     current_user: User = Depends(get_current_user),
 ):
     """Create a salary component"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     existing = (
         db.query(SalaryComponent)
         .filter(
-            SalaryComponent.temple_id == current_user.temple_id,
+            SalaryComponent.temple_id == temple_id,
             SalaryComponent.code == component_data.code,
         )
         .first()
@@ -544,7 +565,7 @@ def create_salary_component(
             status_code=400, detail=f"Component code '{component_data.code}' already exists"
         )
 
-    component = SalaryComponent(temple_id=current_user.temple_id, **component_data.dict())
+    component = SalaryComponent(temple_id=temple_id, **component_data.dict())
 
     db.add(component)
     db.commit()
@@ -561,7 +582,8 @@ def list_salary_components(
     current_user: User = Depends(get_current_user),
 ):
     """Get list of salary components"""
-    query = db.query(SalaryComponent).filter(SalaryComponent.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(SalaryComponent).filter(SalaryComponent.temple_id == temple_id)
 
     if component_type:
         query = query.filter(SalaryComponent.component_type == component_type)
@@ -654,11 +676,12 @@ def create_salary_structure(
     current_user: User = Depends(get_current_user),
 ):
     """Create salary structure for an employee"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Verify employee exists
     employee = (
         db.query(Employee)
         .filter(
-            Employee.id == structure_data.employee_id, Employee.temple_id == current_user.temple_id
+            Employee.id == structure_data.employee_id, Employee.temple_id == temple_id
         )
         .first()
     )
@@ -690,7 +713,7 @@ def create_salary_structure(
     # Create structure
     structure = SalaryStructure(
         employee_id=structure_data.employee_id,
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         effective_from=structure_data.effective_from,
         effective_to=structure_data.effective_to,
         gross_salary=gross_salary,
@@ -758,9 +781,10 @@ def get_employee_salary_structure(
     employee_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get current salary structure for an employee"""
+    temple_id = _resolve_temple_id(db, current_user)
     employee = (
         db.query(Employee)
-        .filter(Employee.id == employee_id, Employee.temple_id == current_user.temple_id)
+        .filter(Employee.id == employee_id, Employee.temple_id == temple_id)
         .first()
     )
 
@@ -935,6 +959,7 @@ def create_payroll(
     current_user: User = Depends(get_current_user),
 ):
     """Create/process payroll for an employee"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Check if payroll already exists
     existing = (
         db.query(Payroll)
@@ -1000,13 +1025,14 @@ def create_bulk_payroll(
     current_user: User = Depends(get_current_user),
 ):
     """Process payroll for multiple employees"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Get employees to process
     if bulk_data.employee_ids:
         employees = (
             db.query(Employee)
             .filter(
                 Employee.id.in_(bulk_data.employee_ids),
-                Employee.temple_id == current_user.temple_id,
+                Employee.temple_id == temple_id,
                 Employee.status == EmployeeStatus.ACTIVE.value,
             )
             .all()
@@ -1016,7 +1042,7 @@ def create_bulk_payroll(
         employees = (
             db.query(Employee)
             .filter(
-                Employee.temple_id == current_user.temple_id,
+                Employee.temple_id == temple_id,
                 Employee.status == EmployeeStatus.ACTIVE.value,
             )
             .all()
@@ -1094,7 +1120,8 @@ def list_payrolls(
     current_user: User = Depends(get_current_user),
 ):
     """Get list of payrolls"""
-    query = db.query(Payroll).filter(Payroll.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Payroll).filter(Payroll.temple_id == temple_id)
 
     if employee_id:
         query = query.filter(Payroll.employee_id == employee_id)
@@ -1150,9 +1177,10 @@ def get_payroll(
     payroll_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get payroll details"""
+    temple_id = _resolve_temple_id(db, current_user)
     payroll = (
         db.query(Payroll)
-        .filter(Payroll.id == payroll_id, Payroll.temple_id == current_user.temple_id)
+        .filter(Payroll.id == payroll_id, Payroll.temple_id == temple_id)
         .first()
     )
 
@@ -1191,9 +1219,10 @@ def update_payroll(
     current_user: User = Depends(get_current_user),
 ):
     """Update payroll (approve, mark as paid, etc.)"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     payroll = (
         db.query(Payroll)
-        .filter(Payroll.id == payroll_id, Payroll.temple_id == current_user.temple_id)
+        .filter(Payroll.id == payroll_id, Payroll.temple_id == temple_id)
         .first()
     )
 
@@ -1208,7 +1237,7 @@ def update_payroll(
         and payroll.status != PayrollStatus.PAID.value
     ):
         # Post salary payment to accounting
-        journal_entry = post_salary_to_accounting(db, payroll, current_user.temple_id, current_user)
+        journal_entry = post_salary_to_accounting(db, payroll, temple_id, current_user)
         if journal_entry:
             payroll.journal_entry_id = journal_entry.id
             update_data["paid_date"] = update_data.get("paid_date", date.today())
@@ -1365,11 +1394,12 @@ def generate_salary_slip(
     payroll_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Generate PDF salary slip for payroll"""
+    temple_id = _resolve_temple_id(db, current_user)
     from fastapi.responses import StreamingResponse
 
     payroll = (
         db.query(Payroll)
-        .filter(Payroll.id == payroll_id, Payroll.temple_id == current_user.temple_id)
+        .filter(Payroll.id == payroll_id, Payroll.temple_id == temple_id)
         .first()
     )
 
@@ -1377,7 +1407,7 @@ def generate_salary_slip(
         raise HTTPException(status_code=404, detail="Payroll not found")
 
     employee = payroll.employee
-    temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
+    temple = db.query(Temple).filter(Temple.id == temple_id).first()
 
     # Get payroll components
     payroll_components = (
@@ -1562,9 +1592,10 @@ def get_employee_salary_history(
     current_user: User = Depends(get_current_user),
 ):
     """Get salary history for an employee"""
+    temple_id = _resolve_temple_id(db, current_user)
     employee = (
         db.query(Employee)
-        .filter(Employee.id == employee_id, Employee.temple_id == current_user.temple_id)
+        .filter(Employee.id == employee_id, Employee.temple_id == temple_id)
         .first()
     )
 
@@ -1572,7 +1603,7 @@ def get_employee_salary_history(
         raise HTTPException(status_code=404, detail="Employee not found")
 
     query = db.query(Payroll).filter(
-        Payroll.employee_id == employee_id, Payroll.temple_id == current_user.temple_id
+        Payroll.employee_id == employee_id, Payroll.temple_id == temple_id
     )
 
     if year:

@@ -1,17 +1,13 @@
+/* eslint-disable no-irregular-whitespace */
 import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
   Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Button,
   TextField,
   Alert,
   Grid,
-  Divider,
   CircularProgress,
   Stack,
   Accordion,
@@ -48,7 +44,6 @@ function PanchangSettings() {
 
   // Selected city
   const [selectedCity, setSelectedCity] = useState('');
-  const [selectedRegion, setSelectedRegion] = useState('karnataka');
   const [manualMode, setManualMode] = useState(false);
 
   useEffect(() => {
@@ -164,7 +159,7 @@ function PanchangSettings() {
       {/* Header */}
       <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
         <Typography variant="h4" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
-          🕉️ Panchang Location Settings
+          Panchang Location Settings
         </Typography>
         <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.9)' }}>
           Configure your temple's location for accurate Panchang calculations
@@ -243,7 +238,7 @@ function PanchangSettings() {
         <Accordion defaultExpanded>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              🏛️ Karnataka Cities ({cities.karnataka.length})
+              Karnataka Cities ({cities.karnataka.length})
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -268,7 +263,7 @@ function PanchangSettings() {
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              🌴 South India Cities ({cities.south_india.length})
+              South India Cities ({cities.south_india.length})
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -293,7 +288,7 @@ function PanchangSettings() {
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              🏙️ Other Major Cities ({cities.major_cities.length})
+              Other Major Cities ({cities.major_cities.length})
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -378,7 +373,7 @@ function PanchangSettings() {
       {/* Info Box */}
       <Paper sx={{ p: 3, mt: 3, bgcolor: '#FFF3E0' }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-          ℹ️ Important Notes:
+          Important Notes:
         </Typography>
         <Typography variant="body2" component="div">
           <ul style={{ margin: 0, paddingLeft: '20px' }}>

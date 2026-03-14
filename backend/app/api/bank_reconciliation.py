@@ -13,6 +13,7 @@ import io
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.accounting import (
     Account,
@@ -43,12 +44,50 @@ from app.schemas.bank_reconciliation import (
 router = APIRouter(prefix="/api/v1/bank-reconciliation", tags=["bank-reconciliation"])
 
 
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
+def _get_account_in_scope(db: Session, account_id: int, temple_id: int) -> Account | None:
+    return db.query(Account).filter(Account.id == account_id, Account.temple_id == temple_id).first()
+
+
+def _get_statement_in_scope(db: Session, statement_id: int, temple_id: int) -> BankStatement | None:
+    return db.query(BankStatement).filter(BankStatement.id == statement_id, BankStatement.temple_id == temple_id).first()
+
+
+def _get_reconciliation_in_scope(db: Session, reconciliation_id: int, temple_id: int) -> BankReconciliation | None:
+    return db.query(BankReconciliation).filter(BankReconciliation.id == reconciliation_id, BankReconciliation.temple_id == temple_id).first()
+
+
+def _get_statement_entry_in_scope(db: Session, statement_entry_id: int, temple_id: int) -> BankStatementEntry | None:
+    return (
+        db.query(BankStatementEntry)
+        .join(BankStatement, BankStatement.id == BankStatementEntry.statement_id)
+        .filter(BankStatementEntry.id == statement_entry_id, BankStatement.temple_id == temple_id)
+        .first()
+    )
+
+
+def _get_journal_line_in_scope(db: Session, journal_line_id: int, temple_id: int) -> JournalLine | None:
+    return (
+        db.query(JournalLine)
+        .join(JournalLine.journal_entry)
+        .filter(JournalLine.id == journal_line_id, JournalEntry.temple_id == temple_id)
+        .first()
+    )
+
+
 @router.get("/accounts", response_model=List[dict])
 def get_bank_accounts(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get list of bank accounts for reconciliation"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     query = db.query(Account).filter(
         Account.account_type == "asset",
@@ -86,7 +125,8 @@ async def import_bank_statement(
     Date,Value Date,Description,Debit,Credit,Balance,Reference
     """
     # Verify account
-    account = db.query(Account).filter(Account.id == account_id).first()
+    temple_id = _resolve_write_temple_id(db, current_user)
+    account = _get_account_in_scope(db, account_id, temple_id)
     if not account:
         raise HTTPException(status_code=404, detail="Bank account not found")
 
@@ -165,7 +205,7 @@ async def import_bank_statement(
     # Create statement
     statement = BankStatement(
         account_id=account_id,
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         statement_date=statement_date,
         from_date=min_date,
         to_date=max_date,
@@ -193,7 +233,8 @@ def get_statement(
     statement_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get bank statement with entries"""
-    statement = db.query(BankStatement).filter(BankStatement.id == statement_id).first()
+    temple_id = _resolve_temple_id(db, current_user)
+    statement = _get_statement_in_scope(db, statement_id, temple_id)
     if not statement:
         raise HTTPException(status_code=404, detail="Statement not found")
 
@@ -205,7 +246,8 @@ def get_statement_entries(
     statement_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get all entries for a bank statement"""
-    statement = db.query(BankStatement).filter(BankStatement.id == statement_id).first()
+    temple_id = _resolve_temple_id(db, current_user)
+    statement = _get_statement_in_scope(db, statement_id, temple_id)
     if not statement:
         raise HTTPException(status_code=404, detail="Statement not found")
 
@@ -224,7 +266,8 @@ def get_statement_summary(
     statement_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get reconciliation summary for a statement"""
-    statement = db.query(BankStatement).filter(BankStatement.id == statement_id).first()
+    temple_id = _resolve_temple_id(db, current_user)
+    statement = _get_statement_in_scope(db, statement_id, temple_id)
     if not statement:
         raise HTTPException(status_code=404, detail="Statement not found")
 
@@ -238,7 +281,7 @@ def get_statement_summary(
 
     # Calculate book balance
     account = db.query(Account).filter(Account.id == statement.account_id).first()
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     balance_filter = [
         JournalLine.account_id == statement.account_id,
@@ -293,7 +336,7 @@ def get_unmatched_book_entries(
     if not statement:
         raise HTTPException(status_code=404, detail="Statement not found")
 
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Get journal lines for this account in the statement period
     lines = (
@@ -349,18 +392,13 @@ def match_entry(
     current_user: User = Depends(get_current_user),
 ):
     """Match a statement entry with a journal line"""
-    statement_entry = (
-        db.query(BankStatementEntry)
-        .filter(BankStatementEntry.id == match_request.statement_entry_id)
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    statement_entry = _get_statement_entry_in_scope(db, match_request.statement_entry_id, temple_id)
 
     if not statement_entry:
         raise HTTPException(status_code=404, detail="Statement entry not found")
 
-    journal_line = (
-        db.query(JournalLine).filter(JournalLine.id == match_request.journal_line_id).first()
-    )
+    journal_line = _get_journal_line_in_scope(db, match_request.journal_line_id, temple_id)
     if not journal_line:
         raise HTTPException(status_code=404, detail="Journal line not found")
 
@@ -396,21 +434,19 @@ def match_statement_entry(
     current_user: User = Depends(get_current_user),
 ):
     """Match a statement entry with a journal line"""
-    statement_entry = (
-        db.query(BankStatementEntry)
-        .filter(
-            BankStatementEntry.id == match_request.statement_entry_id,
-            BankStatementEntry.statement_id == statement_id,
-        )
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    statement = _get_statement_in_scope(db, statement_id, temple_id)
+    if not statement:
+        raise HTTPException(status_code=404, detail="Statement not found")
+
+    statement_entry = _get_statement_entry_in_scope(db, match_request.statement_entry_id, temple_id)
+    if statement_entry and statement_entry.statement_id != statement_id:
+        statement_entry = None
 
     if not statement_entry:
         raise HTTPException(status_code=404, detail="Statement entry not found")
 
-    journal_line = (
-        db.query(JournalLine).filter(JournalLine.id == match_request.journal_line_id).first()
-    )
+    journal_line = _get_journal_line_in_scope(db, match_request.journal_line_id, temple_id)
     if not journal_line:
         raise HTTPException(status_code=404, detail="Journal line not found")
 
@@ -445,13 +481,12 @@ def create_reconciliation(
     current_user: User = Depends(get_current_user),
 ):
     """Create bank reconciliation"""
-    account = db.query(Account).filter(Account.id == reconciliation_data.account_id).first()
+    temple_id = _resolve_write_temple_id(db, current_user)
+    account = _get_account_in_scope(db, reconciliation_data.account_id, temple_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    statement = (
-        db.query(BankStatement).filter(BankStatement.id == reconciliation_data.statement_id).first()
-    )
+    statement = _get_statement_in_scope(db, reconciliation_data.statement_id, temple_id)
     if not statement:
         raise HTTPException(status_code=404, detail="Statement not found")
 
@@ -459,7 +494,7 @@ def create_reconciliation(
         raise HTTPException(status_code=400, detail="Statement doesn't belong to this account")
 
     # Calculate book balance
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
     book_balance_filter = [
         JournalLine.account_id == account.id,
         JournalEntry.status == JournalEntryStatus.POSTED,
@@ -497,6 +532,7 @@ def create_reconciliation(
         .filter(
             JournalLine.account_id == account.id,
             JournalEntry.status == JournalEntryStatus.POSTED,
+            JournalEntry.temple_id == temple_id,
             func.date(JournalEntry.entry_date) >= statement.from_date,
             func.date(JournalEntry.entry_date) <= statement.to_date,
         )
@@ -527,7 +563,7 @@ def create_reconciliation(
     reconciliation = BankReconciliation(
         account_id=account.id,
         statement_id=statement.id,
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         reconciliation_date=reconciliation_data.reconciliation_date,
         from_date=statement.from_date,
         to_date=statement.to_date,
@@ -597,9 +633,8 @@ def get_reconciliation(
     current_user: User = Depends(get_current_user),
 ):
     """Get reconciliation details"""
-    reconciliation = (
-        db.query(BankReconciliation).filter(BankReconciliation.id == reconciliation_id).first()
-    )
+    temple_id = _resolve_temple_id(db, current_user)
+    reconciliation = _get_reconciliation_in_scope(db, reconciliation_id, temple_id)
     if not reconciliation:
         raise HTTPException(status_code=404, detail="Reconciliation not found")
 
@@ -611,7 +646,8 @@ def get_reconciliation_summary(
     account_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get reconciliation summary for an account"""
-    account = db.query(Account).filter(Account.id == account_id).first()
+    temple_id = _resolve_write_temple_id(db, current_user)
+    account = _get_account_in_scope(db, account_id, temple_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
@@ -624,7 +660,7 @@ def get_reconciliation_summary(
     )
 
     # Calculate current book balance
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
     balance_filter = [
         JournalLine.account_id == account_id,
         JournalEntry.status == JournalEntryStatus.POSTED,

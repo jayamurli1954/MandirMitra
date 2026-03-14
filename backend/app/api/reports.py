@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user
 from app.models.user import User
 from app.models.donation import Donation, DonationCategory
 from app.models.seva import SevaBooking, SevaBookingStatus, Seva
@@ -49,7 +50,7 @@ def get_category_wise_donation_report(
     Default: Today's donations grouped by category
     Custom: Date range donations grouped by category
     """
-    temple_id = current_user.temple_id
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     # Default to today if not specified
     if not from_date:
@@ -136,7 +137,7 @@ def get_detailed_donation_report(
     - Date, Devotee Name, Mobile Number, Category, Payment Mode, Amount
     """
     # For standalone mode, handle temple_id = None
-    temple_id = current_user.temple_id
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
 
     # Build query
     donation_filter = [
@@ -239,7 +240,7 @@ def get_detailed_seva_report(
     IMPORTANT: Report filters by receipt date (created_at), not booking date.
     This ensures cash/bank reconciliation matches correctly.
     """
-    temple_id = current_user.temple_id
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
     today = date.today()
 
     # Build query - use with_entities to only select columns that exist

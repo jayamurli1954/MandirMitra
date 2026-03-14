@@ -7,12 +7,7 @@ import {
   CircularProgress,
   Alert,
   TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Grid,
-  Divider,
   Card,
   CardContent,
   Switch,
@@ -20,12 +15,12 @@ import {
   MenuItem,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
-import LockIcon from '@mui/icons-material/Lock';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
 import RolePermissionMatrix from '../components/RolePermissionMatrix';
+import { readStoredUser } from '../utils/authStorage';
 
 const ACTIVE_TEMPLE_STORAGE_KEY = 'active_temple_id_v1';
 
@@ -47,11 +42,12 @@ const writeActiveTempleId = (templeId) => {
 };
 
 function Settings() {
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
-  const [currentUser] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+  const [currentUser] = useState(() => readStoredUser());
   const [temples, setTemples] = useState([]);
+  const [selectedTempleMeta, setSelectedTempleMeta] = useState(null);
   const [selectedTempleId, setSelectedTempleId] = useState(() => readActiveTempleId());
   const [backupStatus, setBackupStatus] = useState(null);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -68,6 +64,7 @@ function Settings() {
     pincode: '',
     phone: '',
     email: '',
+    platform_demo_temple: false,
     admin_full_name: '',
     admin_email: '',
     admin_password: '',
@@ -75,7 +72,7 @@ function Settings() {
   // Password protection disabled for demo - will be enabled later
   // const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   // const [password, setPassword] = useState('');
-  const [authenticated, setAuthenticated] = useState(true); // Always authenticated for demo
+  const [_authenticated, _setAuthenticated] = useState(true); // Always authenticated for demo
   const [settings, setSettings] = useState({
     temple_name: '',
     name_kannada: '',
@@ -115,12 +112,16 @@ function Settings() {
     banner_url: '',
   });
 
-  const canSwitchTemple = Boolean(currentUser.is_superuser) || currentUser.role === 'super_admin';
+  const isPlatformSuperAdmin = Boolean(currentUser.is_superuser) || currentUser.role === 'super_admin';
+  const canSwitchTemple = isPlatformSuperAdmin;
+  const canEditSelectedTemple = !isPlatformSuperAdmin || Boolean(selectedTempleMeta?.platform_can_write);
+  const selectedTempleName = selectedTempleMeta?.name || selectedTempleMeta?.trust_name || 'selected temple';
 
+  // These fetches intentionally rerun when the active temple changes.
   useEffect(() => {
     fetchSettings();
     fetchBackupStatus();
-  }, [selectedTempleId]);
+  }, [selectedTempleId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleActiveTempleChanged = (event) => {
@@ -138,7 +139,7 @@ function Settings() {
   // Password protection disabled for demo - will be enabled later
   // const handlePasswordSubmit = () => {
   //   // Check if user is main admin
-  //   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  //   const user = readStoredUser();
   //   
   //   // Allow admin, super_admin, or superuser roles
   //   const isAdmin = user.role === 'admin' || user.role === 'super_admin' || user.is_superuser === true;
@@ -157,6 +158,7 @@ function Settings() {
   // };
 
   const applyTempleSettings = (temple) => {
+    setSelectedTempleMeta(temple || null);
     setSettings({
       temple_name: temple.name || '',
       name_kannada: temple.name_kannada || '',
@@ -210,6 +212,8 @@ function Settings() {
           setSelectedTempleId(temple.id);
         }
         applyTempleSettings(temple);
+      } else {
+        setSelectedTempleMeta(null);
       }
     } catch (err) {
       console.error('Failed to load settings:', err);
@@ -279,6 +283,7 @@ function Settings() {
         pincode: onboarding.pincode || null,
         phone: onboarding.phone || null,
         email: onboarding.email || null,
+        platform_demo_temple: Boolean(onboarding.platform_demo_temple && isPlatformSuperAdmin),
         admin_full_name: onboarding.admin_full_name,
         admin_email: onboarding.admin_email,
         admin_password: onboarding.admin_password,
@@ -305,6 +310,7 @@ function Settings() {
         pincode: '',
         phone: '',
         email: '',
+        platform_demo_temple: false,
         admin_full_name: '',
         admin_email: '',
         admin_password: '',
@@ -333,6 +339,10 @@ function Settings() {
     try {
       setLoading(true);
       const templeQuery = canSwitchTemple && selectedTempleId ? `&temple_id=${selectedTempleId}` : '';
+      if (!canEditSelectedTemple) {
+        showError('This tenant is read-only for the current platform administrator');
+        return;
+      }
       const response = await api.post(`/api/v1/temples/upload?media_type=${type}${templeQuery}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -368,6 +378,10 @@ function Settings() {
       };
 
       const templeQuery = canSwitchTemple && selectedTempleId ? `?temple_id=${selectedTempleId}` : '';
+      if (!canEditSelectedTemple) {
+        showError('This tenant is read-only for the current platform administrator');
+        return;
+      }
       await api.put(`/api/v1/temples/modules/config${templeQuery}`, moduleConfig);
 
       // 2. Save general temple information
@@ -516,7 +530,14 @@ function Settings() {
               </Card>
             </Grid>
           )}
-          {(['admin', 'super_admin', 'temple_manager'].includes(currentUser.role) || currentUser.is_superuser) && (
+          {isPlatformSuperAdmin && !canEditSelectedTemple && selectedTempleMeta && (
+            <Grid item xs={12}>
+              <Alert severity="info">
+                {`${selectedTempleName} is read-only for your platform account. You can review this tenant, but only temples created as platform demo tenants are editable.`}
+              </Alert>
+            </Grid>
+          )}
+          {isPlatformSuperAdmin && (
             <Grid item xs={12}>
               <Card sx={{ borderLeft: '5px solid #1565C0' }}>
                 <CardContent>
@@ -577,6 +598,17 @@ function Settings() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                       <TextField fullWidth type="password" label="Admin Password" value={onboarding.admin_password} onChange={(e) => setOnboarding({ ...onboarding, admin_password: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={Boolean(onboarding.platform_demo_temple)}
+                            onChange={(e) => setOnboarding({ ...onboarding, platform_demo_temple: e.target.checked })}
+                          />
+                        }
+                        label="Mark as platform demo tenant (editable by my super-admin account)"
+                      />
                     </Grid>
                   </Grid>
                   <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
@@ -644,7 +676,13 @@ function Settings() {
             </Grid>
           )}
 
-          <RolePermissionMatrix currentUser={currentUser} />
+          {canEditSelectedTemple ? (
+            <RolePermissionMatrix currentUser={currentUser} />
+          ) : (
+            <Grid item xs={12}>
+              <Alert severity="info">Role permissions are read-only for this tenant from the platform account.</Alert>
+            </Grid>
+          )}
 
           {/* Temple Identity */}
           <Grid item xs={12}>
@@ -771,7 +809,7 @@ function Settings() {
                         <Typography variant="body2" color="text.secondary">No logo uploaded</Typography>
                       )}
                     </Box>
-                    <Button variant="outlined" component="label" fullWidth>
+                    <Button variant="outlined" component="label" fullWidth disabled={!canEditSelectedTemple}>
                       Upload Logo
                       <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, 'logo')} />
                     </Button>
@@ -796,7 +834,7 @@ function Settings() {
                         <Typography variant="body2" color="text.secondary">No banner uploaded</Typography>
                       )}
                     </Box>
-                    <Button variant="outlined" component="label" fullWidth>
+                    <Button variant="outlined" component="label" fullWidth disabled={!canEditSelectedTemple}>
                       Upload Banner
                       <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, 'banner')} />
                     </Button>
@@ -1107,11 +1145,11 @@ function Settings() {
           <Button
             variant="contained"
             onClick={handleSave}
-            disabled={loading}
+            disabled={loading || !canEditSelectedTemple}
             startIcon={loading ? <CircularProgress size={20} /> : <SettingsIcon />}
             sx={{ bgcolor: '#FF9933', '&:hover': { bgcolor: '#E68A00' } }}
           >
-            Save All Settings
+            {canEditSelectedTemple ? 'Save All Settings' : 'Read-only Tenant'}
           </Button>
         </Box>
       </Box>

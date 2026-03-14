@@ -34,6 +34,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import EditIcon from '@mui/icons-material/Edit';
 import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
+import { getAccessToken } from '../../utils/authStorage';
 
 const ACCOUNT_TYPES = [
   { value: 'asset', label: 'Asset' },
@@ -214,7 +215,7 @@ function ChartOfAccounts() {
   const fetchAccounts = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback(`/api/v1/accounts/hierarchy`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -260,7 +261,7 @@ function ChartOfAccounts() {
     try {
       setInitializing(true);
       setMessage({ type: '', text: '' });
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback(`/api/v1/accounts/initialize-default`, {
         method: 'POST',
         headers: {
@@ -300,7 +301,7 @@ function ChartOfAccounts() {
       setSaving(true);
       setMessage({ type: '', text: '' });
 
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const payload = {
         account_code: newAccount.account_code.trim(),
         account_name: newAccount.account_name.trim(),
@@ -431,7 +432,7 @@ function ChartOfAccounts() {
     try {
       setEditSaving(true);
       setMessage({ type: '', text: '' });
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const reason = encodeURIComponent(editForm.reason.trim());
       const response = await fetchWithApiFallback(
         `/api/v1/accounts/${editForm.id}?reason=${reason}`,

@@ -101,6 +101,7 @@ class Seva(Base):
     __tablename__ = "sevas"
 
     id = Column(Integer, primary_key=True, index=True)
+    temple_id = Column(Integer, ForeignKey("temples.id"), nullable=True, index=True)
     name_english = Column(String(200), nullable=False)
     name_kannada = Column(String(200), nullable=True)
     name_sanskrit = Column(String(200), nullable=True)
@@ -163,6 +164,7 @@ class SevaBooking(Base):
     __tablename__ = "seva_bookings"
 
     id = Column(Integer, primary_key=True, index=True)
+    temple_id = Column(Integer, ForeignKey("temples.id"), nullable=True, index=True)
     seva_id = Column(Integer, ForeignKey("sevas.id"), nullable=False)
     devotee_id = Column(Integer, ForeignKey("devotees.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

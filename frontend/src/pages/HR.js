@@ -15,7 +15,6 @@ import {
     IconButton,
     Alert,
     CircularProgress,
-    Stack,
     Card,
     CardContent,
     Tab,
@@ -37,9 +36,10 @@ function HR() {
     const [attendance, setAttendance] = useState([]);
     const [error, setError] = useState('');
 
+    // fetchData is intentionally tied to the active tab rather than function identity.
     useEffect(() => {
         fetchData();
-    }, [activeTab]);
+    }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchData = async () => {
         setLoading(true);
@@ -191,7 +191,7 @@ function HR() {
         <Layout>
             <Box sx={{ p: 3 }}>
                 <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ color: '#FF9933' }}>
-                    👥 HR & Salary Management
+                    ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ‚Â¥ HR & Salary Management
                 </Typography>
 
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}

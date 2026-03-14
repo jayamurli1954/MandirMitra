@@ -11,11 +11,12 @@ from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.upi_banking import UpiPayment, UpiPaymentPurpose
 from app.models.devotee import Devotee
 from app.models.donation import Donation
-from app.models.seva import SevaBooking
+from app.models.seva import Seva, SevaBooking
 from app.models.inkind_sponsorship import Sponsorship
 from app.models.accounting import (
     Account,
@@ -32,6 +33,14 @@ from app.schemas.upi_payment import (
 )
 
 router = APIRouter(prefix="/api/v1/upi-payments", tags=["upi-payments"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 def generate_receipt_number(db: Session, temple_id: int, purpose: UpiPaymentPurpose) -> str:
@@ -203,10 +212,12 @@ def quick_log_payment(
     Quick log UPI payment (mobile-friendly for admins)
     Called immediately when admin receives SMS about payment
     """
+    temple_id = _resolve_write_temple_id(db, current_user)
+
     # Verify devotee exists
     devotee = (
         db.query(Devotee)
-        .filter(Devotee.id == payment_data.devotee_id, Devotee.temple_id == current_user.temple_id)
+        .filter(Devotee.id == payment_data.devotee_id, Devotee.temple_id == temple_id)
         .first()
     )
 
@@ -218,7 +229,7 @@ def quick_log_payment(
 
     # Create UPI payment record
     upi_payment = UpiPayment(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         devotee_id=payment_data.devotee_id,
         amount=payment_data.amount,
         payment_datetime=datetime.utcnow(),
@@ -232,8 +243,12 @@ def quick_log_payment(
 
     # If SEVA purpose and seva_id provided, create seva booking
     if payment_data.payment_purpose == UpiPaymentPurpose.SEVA and payment_data.seva_id:
+        seva = db.query(Seva).filter(Seva.id == payment_data.seva_id, Seva.temple_id == temple_id).first()
+        if not seva:
+            raise HTTPException(status_code=404, detail="Seva not found")
+
         seva_booking = SevaBooking(
-            temple_id=current_user.temple_id,
+            temple_id=temple_id,
             devotee_id=payment_data.devotee_id,
             seva_id=payment_data.seva_id,
             booking_date=date.today(),
@@ -248,7 +263,7 @@ def quick_log_payment(
     # If DONATION purpose, create donation record
     elif payment_data.payment_purpose == UpiPaymentPurpose.DONATION:
         donation = Donation(
-            temple_id=current_user.temple_id,
+            temple_id=temple_id,
             devotee_id=payment_data.devotee_id,
             amount=payment_data.amount,
             payment_method="upi",
@@ -263,19 +278,22 @@ def quick_log_payment(
         payment_data.payment_purpose == UpiPaymentPurpose.SPONSORSHIP
         and payment_data.sponsorship_id
     ):
-        upi_payment.sponsorship_id = payment_data.sponsorship_id
+        sponsorship = db.query(Sponsorship).filter(Sponsorship.id == payment_data.sponsorship_id, Sponsorship.temple_id == temple_id).first()
+        if not sponsorship:
+            raise HTTPException(status_code=404, detail="Sponsorship not found")
+        upi_payment.sponsorship_id = sponsorship.id
 
     db.add(upi_payment)
     db.flush()
 
     # Generate receipt number
     receipt_number = generate_receipt_number(
-        db, current_user.temple_id, payment_data.payment_purpose
+        db, temple_id, payment_data.payment_purpose
     )
     upi_payment.receipt_number = receipt_number
 
     # Post to accounting
-    journal_entry = post_to_accounts(db, current_user.temple_id, upi_payment, current_user)
+    journal_entry = post_to_accounts(db, temple_id, upi_payment, current_user)
     if journal_entry:
         upi_payment.journal_entry_id = journal_entry.id
 
@@ -302,7 +320,8 @@ def list_upi_payments(
     """
     Get list of UPI payments with filters
     """
-    query = db.query(UpiPayment).filter(UpiPayment.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(UpiPayment).filter(UpiPayment.temple_id == temple_id)
 
     if from_date:
         query = query.filter(func.date(UpiPayment.payment_datetime) >= from_date)
@@ -335,10 +354,11 @@ def get_daily_summary(
     """
     Get daily summary of UPI payments
     """
+    temple_id = _resolve_temple_id(db, current_user)
     payments = (
         db.query(UpiPayment)
         .filter(
-            UpiPayment.temple_id == current_user.temple_id,
+            UpiPayment.temple_id == temple_id,
             func.date(UpiPayment.payment_datetime) == summary_date,
         )
         .all()
@@ -379,7 +399,7 @@ def get_upi_payment(
     """
     payment = (
         db.query(UpiPayment)
-        .filter(UpiPayment.id == payment_id, UpiPayment.temple_id == current_user.temple_id)
+        .filter(UpiPayment.id == payment_id, UpiPayment.temple_id == _resolve_temple_id(db, current_user))
         .first()
     )
 

@@ -71,9 +71,10 @@ function DetailedSevaReport() {
     }
   };
 
+  // Initial report load should happen once on mount; later refreshes are user-driven.
   useEffect(() => {
     fetchReport();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReschedule = (booking) => {
     setRescheduleDialog({ open: true, booking });
@@ -132,7 +133,7 @@ function DetailedSevaReport() {
       'Seva Name': s.seva_name,
       'Devotee Name': s.devotee_name,
       'Mobile': s.devotee_mobile || 'N/A',
-      'Amount (₹)': s.amount,
+      'Amount (INR)': s.amount,
       'Status': s.status,
     }));
 
@@ -221,7 +222,7 @@ function DetailedSevaReport() {
                 Total: {reportData.total_count} sevas |
                 Completed: {reportData.completed_count} |
                 Pending: {reportData.pending_count} |
-                Amount: ₹{new Intl.NumberFormat('en-IN').format(reportData.total_amount)}
+                Amount: Rs {new Intl.NumberFormat('en-IN').format(reportData.total_amount)}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <ExportButton onExport={handleExport} />
@@ -239,7 +240,7 @@ function DetailedSevaReport() {
                     <TableCell><strong>Seva Name</strong></TableCell>
                     <TableCell><strong>Devotee Name</strong></TableCell>
                     <TableCell><strong>Mobile</strong></TableCell>
-                    <TableCell align="right"><strong>Amount (₹)</strong></TableCell>
+                    <TableCell align="right"><strong>Amount (INR)</strong></TableCell>
                     <TableCell><strong>Status</strong></TableCell>
                     <TableCell><strong>Action</strong></TableCell>
                   </TableRow>

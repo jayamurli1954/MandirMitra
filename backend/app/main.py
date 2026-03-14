@@ -1,4 +1,4 @@
-"""
+﻿"""
 MandirMitra - Temple Management System
 FastAPI Main Application
 """
@@ -319,48 +319,49 @@ def _run_startup():
         # - Disable write operations (set READ_ONLY_MODE = True)
         # - Log to separate security log file
     except Exception as e:
-        print(f"⚠️  Warning: Could not run integrity check: {str(e)}")
+        print(f"[WARN] Could not run integrity check: {str(e).encode('ascii', 'backslashreplace').decode('ascii')}")
         # Don't fail startup if integrity check fails
 
-    # Create temple from configuration (for standalone packages)
-    try:
-        from app.core.setup_wizard import create_temple_from_config
-        from app.core.database import SessionLocal
-        from pathlib import Path
-        import sys
-
-        # Get base directory - use STANDALONE_BASE_DIR if set, otherwise calculate
-        if os.environ.get("STANDALONE_BASE_DIR"):
-            base_dir = Path(os.environ["STANDALONE_BASE_DIR"])
-        elif getattr(sys, "frozen", False):
-            base_dir = Path(sys.executable).parent
-        else:
-            base_dir = Path(__file__).parent.parent
-
-        db = SessionLocal()
+    if settings.is_standalone:
+        # Create temple from configuration (for standalone packages)
         try:
-            temple = create_temple_from_config(db, base_dir)
-            if temple:
-                print(f"[OK] Temple configured: {temple.name}")
-        finally:
-            db.close()
-    except Exception as e:
-        print(f"[INFO] Temple configuration: {e}")
+            from app.core.setup_wizard import create_temple_from_config
+            from app.core.database import SessionLocal
+            from pathlib import Path
+            import sys
 
-    # Apply module configuration from file (for standalone packages)
-    try:
-        from app.core.module_config_loader import apply_module_config_to_temples
+            # Get base directory - use STANDALONE_BASE_DIR if set, otherwise calculate
+            if os.environ.get("STANDALONE_BASE_DIR"):
+                base_dir = Path(os.environ["STANDALONE_BASE_DIR"])
+            elif getattr(sys, "frozen", False):
+                base_dir = Path(sys.executable).parent
+            else:
+                base_dir = Path(__file__).parent.parent
 
-        apply_module_config_to_temples()
-    except Exception as e:
-        print(f"[INFO] Module configuration: {e}")
+            db = SessionLocal()
+            try:
+                temple = create_temple_from_config(db, base_dir)
+                if temple:
+                    print(f"[OK] Temple configured: {temple.name}")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"[INFO] Temple configuration: {e}")
+
+        # Apply module configuration from file (for standalone packages)
+        try:
+            from app.core.module_config_loader import apply_module_config_to_temples
+
+            apply_module_config_to_temples()
+        except Exception as e:
+            print(f"[INFO] Module configuration: {e}")
 
     # Check license status on startup
     # NOTE: For development/testing, we completely skip license enforcement
     # so that all modules (seva booking, accounting, etc.) can be tested freely.
     # In production, set DEBUG=False to enable license checks.
     if settings.DEBUG:
-        print("ℹ️  License checks are DISABLED in DEBUG mode. All features enabled for testing.")
+        print("â„¹ï¸  License checks are DISABLED in DEBUG mode. All features enabled for testing.")
         return
 
     from app.licensing import check_trial_status
@@ -368,14 +369,14 @@ def _run_startup():
     try:
         status = check_trial_status()
         if status.get("is_active"):
-            print(f"✅ License Active: {status.get('message')}")
+            print(f"[OK] License Active: {str(status.get('message')).encode('ascii', 'backslashreplace').decode('ascii')}")
             if status.get("is_grace_period"):
-                print(f"⚠️  WARNING: Grace period - {status.get('grace_days_left')} days remaining")
+                print(f"[WARN] Grace period - {status.get('grace_days_left')} days remaining")
         else:
-            print(f"⚠️  LICENSE WARNING: {status.get('message')}")
+            print(f"[WARN] LICENSE WARNING: {str(status.get('message')).encode('ascii', 'backslashreplace').decode('ascii')}")
             print("   Some features may be restricted.")
-    except Exception as e:
-        print(f"ℹ️  No license found. Activate license to enable all features.")
+    except Exception:
+        print('[INFO] No license found. Activate license to enable all features.')
 
     # Transfer advance seva bookings to income for yesterday's seva date (booking_date == today - 1)
     # This runs on startup to ensure any missed transfers are processed
@@ -406,27 +407,27 @@ def _run_startup():
 
                 if admin_user:
                     print(
-                        f"🔄 Processing advance seva booking transfers for temple {temple.name} (yesterday's bookings)..."
+                        f"ðŸ”„ Processing advance seva booking transfers for temple {temple.name} (yesterday's bookings)..."
                     )
                     result = _transfer_advance_bookings_batch_internal(db, temple.id, admin_user.id)
                     db.commit()
                     if result.get("transferred_count", 0) > 0:
                         total_transferred += result["transferred_count"]
                         print(
-                            f"✅ Transferred {result['transferred_count']} advance booking(s) to Seva Income for {temple.name}"
+                            f"âœ… Transferred {result['transferred_count']} advance booking(s) to Seva Income for {temple.name}"
                         )
                     if result.get("skipped_count", 0) > 0:
                         print(
-                            f"ℹ️  Skipped {result.get('skipped_count')} booking(s) (not advance bookings or already transferred)"
+                            f"â„¹ï¸  Skipped {result.get('skipped_count')} booking(s) (not advance bookings or already transferred)"
                         )
 
             if total_transferred > 0:
                 print(
-                    f"✅ Total: Transferred {total_transferred} advance booking(s) to Seva Income across all temples"
+                    f"âœ… Total: Transferred {total_transferred} advance booking(s) to Seva Income across all temples"
                 )
         except Exception as e:
             # Don't fail startup if transfer fails - just log it
-            print(f"⚠️  Warning: Could not process advance booking transfers on startup: {str(e)}")
+            print(f"âš ï¸  Warning: Could not process advance booking transfers on startup: {str(e)}")
             db.rollback()
         finally:
             db.close()
@@ -451,3 +452,4 @@ async def root(request: Request):
 async def health_check(request: Request):
     """Health check endpoint"""
     return {"status": "healthy", "service": settings.APP_NAME, "version": settings.APP_VERSION}
+

@@ -32,6 +32,7 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import PrintIcon from '@mui/icons-material/Print';
 import MinimizeIcon from '@mui/icons-material/Minimize';
 import api from '../services/api';
+import { useCurrentUser } from '../contexts/CurrentUserContext';
 
 function Sevas() {
   const bankSubModeOptions = [
@@ -81,8 +82,10 @@ function Sevas() {
   });
 
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const canManageSevas = ['admin', 'super_admin', 'temple_manager'].includes(user.role) || Boolean(user.is_superuser);
+  const { user, loading: currentUserLoading } = useCurrentUser();
+  const canManageSevas = !currentUserLoading && (
+    ['admin', 'super_admin', 'temple_manager'].includes(user?.role) || Boolean(user?.is_superuser)
+  );
   const [sevas, setSevas] = useState([]);
   const [filteredSevas, setFilteredSevas] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -96,7 +99,7 @@ function Sevas() {
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [bookingDialogMinimized, setBookingDialogMinimized] = useState(false);
   const [selectedSeva, setSelectedSeva] = useState(null);
-  const [devotees, setDevotees] = useState([]);
+  const [_devotees, setDevotees] = useState([]);
   const [bookingForm, setBookingForm] = useState(getInitialBookingForm());
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState(null);
@@ -126,9 +129,10 @@ function Sevas() {
     fetchPaymentAccounts();
   }, []);
 
+  // Filtering intentionally tracks the seva list and category only.
   useEffect(() => {
     filterSevas();
-  }, [sevas, selectedCategory]);
+  }, [sevas, selectedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSevas = async () => {
     try {
@@ -187,7 +191,7 @@ function Sevas() {
           "Lomasha", "Mandavya", "Marichi", "Moudgalya", "Naidhruva", "Parashara",
           "Pulaha", "Pulastya", "Sandilya", "Shandilya", "Sankrithi", "Srivatsa",
           "Upamanyu", "Valmiki", "Vashishta", "Vatsa", "Vishwamitra", "Viswamitra",
-          "Vrigu", "Yaska", "Kanva", "Mudgala", "Raibhya", "Uddālaka", "Agni",
+          "Vrigu", "Yaska", "Kanva", "Mudgala", "Raibhya", "Uddalaka", "Agni",
           "Aliman", "Kapi", "Krivi", "Saunaka", "Vadula", "Vasistha"
         ],
         nakshatras: [
@@ -599,15 +603,15 @@ function Sevas() {
 
   const getCategoryIcon = (category) => {
     const icons = {
-      abhisheka: '💧',
-      alankara: '🌸',
-      pooja: '🙏',
-      archana: '📿',
-      vahana_seva: '🚩',
-      special: '⭐',
-      festival: '🎉'
+      abhisheka: '\u{1F4A7}',
+      alankara: '\u{1F338}',
+      pooja: '\u{1F549}',
+      archana: '\u{1F64F}',
+      vahana_seva: '\u{1F6A9}',
+      special: '\u2B50',
+      festival: '\u{1F389}'
     };
-    return icons[category] || '🕉️';
+    return icons[category] || '\u{1F6D5}';
   };
 
   const formatCategory = (category) => {
@@ -639,7 +643,7 @@ function Sevas() {
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box>
             <Typography variant="h4" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
-              🕉️ Temple Sevas & Services
+              Temple Sevas & Services
             </Typography>
             <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.9)' }}>
               Book divine sevas and poojas for blessings and spiritual upliftment
@@ -744,7 +748,7 @@ function Sevas() {
                 {/* Time Slot */}
                 {seva.time_slot && (
                   <Chip
-                    label={`⏰ ${seva.time_slot}`}
+                    label={`\u23F0 ${seva.time_slot}`}
                     size="small"
                     variant="outlined"
                     sx={{ mb: 1, mr: 1 }}
@@ -775,9 +779,9 @@ function Sevas() {
                   <Chip
                     label={
                       seva.specific_day !== null
-                        ? `📅 ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][seva.specific_day]} Only`
+                        ? `${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][seva.specific_day]} Only`
                         : seva.except_day !== null
-                          ? `📅 Except ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][seva.except_day]}`
+                          ? `Except ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][seva.except_day]}`
                           : formatCategory(seva.availability)
                     }
                     size="small"
@@ -789,13 +793,13 @@ function Sevas() {
                 {/* Availability Status */}
                 {seva.is_available_today ? (
                   <Chip
-                    label="✅ Available Today"
+                    label="Available Today"
                     size="small"
                     sx={{ bgcolor: '#E8F5E9', color: '#2E7D32', mb: 1, display: 'block', width: 'fit-content' }}
                   />
                 ) : (
                   <Chip
-                    label="❌ Not Available Today"
+                    label="Not Available Today"
                     size="small"
                     sx={{ bgcolor: '#FFEBEE', color: '#C62828', mb: 1, display: 'block', width: 'fit-content' }}
                   />
@@ -805,11 +809,11 @@ function Sevas() {
                 <Box sx={{ mt: 'auto', pt: 2 }}>
                   {seva.min_amount && seva.max_amount ? (
                     <Typography variant="h6" sx={{ fontWeight: 700, color: getCategoryColor(seva.category) }}>
-                      ₹{seva.min_amount} - ₹{seva.max_amount}
+                      {'\u20B9'}{seva.min_amount} - {'\u20B9'}{seva.max_amount}
                     </Typography>
                   ) : (
                     <Typography variant="h6" sx={{ fontWeight: 700, color: getCategoryColor(seva.category) }}>
-                      ₹{seva.amount}
+                      {'\u20B9'}{seva.amount}
                     </Typography>
                   )}
                 </Box>
@@ -874,7 +878,7 @@ function Sevas() {
               <Chip
                 size="small"
                 variant="outlined"
-                label={`⏰ ${selectedSeva.time_slot}`}
+                label={`\u23F0 ${selectedSeva.time_slot}`}
               />
             )}
             {selectedSeva?.availability && selectedSeva.availability !== 'daily' && (
@@ -976,7 +980,7 @@ function Sevas() {
             {foundDevotee && (
               <Box>
                 <Alert severity="success" sx={{ mb: 2 }}>
-                  ✅ Devotee Found!
+                  Devotee Found!
                 </Alert>
                 <Paper sx={{ p: 2, bgcolor: '#E8F5E9' }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
@@ -1006,7 +1010,7 @@ function Sevas() {
             {showNewDevoteeForm && (
               <Box>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  ℹ️ Devotee not found. Please enter details to create new devotee.
+                  Devotee not found. Please enter details to create new devotee.
                 </Alert>
                 <Paper sx={{ p: 2, bgcolor: '#FFF3E0' }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
@@ -1178,7 +1182,7 @@ function Sevas() {
                   value={bookingForm.amount_paid}
                   onChange={(e) => setBookingForm({ ...bookingForm, amount_paid: parseFloat(e.target.value) })}
                   InputProps={{
-                    startAdornment: '₹'
+                    startAdornment: <InputAdornment position="start">{'\u20B9'}</InputAdornment>
                   }}
                   fullWidth
                 />

@@ -14,13 +14,14 @@ import re
 
 from app.core.database import get_db, engine
 from app.core.config import settings
+from app.core.role_permissions import require_action_permission
 from app.core.security import get_current_user
+from app.core.temple_context import can_access_all_temples
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/backup-restore", tags=["backup-restore"])
 
 BACKUP_DIR = Path(settings.BACKUP_PATH).expanduser()
-BACKUP_ALLOWED_ROLES = {"admin", "super_admin", "temple_manager"}
 ALLOWED_TABLES = {
     "temples",
     "users",
@@ -38,19 +39,33 @@ IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _require_backup_access(current_user: User) -> None:
-    if current_user.role not in BACKUP_ALLOWED_ROLES and not current_user.is_superuser:
+    if current_user.role not in {"admin", "super_admin", "temple_manager", "accountant"}:
         raise HTTPException(
             status_code=403,
             detail="Only administrators can access backup/restore features",
         )
 
 
+def _require_backup_permission(db: Session, current_user: User) -> None:
+    _require_backup_access(current_user)
+    try:
+        require_action_permission(
+            db,
+            current_user,
+            "manage_backups",
+            temple_id=current_user.temple_id,
+            detail="You do not have permission to manage backups",
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
 def _is_super_admin(current_user: User) -> bool:
-    return current_user.role == "super_admin" or bool(current_user.is_superuser)
+    return can_access_all_temples(current_user)
 
 
 def _backup_filename_prefix(current_user: User) -> str:
-    if _is_super_admin(current_user):
+    if _is_super_admin(current_user) and not current_user.temple_id:
         return "backup_global_"
     temple_id = current_user.temple_id
     if not temple_id:
@@ -91,8 +106,8 @@ def get_backup_status(
     current_user: User = Depends(get_current_user)
 ):
     """Get backup status and information"""
-    _require_backup_access(current_user)
-    
+    _require_backup_permission(db, current_user)
+
     # Get list of backup files
     backup_files = []
     if BACKUP_DIR.exists():
@@ -120,7 +135,7 @@ def create_backup(
     current_user: User = Depends(get_current_user)
 ):
     """Create a backup of critical database tables"""
-    _require_backup_access(current_user)
+    _require_backup_permission(db, current_user)
     _ensure_backup_dir()
     
     try:
@@ -197,11 +212,12 @@ def create_backup(
 @router.get("/download/{filename}")
 def download_backup(
     filename: str,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Download a backup file"""
-    _require_backup_access(current_user)
-    
+    _require_backup_permission(db, current_user)
+
     safe_name = _safe_filename(filename)
     if not _can_access_backup_file(current_user, safe_name):
         raise HTTPException(status_code=403, detail="Not authorized to access this backup file")
@@ -233,10 +249,11 @@ def download_backup(
 @router.delete("/delete/{filename}")
 def delete_backup(
     filename: str,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Delete a backup file"""
-    _require_backup_access(current_user)
+    _require_backup_permission(db, current_user)
 
     safe_name = _safe_filename(filename)
     if not _can_access_backup_file(current_user, safe_name):

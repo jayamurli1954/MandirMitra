@@ -16,6 +16,22 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { IconButton, InputAdornment } from '@mui/material';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
+import { setAccessToken, writeStoredUser } from '../utils/authStorage';
+
+const normalizeCurrentUser = (userData, email) => ({
+  id: userData?.id,
+  email: userData?.email || email,
+  full_name: userData?.full_name || '',
+  name: userData?.full_name || userData?.email || email.split('@')[0],
+  role: userData?.system_role || userData?.role || 'temple_manager',
+  system_role: userData?.system_role || userData?.role || 'temple_manager',
+  role_key: userData?.role_key,
+  role_label: userData?.role_label,
+  phone: userData?.phone || '',
+  module_permissions: userData?.module_permissions || {},
+  action_permissions: userData?.action_permissions || {},
+  is_superuser: Boolean(userData?.is_superuser),
+});
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -33,9 +49,8 @@ function Login() {
     setLoading(true);
 
     try {
-      // Call backend authentication API
       const formData = new URLSearchParams();
-      formData.append('username', email); // Backend expects 'username' field
+      formData.append('username', email);
       formData.append('password', password);
       const response = await fetchWithApiFallback('/api/v1/login', {
         method: 'POST',
@@ -51,14 +66,32 @@ function Login() {
       }
 
       const data = await response.json();
+      setAccessToken(data.access_token);
 
-      // Store token and user info
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('user', JSON.stringify({
+      const profileResponse = await fetchWithApiFallback('/api/v1/users/me', {
+        headers: {
+          Authorization: `Bearer ${data.access_token}`,
+        },
+      }, { timeoutMs: 12000 });
+
+      let currentUser = {
         email,
-        name: email.split('@')[0], // Extract name from email
-        role: 'temple_manager'
-      }));
+        name: email.split('@')[0],
+        role: 'temple_manager',
+        system_role: 'temple_manager',
+        is_superuser: false,
+        module_permissions: {},
+        action_permissions: {},
+      };
+
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json();
+        currentUser = normalizeCurrentUser(profileData, email);
+      }
+
+      writeStoredUser(currentUser);
+      window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: currentUser }));
+      window.dispatchEvent(new CustomEvent('auth-state-changed'));
 
       sessionStorage.setItem('showBrandIntroAfterLogin', '1');
       navigate('/brand-intro');
@@ -170,4 +203,3 @@ function Login() {
 }
 
 export default Login;
-

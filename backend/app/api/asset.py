@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.asset import (
     Asset, AssetCategory, CapitalWorkInProgress, AssetExpense,
@@ -27,6 +28,14 @@ from app.models.vendor import Vendor
 from app.models.depreciation_methods import DepreciationCalculator
 
 router = APIRouter(prefix="/api/v1/assets", tags=["assets"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 # ===== PYDANTIC SCHEMAS =====
@@ -129,9 +138,11 @@ def create_asset_category(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new asset category"""
+    temple_id = _resolve_write_temple_id(db, current_user)
+
     # Check if code already exists
     existing = db.query(AssetCategory).filter(
-        AssetCategory.temple_id == current_user.temple_id,
+        AssetCategory.temple_id == temple_id,
         AssetCategory.code == category_data.code
     ).first()
     if existing:
@@ -139,7 +150,7 @@ def create_asset_category(
     
     category = AssetCategory(
         **category_data.dict(),
-        temple_id=current_user.temple_id
+        temple_id=temple_id
     )
     db.add(category)
     db.commit()
@@ -154,7 +165,8 @@ def list_asset_categories(
     current_user: User = Depends(get_current_user)
 ):
     """List all asset categories"""
-    query = db.query(AssetCategory).filter(AssetCategory.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(AssetCategory).filter(AssetCategory.temple_id == temple_id)
     if is_active is not None:
         query = query.filter(AssetCategory.is_active == is_active)
     return query.order_by(AssetCategory.name).all()
@@ -173,7 +185,7 @@ def purchase_asset(
     Creates asset record and accounting entry
     Dr: Asset Account, Cr: Cash/Bank/Payables
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
     
     # Validate category
     category = db.query(AssetCategory).filter(
@@ -330,12 +342,8 @@ def list_assets(
     current_user: User = Depends(get_current_user)
 ):
     """List all assets"""
-    temple_id = current_user.temple_id
-    
-    # Handle standalone mode where temple_id might be None
-    query = db.query(Asset)
-    if temple_id is not None:
-        query = query.filter(Asset.temple_id == temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Asset).filter(Asset.temple_id == temple_id)
     
     if category_id:
         query = query.filter(Asset.category_id == category_id)
@@ -354,9 +362,10 @@ def get_asset(
     current_user: User = Depends(get_current_user)
 ):
     """Get asset details"""
+    temple_id = _resolve_temple_id(db, current_user)
     asset = db.query(Asset).filter(
         Asset.id == asset_id,
-        Asset.temple_id == current_user.temple_id
+        Asset.temple_id == temple_id
     ).first()
     
     if not asset:
@@ -373,9 +382,10 @@ def update_asset(
     current_user: User = Depends(get_current_user)
 ):
     """Update an asset"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     asset = db.query(Asset).filter(
         Asset.id == asset_id,
-        Asset.temple_id == current_user.temple_id
+        Asset.temple_id == temple_id
     ).first()
     
     if not asset:
@@ -384,7 +394,7 @@ def update_asset(
     # Don't allow changing asset number if it's already set
     if asset_data.asset_number != asset.asset_number:
         existing = db.query(Asset).filter(
-            Asset.temple_id == current_user.temple_id,
+            Asset.temple_id == temple_id,
             Asset.asset_number == asset_data.asset_number,
             Asset.id != asset_id
         ).first()
@@ -408,9 +418,10 @@ def delete_asset(
     current_user: User = Depends(get_current_user)
 ):
     """Delete (deactivate) an asset - Soft delete by changing status"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     asset = db.query(Asset).filter(
         Asset.id == asset_id,
-        Asset.temple_id == current_user.temple_id
+        Asset.temple_id == temple_id
     ).first()
     
     if not asset:

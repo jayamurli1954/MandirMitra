@@ -5,14 +5,16 @@ This file contains database fixtures and common test utilities that are
 automatically discovered by pytest and made available to all tests.
 """
 
+import asyncio
 import pytest
 from typing import Generator
+import httpx
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
-from app.core.security import get_password_hash
+from app.core.security import create_access_token, get_password_hash
 from app.main import app as fastapi_app
 from app.models.user import User
 
@@ -99,17 +101,65 @@ def client(db_session):
 
     This fixture provides a FastAPI TestClient that uses the test database.
     """
-    from fastapi.testclient import TestClient
-
     def override_get_db():
         try:
             yield db_session
         finally:
             pass
 
+    class CompatibleTestClient:
+        """
+        Minimal sync wrapper around httpx.AsyncClient for environments where
+        Starlette's TestClient is incompatible with the installed httpx version.
+        """
+
+        def __init__(self, app):
+            self.app = app
+            self.base_url = "http://testserver"
+            self.headers = {}
+            self.cookies = httpx.Cookies()
+
+        async def _request_async(self, method, url, **kwargs):
+            headers = dict(self.headers)
+            headers.update(kwargs.pop("headers", {}) or {})
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=self.app),
+                base_url=self.base_url,
+                headers=headers,
+                cookies=self.cookies,
+                follow_redirects=True,
+            ) as async_client:
+                response = await async_client.request(method, url, **kwargs)
+                self.cookies.update(async_client.cookies)
+                return response
+
+        def request(self, method, url, **kwargs):
+            return asyncio.run(self._request_async(method, url, **kwargs))
+
+        def get(self, url, **kwargs):
+            return self.request("GET", url, **kwargs)
+
+        def post(self, url, **kwargs):
+            return self.request("POST", url, **kwargs)
+
+        def put(self, url, **kwargs):
+            return self.request("PUT", url, **kwargs)
+
+        def delete(self, url, **kwargs):
+            return self.request("DELETE", url, **kwargs)
+
+        def patch(self, url, **kwargs):
+            return self.request("PATCH", url, **kwargs)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
     fastapi_app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(fastapi_app) as test_client:
+    with CompatibleTestClient(fastapi_app) as test_client:
         yield test_client
 
     # Clear overrides
@@ -420,25 +470,8 @@ def authenticated_client(client, test_user, chart_of_accounts):
 
     Returns a client with authentication headers for the test user.
     """
-    # Login to get token
-    response = client.post(
-        "/api/v1/login",
-        data={"username": test_user.email, "password": "testpass123"}
-    )
-
-    if response.status_code == 200:
-        token = response.json().get("access_token")
-        if token:
-            client.headers["Authorization"] = f"Bearer {token}"
-        else:
-            # Try alternative response format
-            token = response.json().get("token")
-            if token:
-                client.headers["Authorization"] = f"Bearer {token}"
-    else:
-        # Log error for debugging
-        print(f"Login failed: {response.status_code} - {response.text}")
-
+    token = create_access_token(data={"sub": test_user.email})
+    client.headers["Authorization"] = f"Bearer {token}"
     return client
 
 

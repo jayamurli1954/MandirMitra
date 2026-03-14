@@ -14,6 +14,12 @@ import io
 
 from app.core.database import get_db, column_exists
 from app.core.security import get_current_user
+from app.core.temple_context import (
+    require_system_roles,
+    require_temple_id_for_user,
+    require_temple_write_access,
+    resolve_temple_id_for_user,
+)
 from app.core.coa_bootstrap import ensure_default_coa_for_temple
 from app.core.auto_setup import is_standalone_mode
 from app.models.user import User
@@ -236,6 +242,7 @@ def list_sevas(
     include_inactive: bool = False,
     for_date: Optional[date] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all sevas with availability check"""
     from sqlalchemy import text
@@ -251,9 +258,14 @@ def list_sevas(
         traceback.print_exc()
         return []
 
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+    sevas_support_temple = column_exists(db, "sevas", "temple_id") and hasattr(Seva, "temple_id")
+
     # Use ORM query directly - handle missing except_days column gracefully
     try:
         query = db.query(Seva)
+        if sevas_support_temple:
+            query = query.filter(Seva.temple_id == temple_id)
 
         if not include_inactive:
             query = query.filter(Seva.is_active == is_active)
@@ -274,6 +286,8 @@ def list_sevas(
                 db.rollback()
                 # Fallback to get_seva_safely which handles missing columns
                 filter_conditions = {}
+                if sevas_support_temple:
+                    filter_conditions["temple_id"] = temple_id
                 if not include_inactive:
                     filter_conditions["is_active"] = is_active
                 if category:
@@ -434,14 +448,20 @@ def get_payment_accounts_for_sevas(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get active cash and bank accounts for seva booking payment selection."""
-    temple_id = current_user.temple_id if current_user else None
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
     return _get_payment_accounts_for_temple(db, temple_id)
 
 
 @router.get("/{seva_id}", response_model=SevaResponse)
-def get_seva(seva_id: int, db: Session = Depends(get_db)):
+def get_seva(
+    seva_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Get seva details"""
-    seva = get_seva_safely(db, seva_id=seva_id)
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+    filter_conditions = {"temple_id": temple_id} if column_exists(db, "sevas", "temple_id") and hasattr(Seva, "temple_id") else None
+    seva = get_seva_safely(db, seva_id=seva_id, filter_conditions=filter_conditions)
     if not seva:
         raise HTTPException(status_code=404, detail="Seva not found")
     return seva
@@ -455,10 +475,11 @@ def create_seva(
     request: Request = None,
 ):
     """Create new seva (admin/temple_manager only)"""
-    if current_user.role not in ["admin", "temple_manager"] and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=403, detail="Only admins and temple managers can create sevas"
-        )
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail="Only admins and temple managers can create sevas",
+    )
 
     # Filter out materials_required if it exists (column may not exist in database)
     seva_dict = seva_data.dict()
@@ -471,8 +492,9 @@ def create_seva(
         if isinstance(seva_dict["except_days"], list):
             seva_dict["except_days"] = json.dumps(seva_dict["except_days"])
 
+    temple_id = require_temple_write_access(db, current_user, active_only=False)
     seva = Seva(**seva_dict)
-    seva.temple_id = current_user.temple_id if current_user else None
+    seva.temple_id = temple_id
     db.add(seva)
     db.flush()  # Get seva.id for audit log
 
@@ -509,15 +531,21 @@ def update_seva(
     request: Request = None,
 ):
     """Update seva (admin/temple_manager only)"""
-    if current_user.role not in ["admin", "temple_manager"] and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=403, detail="Only admins and temple managers can update sevas"
-        )
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail="Only admins and temple managers can update sevas",
+    )
+
+    effective_temple_id = require_temple_write_access(db, current_user, active_only=False)
 
     # For updates we MUST use the real SQLAlchemy model instance, not the SevaProxy
     # returned by get_seva_safely (which is meant only for read scenarios where
     # the materials_required column might be missing).
-    seva = db.query(Seva).filter(Seva.id == seva_id).first()
+    seva_query = db.query(Seva).filter(Seva.id == seva_id)
+    if column_exists(db, "sevas", "temple_id") and hasattr(Seva, "temple_id"):
+        seva_query = seva_query.filter(Seva.temple_id == effective_temple_id)
+    seva = seva_query.first()
     if not seva:
         raise HTTPException(status_code=404, detail="Seva not found")
 
@@ -659,10 +687,13 @@ def delete_seva(
     - Cannot delete if there are future bookings
     - Reason must be provided
     """
-    if current_user.role not in ["admin", "temple_manager"] and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=403, detail="Only admins and temple managers can delete sevas"
-        )
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail="Only admins and temple managers can delete sevas",
+    )
+
+    effective_temple_id = require_temple_write_access(db, current_user, active_only=False)
 
     if not reason or not reason.strip():
         raise HTTPException(
@@ -670,7 +701,8 @@ def delete_seva(
             detail="Reason for deletion is required. Please provide a reason for audit trail.",
         )
 
-    seva = get_seva_safely(db, seva_id=seva_id)
+    filter_conditions = {"temple_id": effective_temple_id} if column_exists(db, "sevas", "temple_id") and hasattr(Seva, "temple_id") else None
+    seva = get_seva_safely(db, seva_id=seva_id, filter_conditions=filter_conditions)
     if not seva:
         raise HTTPException(status_code=404, detail="Seva not found")
 
@@ -978,10 +1010,12 @@ def create_booking(
     current_user: User = Depends(get_current_user),
 ):
     """Create new seva booking"""
+    temple_id = require_temple_write_access(db, current_user, active_only=False)
     booking = _svc_create_booking(
         db=db,
         booking_data=booking_data,
         current_user=current_user,
+        temple_id=temple_id,
         get_seva_safely_fn=get_seva_safely,
         post_seva_to_accounting_fn=post_seva_to_accounting,
     )
@@ -995,6 +1029,7 @@ def update_booking(
     current_user: User = Depends(get_current_user),
 ):
     """Update booking"""
+    require_temple_write_access(db, current_user, active_only=False)
     return _svc_update_booking(
         db=db,
         booking_id=booking_id,
@@ -1010,6 +1045,7 @@ def cancel_booking(
     current_user: User = Depends(get_current_user),
 ):
     """Cancel booking"""
+    require_temple_write_access(db, current_user, active_only=False)
     return _svc_cancel_booking(
         db=db,
         booking_id=booking_id,
@@ -1042,6 +1078,7 @@ def request_reschedule(
     current_user: User = Depends(get_current_user),
 ):
     """Request to reschedule (postpone/prepone) a seva booking"""
+    require_temple_write_access(db, current_user, active_only=False)
     return _svc_request_reschedule(
         db=db,
         booking_id=booking_id,
@@ -1067,6 +1104,7 @@ def approve_reschedule(
     current_user: User = Depends(get_current_user),
 ):
     """Approve or reject a reschedule request (admin only)"""
+    require_temple_write_access(db, current_user, active_only=False)
     return _svc_approve_reschedule(
         db=db,
         booking_id=booking_id,
@@ -1106,16 +1144,19 @@ def assign_priest(
     if current_user.role not in ["admin", "temple_manager", "staff"]:
         raise HTTPException(status_code=403, detail="Only admins and staff can assign priests")
 
-    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    effective_temple_id = require_temple_write_access(db, current_user, active_only=False)
+    booking_query = db.query(SevaBooking).filter(SevaBooking.id == booking_id)
+    if column_exists(db, "seva_bookings", "temple_id") and hasattr(SevaBooking, "temple_id"):
+        booking_query = booking_query.filter(SevaBooking.temple_id == effective_temple_id)
+    booking = booking_query.first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
     # Verify priest exists and is active
-    priest = (
-        db.query(User)
-        .filter(User.id == priest_id, User.role == "priest", User.is_active == True)
-        .first()
-    )
+    priest_query = db.query(User).filter(User.id == priest_id, User.role == "priest", User.is_active == True)
+    if effective_temple_id:
+        priest_query = priest_query.filter(User.temple_id == effective_temple_id)
+    priest = priest_query.first()
 
     if not priest:
         raise HTTPException(status_code=404, detail="Priest not found or inactive")
@@ -1146,7 +1187,11 @@ def remove_priest(
             status_code=403, detail="Only admins and staff can remove priest assignments"
         )
 
-    booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
+    effective_temple_id = require_temple_write_access(db, current_user, active_only=False)
+    booking_query = db.query(SevaBooking).filter(SevaBooking.id == booking_id)
+    if column_exists(db, "seva_bookings", "temple_id") and hasattr(SevaBooking, "temple_id"):
+        booking_query = booking_query.filter(SevaBooking.temple_id == effective_temple_id)
+    booking = booking_query.first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
@@ -1175,6 +1220,7 @@ def process_refund(
     current_user: User = Depends(get_current_user),
 ):
     """Process refund for a cancelled booking"""
+    require_temple_write_access(db, current_user, active_only=False)
     return _svc_process_refund(
         db=db,
         booking_id=booking_id,
@@ -1203,7 +1249,8 @@ def get_seva_booking_receipt_pdf(
     Professional receipt format with temple details
     """
     # Get booking with relationships loaded
-    booking = (
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+    booking_query = (
         db.query(SevaBooking)
         .options(
             joinedload(SevaBooking.seva),
@@ -1211,13 +1258,14 @@ def get_seva_booking_receipt_pdf(
             joinedload(SevaBooking.user),
         )
         .filter(SevaBooking.id == booking_id)
-        .first()
     )
+    if column_exists(db, "seva_bookings", "temple_id") and hasattr(SevaBooking, "temple_id"):
+        booking_query = booking_query.filter(SevaBooking.temple_id == temple_id)
+    booking = booking_query.first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
     # Generate PDF using helper function
-    temple_id = current_user.temple_id if current_user else None
     buffer = _generate_seva_receipt_pdf(booking, db, temple_id)
 
     receipt_number = booking.receipt_number or f"SEV{booking.id}"
@@ -1240,7 +1288,8 @@ def get_seva_booking_receipt_pdf_base64(
     import base64
 
     # Get booking with relationships loaded
-    booking = (
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+    booking_query = (
         db.query(SevaBooking)
         .options(
             joinedload(SevaBooking.seva),
@@ -1248,13 +1297,14 @@ def get_seva_booking_receipt_pdf_base64(
             joinedload(SevaBooking.user),
         )
         .filter(SevaBooking.id == booking_id)
-        .first()
     )
+    if column_exists(db, "seva_bookings", "temple_id") and hasattr(SevaBooking, "temple_id"):
+        booking_query = booking_query.filter(SevaBooking.temple_id == temple_id)
+    booking = booking_query.first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
     # Generate PDF using the same logic
-    temple_id = current_user.temple_id if current_user else None
     pdf_buffer = _generate_seva_receipt_pdf(booking, db, temple_id)
 
     # Convert to base64
@@ -1273,6 +1323,7 @@ def transfer_advance_booking_to_income(
     booking_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Transfers an advance seva booking amount from Advance Seva Booking to Seva Income."""
+    require_temple_write_access(db, current_user, active_only=False)
     return _svc_transfer_advance_booking_to_income(
         db=db,
         booking_id=booking_id,
@@ -1291,6 +1342,7 @@ def transfer_advance_bookings_batch(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Batch transfer all advance bookings whose seva date was yesterday."""
+    require_temple_write_access(db, current_user, active_only=False)
     return _svc_transfer_advance_bookings_batch(
         db=db,
         current_user=current_user,
@@ -1301,6 +1353,7 @@ def create_accounting_for_booking(
     booking_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Manually create accounting entry for an existing seva booking."""
+    require_temple_write_access(db, current_user, active_only=False)
     return _svc_create_accounting_for_booking(
         db=db,
         booking_id=booking_id,

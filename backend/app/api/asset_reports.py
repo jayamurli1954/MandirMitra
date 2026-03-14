@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user
 from app.models.user import User
 from app.models.asset import (
     Asset,
@@ -26,6 +27,10 @@ from app.models.asset import (
 from app.models.accounting import Account
 
 router = APIRouter(prefix="/api/v1/assets/reports", tags=["asset-reports"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
 
 
 # ===== PYDANTIC SCHEMAS =====
@@ -111,26 +116,22 @@ def get_asset_register(
     Asset Register Report
     Complete listing of all assets with financial details
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Debug logging
     print(
         f"[ASSET REGISTER] Request - temple_id: {temple_id}, asset_type: {asset_type}, category_id: {category_id}, status: {status}"
     )
 
-    # Handle standalone mode where temple_id might be None
     query = db.query(Asset)
 
     # Count total assets before filtering
     total_before_filter = query.count()
     print(f"[ASSET REGISTER] Total assets in database: {total_before_filter}")
 
-    if temple_id is not None:
-        query = query.filter(Asset.temple_id == temple_id)
-        count_after_temple = query.count()
-        print(f"[ASSET REGISTER] Assets after temple filter: {count_after_temple}")
-    else:
-        print(f"[ASSET REGISTER] Standalone mode - not filtering by temple_id")
+    query = query.filter(Asset.temple_id == temple_id)
+    count_after_temple = query.count()
+    print(f"[ASSET REGISTER] Assets after temple filter: {count_after_temple}")
 
     if category_id:
         query = query.filter(Asset.category_id == category_id)
@@ -258,7 +259,7 @@ def get_depreciation_report(
     Depreciation Report
     Shows depreciation schedules for specified period
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     query = (
         db.query(DepreciationSchedule)
@@ -315,7 +316,7 @@ def get_cwip_report(
     CWIP Report
     Shows all capital work in progress projects
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     query = db.query(CapitalWorkInProgress)
     if temple_id is not None:
@@ -364,7 +365,7 @@ def get_asset_summary(
     Asset Summary Dashboard
     Quick overview of asset statistics
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Handle standalone mode where temple_id might be None
     base_query = db.query(Asset)

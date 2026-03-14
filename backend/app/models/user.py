@@ -51,7 +51,7 @@ class User(Base):
     )
 
     # Relationships
-    temple = relationship("Temple", back_populates="users")
+    temple = relationship("Temple", back_populates="users", foreign_keys=[temple_id])
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', role='{self.role}')>"

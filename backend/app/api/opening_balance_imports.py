@@ -2,13 +2,14 @@ import csv
 import io
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.temple_context import resolve_temple_id_for_user
+from app.core.role_permissions import require_action_permission
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_write_access
 from app.models.accounting import Account, AccountType
 from app.models.user import User
 
@@ -35,7 +36,7 @@ LEGACY_ACCOUNT_CODE_MAP = {
 
 
 def _require_admin_access(current_user: User) -> None:
-    if current_user.role not in ["admin", "temple_manager"] and not current_user.is_superuser:
+    if current_user.role not in ["admin", "temple_manager", "accountant", "super_admin"]:
         raise HTTPException(status_code=403, detail="Only admin users can manage opening balances")
 
 
@@ -84,9 +85,18 @@ async def import_opening_balances(
 ):
     """Import opening balances from CSV/XLSX for balance-sheet accounts."""
     _require_admin_access(current_user)
-    temple_id = resolve_temple_id_for_user(db, current_user, fallback_to_first=True)
-    if not temple_id:
-        raise HTTPException(status_code=404, detail="Temple not found")
+    temple_id = require_temple_write_access(db, current_user, active_only=False)
+    try:
+        require_action_permission(
+            db,
+            current_user,
+            "manage_opening_balances",
+            temple_id=temple_id,
+            detail="You do not have permission to manage opening balances",
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     if not file.filename:
         raise HTTPException(status_code=400, detail="File name is required")
 

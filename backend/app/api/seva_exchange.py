@@ -11,6 +11,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_system_roles
 from app.models.user import User
 from app.models.seva import Seva, SevaBooking, SevaBookingStatus
 from app.models.seva_exchange import SevaExchangeRequest, ExchangeRequestStatus
@@ -303,11 +304,11 @@ def approve_or_reject_exchange(
     """
     Approve or reject an exchange request (admin/temple_manager only)
     """
-    if current_user.role not in ['super_admin', 'admin', 'temple_manager'] and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=403,
-            detail="Only admins and temple managers can approve/reject exchange requests"
-        )
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail="Only admins and temple managers can approve/reject exchange requests",
+    )
     
     exchange_request = db.query(SevaExchangeRequest).filter(SevaExchangeRequest.id == request_id).first()
     if not exchange_request:

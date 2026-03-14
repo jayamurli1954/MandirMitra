@@ -27,6 +27,7 @@ import DayBookReport from './DayBookReport';
 import CashBookReport from './CashBookReport';
 import BankBookReport from './BankBookReport';
 import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
+import { getAccessToken } from '../../utils/authStorage';
 
 const ALL_GT_ZERO_OPTION = '__ALL_GT_ZERO__';
 
@@ -65,7 +66,7 @@ function AccountingReports() {
 
   const fetchAccounts = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const response = await fetchWithApiFallback(`/api/v1/accounts/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -82,7 +83,7 @@ function AccountingReports() {
   const fetchTrialBalance = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const asOfDate = toDate.toISOString().split('T')[0];
       const response = await fetchWithApiFallback(
         `/api/v1/journal-entries/reports/trial-balance?as_of_date=${asOfDate}`,
@@ -114,7 +115,7 @@ function AccountingReports() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
 
@@ -227,7 +228,7 @@ function AccountingReports() {
   const fetchProfitLoss = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
       const response = await fetchWithApiFallback(
@@ -250,7 +251,7 @@ function AccountingReports() {
   const fetchCategoryIncome = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
       const response = await fetchWithApiFallback(
@@ -273,7 +274,7 @@ function AccountingReports() {
   const fetchTopDonors = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const fromDateStr = fromDate.toISOString().split('T')[0];
       const toDateStr = toDate.toISOString().split('T')[0];
       const response = await fetchWithApiFallback(
@@ -987,22 +988,22 @@ function AccountingReports() {
 
           {/* Balance Sheet Tab */}
           <TabPanel value={activeTab} index={5}>
-            <BalanceSheetReport token={localStorage.getItem('token') || ''} />
+            <BalanceSheetReport token={getAccessToken() || ''} />
           </TabPanel>
 
           {/* Day Book Tab */}
           <TabPanel value={activeTab} index={6}>
-            <DayBookReport token={localStorage.getItem('token') || ''} />
+            <DayBookReport token={getAccessToken() || ''} />
           </TabPanel>
 
           {/* Cash Book Tab */}
           <TabPanel value={activeTab} index={7}>
-            <CashBookReport token={localStorage.getItem('token') || ''} />
+            <CashBookReport token={getAccessToken() || ''} />
           </TabPanel>
 
           {/* Bank Book Tab */}
           <TabPanel value={activeTab} index={8}>
-            <BankBookReport token={localStorage.getItem('token') || ''} accounts={accounts} />
+            <BankBookReport token={getAccessToken() || ''} accounts={accounts} />
           </TabPanel>
 
         </Paper>

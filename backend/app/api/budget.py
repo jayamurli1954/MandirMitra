@@ -11,6 +11,7 @@ from datetime import date, datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.accounting import (
     Account,
@@ -36,6 +37,14 @@ from app.api.journal_entries import generate_entry_number
 router = APIRouter(prefix="/api/v1/budget", tags=["budget"])
 
 
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
 @router.post("/", response_model=BudgetResponse, status_code=201)
 def create_budget(
     budget_data: BudgetCreate,
@@ -47,13 +56,14 @@ def create_budget(
         raise HTTPException(
             status_code=403, detail="Only admins and accountants can create budgets"
         )
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Verify financial year exists
     financial_year = (
         db.query(FinancialYear)
         .filter(
             FinancialYear.id == budget_data.financial_year_id,
-            FinancialYear.temple_id == current_user.temple_id,
+            FinancialYear.temple_id == temple_id,
         )
         .first()
     )
@@ -65,7 +75,7 @@ def create_budget(
 
     # Create budget
     budget = Budget(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         financial_year_id=budget_data.financial_year_id,
         budget_name=budget_data.budget_name,
         budget_type=budget_data.budget_type,
@@ -84,7 +94,7 @@ def create_budget(
         # Verify account exists
         account = (
             db.query(Account)
-            .filter(Account.id == item_data.account_id, Account.temple_id == current_user.temple_id)
+            .filter(Account.id == item_data.account_id, Account.temple_id == temple_id)
             .first()
         )
         if not account:
@@ -101,7 +111,7 @@ def create_budget(
     db.commit()
     db.refresh(budget)
 
-    return _enrich_budget_response(budget, db, current_user.temple_id)
+    return _enrich_budget_response(budget, db, temple_id)
 
 
 @router.get("/", response_model=List[BudgetResponse])
@@ -112,7 +122,8 @@ def get_budgets(
     current_user: User = Depends(get_current_user),
 ):
     """Get all budgets"""
-    query = db.query(Budget).filter(Budget.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Budget).filter(Budget.temple_id == temple_id)
 
     if financial_year_id:
         query = query.filter(Budget.financial_year_id == financial_year_id)
@@ -120,7 +131,7 @@ def get_budgets(
         query = query.filter(Budget.status == status)
 
     budgets = query.order_by(Budget.budget_period_start.desc()).all()
-    return [_enrich_budget_response(b, db, current_user.temple_id) for b in budgets]
+    return [_enrich_budget_response(b, db, temple_id) for b in budgets]
 
 
 @router.get("/{budget_id}", response_model=BudgetResponse)
@@ -128,15 +139,16 @@ def get_budget(
     budget_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a specific budget"""
+    temple_id = _resolve_temple_id(db, current_user)
     budget = (
         db.query(Budget)
-        .filter(Budget.id == budget_id, Budget.temple_id == current_user.temple_id)
+        .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
         .first()
     )
     if not budget:
         raise HTTPException(status_code=404, detail="Budget not found")
 
-    return _enrich_budget_response(budget, db, current_user.temple_id)
+    return _enrich_budget_response(budget, db, temple_id)
 
 
 @router.put("/{budget_id}", response_model=BudgetResponse)
@@ -149,7 +161,7 @@ def update_budget(
     """Update a budget"""
     budget = (
         db.query(Budget)
-        .filter(Budget.id == budget_id, Budget.temple_id == current_user.temple_id)
+        .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
         .first()
     )
     if not budget:
@@ -169,7 +181,7 @@ def update_budget(
     db.commit()
     db.refresh(budget)
 
-    return _enrich_budget_response(budget, db, current_user.temple_id)
+    return _enrich_budget_response(budget, db, temple_id)
 
 
 @router.post("/{budget_id}/submit", response_model=BudgetResponse)
@@ -177,9 +189,10 @@ def submit_budget(
     budget_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Submit budget for approval"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     budget = (
         db.query(Budget)
-        .filter(Budget.id == budget_id, Budget.temple_id == current_user.temple_id)
+        .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
         .first()
     )
     if not budget:
@@ -196,7 +209,7 @@ def submit_budget(
     db.commit()
     db.refresh(budget)
 
-    return _enrich_budget_response(budget, db, current_user.temple_id)
+    return _enrich_budget_response(budget, db, temple_id)
 
 
 @router.post("/{budget_id}/approve", response_model=BudgetResponse)
@@ -214,7 +227,7 @@ def approve_budget(
 
     budget = (
         db.query(Budget)
-        .filter(Budget.id == budget_id, Budget.temple_id == current_user.temple_id)
+        .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
         .first()
     )
     if not budget:
@@ -238,7 +251,7 @@ def approve_budget(
     db.commit()
     db.refresh(budget)
 
-    return _enrich_budget_response(budget, db, current_user.temple_id)
+    return _enrich_budget_response(budget, db, temple_id)
 
 
 @router.post("/{budget_id}/activate", response_model=BudgetResponse)
@@ -253,7 +266,7 @@ def activate_budget(
 
     budget = (
         db.query(Budget)
-        .filter(Budget.id == budget_id, Budget.temple_id == current_user.temple_id)
+        .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
         .first()
     )
     if not budget:
@@ -264,7 +277,7 @@ def activate_budget(
 
     # Deactivate other active budgets for the same period
     db.query(Budget).filter(
-        Budget.temple_id == current_user.temple_id,
+        Budget.temple_id == temple_id,
         Budget.financial_year_id == budget.financial_year_id,
         Budget.status == BudgetStatus.ACTIVE,
         Budget.id != budget_id,
@@ -276,7 +289,7 @@ def activate_budget(
     db.commit()
     db.refresh(budget)
 
-    return _enrich_budget_response(budget, db, current_user.temple_id)
+    return _enrich_budget_response(budget, db, temple_id)
 
 
 @router.get("/{budget_id}/vs-actual", response_model=BudgetVsActualResponse)
@@ -289,7 +302,7 @@ def get_budget_vs_actual(
     """Get Budget vs Actual comparison report"""
     budget = (
         db.query(Budget)
-        .filter(Budget.id == budget_id, Budget.temple_id == current_user.temple_id)
+        .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
         .first()
     )
     if not budget:
@@ -324,8 +337,7 @@ def get_budget_vs_actual(
                 func.date(JournalEntry.entry_date) <= as_of_date,
             )
         )
-        if current_user.temple_id:
-            actual_query = actual_query.filter(JournalEntry.temple_id == current_user.temple_id)
+        actual_query = actual_query.filter(JournalEntry.temple_id == temple_id)
 
         actual_result = actual_query.first()
 
@@ -394,7 +406,7 @@ def add_budget_item(
     """Add an item to a budget"""
     budget = (
         db.query(Budget)
-        .filter(Budget.id == budget_id, Budget.temple_id == current_user.temple_id)
+        .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
         .first()
     )
     if not budget:
@@ -455,7 +467,7 @@ def update_budget_item(
     """Update a budget item"""
     budget = (
         db.query(Budget)
-        .filter(Budget.id == budget_id, Budget.temple_id == current_user.temple_id)
+        .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
         .first()
     )
     if not budget:
@@ -516,7 +528,7 @@ def delete_budget_item(
     """Delete a budget item"""
     budget = (
         db.query(Budget)
-        .filter(Budget.id == budget_id, Budget.temple_id == current_user.temple_id)
+        .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
         .first()
     )
     if not budget:

@@ -15,6 +15,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
+import { readStoredUser, writeStoredUser } from '../utils/authStorage';
 
 const splitName = (fullName = '') => {
   const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
@@ -106,7 +107,7 @@ function Profile() {
       const data = response.data || {};
 
       const normalizedUser = {
-        ...(JSON.parse(localStorage.getItem('user') || '{}')),
+        ...readStoredUser(),
         id: data.id,
         email: data.email,
         full_name: data.full_name,
@@ -121,7 +122,7 @@ function Profile() {
         is_superuser: Boolean(data.is_superuser),
       };
 
-      localStorage.setItem('user', JSON.stringify(normalizedUser));
+      writeStoredUser(normalizedUser);
       window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: normalizedUser }));
 
       showSuccess('Profile updated successfully');

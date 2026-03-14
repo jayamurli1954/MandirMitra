@@ -11,6 +11,7 @@ from datetime import date, datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.donation import Donation
 from app.models.devotee import Devotee
@@ -19,6 +20,14 @@ from app.models.temple import Temple
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1/fcra", tags=["fcra"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 class FCRADonationResponse(BaseModel):
@@ -69,11 +78,12 @@ def get_fcra_donations(
     current_user: User = Depends(get_current_user),
 ):
     """Get all FCRA donations (foreign contributions)"""
+    temple_id = _resolve_temple_id(db, current_user)
     query = (
         db.query(Donation)
         .join(Devotee)
         .filter(
-            Donation.temple_id == current_user.temple_id,
+            Donation.temple_id == temple_id,
             Donation.is_fcra_donation == True,
             Donation.is_cancelled == False,
         )
@@ -117,8 +127,9 @@ def get_fcra4_report(
     current_user: User = Depends(get_current_user),
 ):
     """Generate FCRA-4 Annual Return Report"""
+    temple_id = _resolve_temple_id(db, current_user)
     # Get temple details
-    temple = db.query(Temple).filter(Temple.id == current_user.temple_id).first()
+    temple = db.query(Temple).filter(Temple.id == temple_id).first()
     if not temple:
         raise HTTPException(status_code=404, detail="Temple not found")
 
@@ -139,7 +150,7 @@ def get_fcra4_report(
         db.query(Donation)
         .join(Devotee)
         .filter(
-            Donation.temple_id == current_user.temple_id,
+            Donation.temple_id == temple_id,
             Donation.is_fcra_donation == True,
             Donation.is_cancelled == False,
             Donation.donation_date >= report_start,
@@ -248,9 +259,10 @@ def mark_donation_as_fcra(
     current_user: User = Depends(get_current_user),
 ):
     """Mark a donation as FCRA (foreign contribution)"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     donation = (
         db.query(Donation)
-        .filter(Donation.id == donation_id, Donation.temple_id == current_user.temple_id)
+        .filter(Donation.id == donation_id, Donation.temple_id == temple_id)
         .first()
     )
     if not donation:
@@ -275,8 +287,9 @@ def get_fcra_summary(
     current_user: User = Depends(get_current_user),
 ):
     """Get FCRA summary statistics"""
+    temple_id = _resolve_temple_id(db, current_user)
     query = db.query(Donation).filter(
-        Donation.temple_id == current_user.temple_id,
+        Donation.temple_id == temple_id,
         Donation.is_fcra_donation == True,
         Donation.is_cancelled == False,
     )

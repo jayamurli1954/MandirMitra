@@ -11,6 +11,7 @@ from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.hundi import HundiOpening, HundiDenominationCount, HundiMaster, HundiStatus
 from app.models.accounting import (
@@ -45,6 +46,14 @@ from app.schemas.hundi import (
 router = APIRouter(prefix="/api/v1/hundi", tags=["hundi"])
 
 
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
 # ===== HUNDI MASTER ENDPOINTS =====
 
 
@@ -55,7 +64,7 @@ def create_hundi_master(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new hundi master"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Check if code already exists
     existing = (
@@ -84,7 +93,7 @@ def list_hundi_masters(
     current_user: User = Depends(get_current_user),
 ):
     """List all hundi masters"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     query = db.query(HundiMaster).filter(HundiMaster.temple_id == temple_id)
 
@@ -99,7 +108,7 @@ def get_hundi_master(
     master_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get hundi master by ID"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     hundi_master = (
         db.query(HundiMaster)
@@ -121,7 +130,7 @@ def update_hundi_master(
     current_user: User = Depends(get_current_user),
 ):
     """Update hundi master"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_master = (
         db.query(HundiMaster)
@@ -187,7 +196,7 @@ def create_hundi_opening(
     current_user: User = Depends(get_current_user),
 ):
     """Schedule a new hundi opening"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Verify hundi master exists
     hundi_master = (
@@ -236,7 +245,7 @@ def list_hundi_openings(
     current_user: User = Depends(get_current_user),
 ):
     """List hundi openings with filters"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     query = db.query(HundiOpening).filter(HundiOpening.temple_id == temple_id)
 
@@ -262,7 +271,7 @@ def get_hundi_opening(
     opening_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get hundi opening details with denomination counts"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -315,7 +324,7 @@ def update_hundi_opening(
     current_user: User = Depends(get_current_user),
 ):
     """Update hundi opening"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -342,7 +351,7 @@ def open_hundi(
     opening_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Mark hundi as opened"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -377,7 +386,7 @@ def start_counting(
     current_user: User = Depends(get_current_user),
 ):
     """Start counting process"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -411,7 +420,7 @@ def complete_counting(
     current_user: User = Depends(get_current_user),
 ):
     """Complete counting with denomination-wise details"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -471,7 +480,7 @@ def verify_counting(
     current_user: User = Depends(get_current_user),
 ):
     """Verify counting (multi-person verification)"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -551,7 +560,7 @@ def report_discrepancy(
     current_user: User = Depends(get_current_user),
 ):
     """Report discrepancy in counting"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -582,7 +591,7 @@ def resolve_discrepancy(
     current_user: User = Depends(get_current_user),
 ):
     """Resolve discrepancy"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -618,7 +627,7 @@ def record_bank_deposit(
     current_user: User = Depends(get_current_user),
 ):
     """Record bank deposit for hundi"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -735,7 +744,7 @@ def reconcile_hundi(
     current_user: User = Depends(get_current_user),
 ):
     """Reconcile hundi (mark as completed)"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     hundi_opening = (
         db.query(HundiOpening)
@@ -776,7 +785,7 @@ def get_hundi_report(
     current_user: User = Depends(get_current_user),
 ):
     """Generate hundi report"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     query = db.query(HundiOpening).filter(
         HundiOpening.temple_id == temple_id,

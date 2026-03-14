@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.asset import CapitalWorkInProgress, AssetExpense, Asset, AssetCategory, AssetStatus, AssetType
 from app.models.accounting import (
@@ -24,6 +25,14 @@ from app.models.vendor import Vendor
 from .asset import AssetResponse
 
 router = APIRouter(prefix="/api/v1/assets/cwip", tags=["cwip"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 # ===== PYDANTIC SCHEMAS =====
@@ -108,7 +117,7 @@ def create_cwip(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new CWIP project"""
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Validate category
     category = (
@@ -172,8 +181,9 @@ def list_cwip(
     current_user: User = Depends(get_current_user),
 ):
     """List all CWIP projects"""
+    temple_id = _resolve_temple_id(db, current_user)
     query = db.query(CapitalWorkInProgress).filter(
-        CapitalWorkInProgress.temple_id == current_user.temple_id
+        CapitalWorkInProgress.temple_id == temple_id
     )
     if status:
         query = query.filter(CapitalWorkInProgress.status == status)
@@ -189,7 +199,7 @@ def get_cwip(
         db.query(CapitalWorkInProgress)
         .filter(
             CapitalWorkInProgress.id == cwip_id,
-            CapitalWorkInProgress.temple_id == current_user.temple_id,
+            CapitalWorkInProgress.temple_id == _resolve_temple_id(db, current_user),
         )
         .first()
     )
@@ -213,7 +223,7 @@ def add_cwip_expense(
     Add expense to CWIP project
     Creates accounting entry: Dr CWIP, Cr Cash/Bank/Payables
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_write_temple_id(db, current_user)
 
     # Get CWIP
     cwip = (
@@ -330,7 +340,7 @@ def list_cwip_expenses(
         db.query(CapitalWorkInProgress)
         .filter(
             CapitalWorkInProgress.id == cwip_id,
-            CapitalWorkInProgress.temple_id == current_user.temple_id,
+            CapitalWorkInProgress.temple_id == temple_id,
         )
         .first()
     )
@@ -362,7 +372,7 @@ def capitalize_cwip(
     Creates asset and transfers CWIP balance to asset account
     Dr: Asset Account, Cr: CWIP Account
     """
-    temple_id = current_user.temple_id
+    temple_id = _resolve_temple_id(db, current_user)
 
     # Get CWIP
     cwip = (

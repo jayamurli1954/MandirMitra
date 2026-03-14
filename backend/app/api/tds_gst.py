@@ -11,6 +11,7 @@ from datetime import date, datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.donation import Donation
 from app.models.accounting import Account, JournalEntry, JournalLine, JournalEntryStatus
@@ -18,6 +19,14 @@ from app.models.temple import Temple
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1/tds-gst", tags=["tds-gst"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 class TDSConfigBase(BaseModel):
@@ -97,6 +106,7 @@ def create_tds_config(
     current_user: User = Depends(get_current_user),
 ):
     """Create TDS configuration"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     if current_user.role not in ["admin", "accountant"]:
         raise HTTPException(status_code=403, detail="Only admins and accountants can configure TDS")
 
@@ -105,7 +115,7 @@ def create_tds_config(
         db.query(Account)
         .filter(
             Account.account_name.like(f"%TDS {config_data.section}%"),
-            Account.temple_id == current_user.temple_id,
+            Account.temple_id == temple_id,
         )
         .first()
     )
@@ -169,11 +179,12 @@ def get_tds_report(
     current_user: User = Depends(get_current_user),
 ):
     """Get TDS report for a period"""
+    temple_id = _resolve_temple_id(db, current_user)
     # Get all donations with TDS
     donations = (
         db.query(Donation)
         .filter(
-            Donation.temple_id == current_user.temple_id,
+            Donation.temple_id == temple_id,
             Donation.tds_applicable == True,
             Donation.tds_amount > 0,
             Donation.donation_date >= from_date,
@@ -235,11 +246,12 @@ def get_gst_report(
     current_user: User = Depends(get_current_user),
 ):
     """Get GST report for a period"""
+    temple_id = _resolve_temple_id(db, current_user)
     # Get all donations with GST
     donations = (
         db.query(Donation)
         .filter(
-            Donation.temple_id == current_user.temple_id,
+            Donation.temple_id == temple_id,
             Donation.gst_applicable == True,
             Donation.gst_amount > 0,
             Donation.donation_date >= from_date,
@@ -303,9 +315,10 @@ def calculate_tds(
     current_user: User = Depends(get_current_user),
 ):
     """Calculate and apply TDS to a donation"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     donation = (
         db.query(Donation)
-        .filter(Donation.id == donation_id, Donation.temple_id == current_user.temple_id)
+        .filter(Donation.id == donation_id, Donation.temple_id == temple_id)
         .first()
     )
     if not donation:
@@ -338,9 +351,10 @@ def calculate_gst(
     current_user: User = Depends(get_current_user),
 ):
     """Calculate and apply GST to a donation"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     donation = (
         db.query(Donation)
-        .filter(Donation.id == donation_id, Donation.temple_id == current_user.temple_id)
+        .filter(Donation.id == donation_id, Donation.temple_id == temple_id)
         .first()
     )
     if not donation:

@@ -77,9 +77,10 @@ function Inventory() {
         description: '',
     });
 
+    // fetchData is intentionally tied to the active tab rather than function identity.
     useEffect(() => {
         fetchData();
-    }, [activeTab]);
+    }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchData = async () => {
         setLoading(true);
@@ -250,7 +251,7 @@ function Inventory() {
                         <CardContent>
                             <Box display="flex" alignItems="center">
                                 <Typography variant="h4" sx={{ color: '#9C27B0', mr: 2, fontWeight: 'bold' }}>
-                                    ₹
+                                    Ã¢â€šÂ¹
                                 </Typography>
                                 <Box>
                                     <Typography variant="h4" fontWeight="bold">
@@ -279,7 +280,7 @@ function Inventory() {
                                 <TableCell>Store</TableCell>
                                 <TableCell align="right">Quantity</TableCell>
                                 <TableCell>Unit</TableCell>
-                                <TableCell align="right">Value (₹)</TableCell>
+                                <TableCell align="right">Value (Ã¢â€šÂ¹)</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -499,7 +500,7 @@ function Inventory() {
         <Layout>
             <Box sx={{ p: 3 }}>
                 <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ color: '#FF9933' }}>
-                    📦 Inventory Management
+                    Ã°Å¸â€œÂ¦ Inventory Management
                 </Typography>
 
                 {error && (

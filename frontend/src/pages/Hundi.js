@@ -1,3 +1,4 @@
+/* eslint-disable no-irregular-whitespace */
 import React, { useState, useEffect } from 'react';
 import {
     Box,
@@ -13,14 +14,8 @@ import {
     TableRow,
     Chip,
     IconButton,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    TextField,
     Alert,
     CircularProgress,
-    Stack,
     Card,
     CardContent,
     Tab,
@@ -39,16 +34,17 @@ function Hundi() {
     const [loading, setLoading] = useState(true);
     const [hundiMasters, setHundiMasters] = useState([]);
     const [openings, setOpenings] = useState([]);
-    const [reportRange, setReportRange] = useState({
+    const [_reportRange, _setReportRange] = useState({
         from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
         to: new Date().toISOString().split('T')[0],
     });
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
+    const [_success, _setSuccess] = useState('');
 
+    // fetchData is intentionally tied to the active tab rather than function identity.
     useEffect(() => {
         fetchData();
-    }, [activeTab]);
+    }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchData = async () => {
         setLoading(true);
@@ -135,7 +131,7 @@ function Hundi() {
                             <TableCell>Opening Date</TableCell>
                             <TableCell>Hundi Code</TableCell>
                             <TableCell>Status</TableCell>
-                            <TableCell align="right">Amount (₹)</TableCell>
+                            <TableCell align="right">Amount (Rs)</TableCell>
                             <TableCell>Verified By</TableCell>
                             <TableCell align="center">Actions</TableCell>
                         </TableRow>
@@ -186,7 +182,7 @@ function Hundi() {
         <Layout>
             <Box sx={{ p: 3 }}>
                 <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ color: '#FF9933' }}>
-                    💰 Hundi Management
+                    Hundi Management
                 </Typography>
 
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}

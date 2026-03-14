@@ -53,6 +53,7 @@ def log_action(
 
     audit_log = AuditLog(
         user_id=user.id,
+        temple_id=getattr(user, "temple_id", None),
         user_name=user.full_name,
         user_email=user.email,
         user_role=user.role,

@@ -27,6 +27,7 @@ class TempleOnboardingRequest(BaseModel):
     pincode: str | None = Field(default=None, max_length=20)
     phone: str | None = Field(default=None, max_length=20)
     email: EmailStr | None = None
+    platform_demo_temple: bool = False
     admin_full_name: str = Field(min_length=2, max_length=200)
     admin_email: EmailStr
     admin_password: str = Field(min_length=8, max_length=128)
@@ -41,6 +42,7 @@ class TempleOnboardingResponse(BaseModel):
     admin_user_id: int
     admin_email: EmailStr
     admin_role: str
+    platform_demo_temple: bool
 
 
 def _slugify(value: str) -> str:
@@ -58,11 +60,10 @@ def _build_unique_slug(db: Session, base_slug: str) -> str:
 
 
 def _require_platform_admin(current_user: User) -> None:
-    allowed_roles = {"admin", "super_admin", "temple_manager"}
-    if current_user.role not in allowed_roles and not bool(current_user.is_superuser):
+    if current_user.role != "super_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can onboard temples",
+            detail="Only platform super admins can onboard temples",
         )
 
 
@@ -113,6 +114,8 @@ def onboard_temple_with_admin(
             phone=(payload.phone or "").strip() or None,
             email=str(payload.email).strip().lower() if payload.email else None,
             is_active=True,
+            platform_owner_user_id=current_user.id,
+            allow_platform_writes=bool(payload.platform_demo_temple),
         )
         db.add(temple)
         db.flush()
@@ -153,6 +156,7 @@ def onboard_temple_with_admin(
             "admin_user_id": admin_user.id,
             "admin_email": admin_user.email,
             "admin_role": admin_user.role,
+            "platform_demo_temple": bool(temple.allow_platform_writes),
         }
     except HTTPException:
         db.rollback()

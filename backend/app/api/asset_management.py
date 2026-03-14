@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.asset import Asset, AssetDisposal, AssetRevaluation, DisposalType, AssetStatus
 from app.models.asset_history import (
@@ -24,6 +25,14 @@ from app.models.asset_history import (
 )
 
 router = APIRouter(prefix="/api/v1/assets", tags=["assets"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 # ===== SCHEMAS =====
@@ -192,9 +201,10 @@ def transfer_asset(
     current_user: User = Depends(get_current_user),
 ):
     """Transfer asset to a new location"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:
@@ -208,7 +218,7 @@ def transfer_asset(
 
     # Create transfer record
     transfer = AssetTransfer(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         asset_id=asset_id,
         transfer_date=transfer_data.transfer_date,
         from_location=from_location,
@@ -234,9 +244,10 @@ def get_asset_transfers(
     asset_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get transfer history for an asset"""
+    temple_id = _resolve_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:
@@ -244,7 +255,7 @@ def get_asset_transfers(
 
     transfers = (
         db.query(AssetTransfer)
-        .filter(AssetTransfer.asset_id == asset_id)
+        .filter(AssetTransfer.asset_id == asset_id, AssetTransfer.temple_id == temple_id)
         .order_by(AssetTransfer.transfer_date.desc())
         .all()
     )
@@ -260,9 +271,10 @@ def get_asset_valuation_history(
     asset_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get valuation history for an asset"""
+    temple_id = _resolve_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:
@@ -325,9 +337,10 @@ def create_physical_verification(
     current_user: User = Depends(get_current_user),
 ):
     """Create physical verification record"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:
@@ -366,7 +379,7 @@ def create_physical_verification(
 
     # Create verification
     verification = AssetPhysicalVerification(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         asset_id=asset_id,
         verification_number=verification_number,
         verification_date=verification_data.verification_date,
@@ -399,9 +412,10 @@ def get_physical_verifications(
     asset_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get physical verification history for an asset"""
+    temple_id = _resolve_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:
@@ -409,7 +423,7 @@ def get_physical_verifications(
 
     verifications = (
         db.query(AssetPhysicalVerification)
-        .filter(AssetPhysicalVerification.asset_id == asset_id)
+        .filter(AssetPhysicalVerification.asset_id == asset_id, AssetPhysicalVerification.temple_id == temple_id)
         .order_by(AssetPhysicalVerification.verification_date.desc())
         .all()
     )
@@ -428,9 +442,10 @@ def add_asset_insurance(
     current_user: User = Depends(get_current_user),
 ):
     """Add insurance record for an asset"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:
@@ -454,7 +469,7 @@ def add_asset_insurance(
 
     # Create insurance record
     insurance = AssetInsurance(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         asset_id=asset_id,
         policy_number=insurance_data.policy_number,
         insurance_company=insurance_data.insurance_company,
@@ -485,15 +500,16 @@ def get_asset_insurance(
     current_user: User = Depends(get_current_user),
 ):
     """Get insurance records for an asset"""
+    temple_id = _resolve_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    query = db.query(AssetInsurance).filter(AssetInsurance.asset_id == asset_id)
+    query = db.query(AssetInsurance).filter(AssetInsurance.asset_id == asset_id, AssetInsurance.temple_id == temple_id)
     if is_active is not None:
         query = query.filter(AssetInsurance.is_active == is_active)
 
@@ -508,13 +524,14 @@ def get_expiring_insurance(
     current_user: User = Depends(get_current_user),
 ):
     """Get insurance policies expiring within specified days"""
+    temple_id = _resolve_temple_id(db, current_user)
     today = date.today()
     expiry_threshold = today + timedelta(days=days_ahead)
 
     insurances = (
         db.query(AssetInsurance)
         .filter(
-            AssetInsurance.temple_id == current_user.temple_id,
+            AssetInsurance.temple_id == temple_id,
             AssetInsurance.is_active == True,
             AssetInsurance.policy_end_date >= today,
             AssetInsurance.policy_end_date <= expiry_threshold,
@@ -537,9 +554,10 @@ def request_asset_disposal(
     current_user: User = Depends(get_current_user),
 ):
     """Request asset disposal (requires approval)"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:
@@ -556,7 +574,7 @@ def request_asset_disposal(
     existing = (
         db.query(AssetDisposal)
         .join(Asset)
-        .filter(AssetDisposal.asset_id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(AssetDisposal.asset_id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if existing:
@@ -590,7 +608,7 @@ def request_asset_disposal(
     db.commit()
     db.refresh(disposal)
 
-    return _enrich_disposal_response(disposal, db, current_user.temple_id)
+    return _enrich_disposal_response(disposal, db, temple_id)
 
 
 @router.post("/disposals/{disposal_id}/approve", response_model=AssetDisposalResponse)
@@ -602,6 +620,8 @@ def approve_asset_disposal(
     current_user: User = Depends(get_current_user),
 ):
     """Approve or reject asset disposal"""
+    temple_id = _resolve_write_temple_id(db, current_user)
+
     if current_user.role not in ["admin", "accountant"]:
         raise HTTPException(
             status_code=403, detail="Only admins and accountants can approve disposals"
@@ -610,7 +630,7 @@ def approve_asset_disposal(
     disposal = (
         db.query(AssetDisposal)
         .join(Asset)
-        .filter(AssetDisposal.id == disposal_id, Asset.temple_id == current_user.temple_id)
+        .filter(AssetDisposal.id == disposal_id, Asset.temple_id == temple_id)
         .first()
     )
     if not disposal:
@@ -665,7 +685,7 @@ def approve_asset_disposal(
     db.commit()
     db.refresh(disposal)
 
-    return _enrich_disposal_response(disposal, db, current_user.temple_id)
+    return _enrich_disposal_response(disposal, db, temple_id)
 
 
 @router.get("/disposals", response_model=List[AssetDisposalResponse])
@@ -678,7 +698,8 @@ def get_asset_disposals(
     current_user: User = Depends(get_current_user),
 ):
     """Get asset disposal records"""
-    query = db.query(AssetDisposal).join(Asset).filter(Asset.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(AssetDisposal).join(Asset).filter(Asset.temple_id == temple_id)
 
     if asset_id:
         query = query.filter(AssetDisposal.asset_id == asset_id)
@@ -688,7 +709,7 @@ def get_asset_disposals(
         query = query.filter(AssetDisposal.disposal_date <= to_date)
 
     disposals = query.order_by(AssetDisposal.disposal_date.desc()).all()
-    return [_enrich_disposal_response(d, db, current_user.temple_id) for d in disposals]
+    return [_enrich_disposal_response(d, db, temple_id) for d in disposals]
 
 
 # ===== DOCUMENT UPLOAD ENDPOINTS =====
@@ -706,9 +727,10 @@ async def upload_asset_document(
     current_user: User = Depends(get_current_user),
 ):
     """Upload document/image for an asset"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:
@@ -755,9 +777,10 @@ def get_asset_documents(
     current_user: User = Depends(get_current_user),
 ):
     """Get documents for an asset"""
+    temple_id = _resolve_temple_id(db, current_user)
     asset = (
         db.query(Asset)
-        .filter(Asset.id == asset_id, Asset.temple_id == current_user.temple_id)
+        .filter(Asset.id == asset_id, Asset.temple_id == temple_id)
         .first()
     )
     if not asset:

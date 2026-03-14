@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { getApiBaseUrl } from '../utils/apiBaseUrl';
 import { buildActiveTempleHeaders } from '../utils/activeTemple';
+import { clearAuthSession, getAccessToken } from '../utils/authStorage';
 
 const api = axios.create({
   baseURL: getApiBaseUrl({ preferDirect: true }),
@@ -14,7 +15,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     config.headers = buildActiveTempleHeaders(config.headers || {});
-    const token = localStorage.getItem('token');
+    const token = getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,8 +31,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearAuthSession();
       window.location.href = '/login';
     }
     

@@ -17,17 +17,13 @@ import {
     TableHead,
     TableRow,
     Chip,
-    IconButton,
-    Alert,
     CircularProgress,
-    Divider,
     Stepper,
     Step,
     StepLabel,
 } from '@mui/material';
 import Layout from '../../components/Layout';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import api from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -46,9 +42,10 @@ const BankReconciliation = () => {
     const [bookEntries, setBookEntries] = useState([]);
     const [matchingItem, setMatchingItem] = useState(null); // Current statement entry being matched
 
+    // Bank accounts are loaded once on mount; other refreshes are explicit.
     useEffect(() => {
         fetchBankAccounts();
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchBankAccounts = async () => {
         try {
@@ -209,19 +206,19 @@ const BankReconciliation = () => {
                     <Grid item xs={12} md={3}>
                         <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
                             <Typography variant="caption" color="textSecondary">Statement Balance</Typography>
-                            <Typography variant="h6">₹{summary.statement_balance?.toLocaleString()}</Typography>
+                            <Typography variant="h6">{'\u20B9'}{summary.statement_balance?.toLocaleString()}</Typography>
                         </Paper>
                     </Grid>
                     <Grid item xs={12} md={3}>
                         <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
                             <Typography variant="caption" color="textSecondary">Book Balance</Typography>
-                            <Typography variant="h6">₹{summary.book_balance?.toLocaleString()}</Typography>
+                            <Typography variant="h6">{'\u20B9'}{summary.book_balance?.toLocaleString()}</Typography>
                         </Paper>
                     </Grid>
                     <Grid item xs={12} md={3}>
                         <Paper sx={{ p: 2, textAlign: 'center', bgcolor: summary.difference === 0 ? '#e8f5e9' : '#ffebee' }}>
                             <Typography variant="caption" color="textSecondary">Difference</Typography>
-                            <Typography variant="h6">₹{summary.difference?.toLocaleString()}</Typography>
+                            <Typography variant="h6">{'\u20B9'}{summary.difference?.toLocaleString()}</Typography>
                         </Paper>
                     </Grid>
                     <Grid item xs={12} md={3}>
@@ -265,7 +262,7 @@ const BankReconciliation = () => {
                                             <TableCell>{new Date(entry.transaction_date).toLocaleDateString()}</TableCell>
                                             <TableCell sx={{ fontSize: '0.8rem' }}>{entry.description}</TableCell>
                                             <TableCell align="right" sx={{ color: entry.amount >= 0 ? 'success.main' : 'error.main' }}>
-                                                ₹{Math.abs(entry.amount).toLocaleString()}
+                                                {'\u20B9'}{Math.abs(entry.amount).toLocaleString()}
                                             </TableCell>
                                             <TableCell align="center">
                                                 {entry.is_matched ? (
@@ -295,7 +292,7 @@ const BankReconciliation = () => {
                             <Typography variant="subtitle1" fontWeight="bold">Book Entries (Journal Lines)</Typography>
                             {matchingItem && (
                                 <Chip
-                                    label={`Matching: ₹${Math.abs(matchingItem.amount).toLocaleString()}`}
+                                    label={`Matching: \u20B9${Math.abs(matchingItem.amount).toLocaleString()}`}
                                     color="warning"
                                     onDelete={() => setMatchingItem(null)}
                                     size="small"
@@ -317,7 +314,7 @@ const BankReconciliation = () => {
                                         <TableRow key={line.id}>
                                             <TableCell>{new Date(line.entry_date).toLocaleDateString()}</TableCell>
                                             <TableCell sx={{ fontSize: '0.8rem' }}>{line.narration}</TableCell>
-                                            <TableCell align="right">₹{line.amount.toLocaleString()}</TableCell>
+                                            <TableCell align="right">{'\u20B9'}{line.amount.toLocaleString()}</TableCell>
                                             <TableCell align="center">
                                                 <Button
                                                     size="small"

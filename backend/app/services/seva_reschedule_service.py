@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.temple_context import require_system_roles
 from app.models.seva import Seva, SevaAvailability, SevaBooking, SevaBookingStatus
 
 
@@ -125,13 +126,11 @@ def request_reschedule(
 
 
 def get_pending_reschedule_requests(db: Session, current_user):
-    if current_user.role not in ["admin", "temple_manager"] and not getattr(
-        current_user, "is_superuser", False
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Only admins and temple managers can view pending reschedule requests",
-        )
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail="Only admins and temple managers can view pending reschedule requests",
+    )
 
     pending_filter = or_(
         SevaBooking.reschedule_approved.is_(None),
@@ -162,17 +161,14 @@ def approve_reschedule(
     approve: bool,
     current_user,
 ):
-    allowed_roles = ["admin", "temple_manager"]
-    is_superuser = getattr(current_user, "is_superuser", False)
-
-    if current_user.role not in allowed_roles and not is_superuser:
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "Only admins and temple managers can approve reschedule requests. "
-                f"Current role: {current_user.role}"
-            ),
-        )
+    require_system_roles(
+        current_user,
+        {"admin", "temple_manager"},
+        detail=(
+            "Only admins and temple managers can approve reschedule requests. "
+            f"Current role: {current_user.role}"
+        ),
+    )
 
     booking = db.query(SevaBooking).filter(SevaBooking.id == booking_id).first()
     if not booking:

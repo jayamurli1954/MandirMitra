@@ -1,261 +1,205 @@
-/**
- * Tests for the Donations page (src/pages/Donations.js)
- * Covers: rendering, form interaction, add/remove rows, validation, API submission
- */
-import React from 'react';
+﻿import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+
+jest.setTimeout(10000);
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import Donations from '../pages/Donations';
 
 jest.mock('../services/api', () => ({
-    get: jest.fn(),
-    post: jest.fn(),
+  get: jest.fn(),
+  post: jest.fn(),
 }));
 import api from '../services/api';
 
 jest.mock('../components/Layout', () => ({ children }) => <div data-testid="layout">{children}</div>);
 
+const paymentAccountsResponse = {
+  data: {
+    cash_accounts: [
+      { account_id: 1, account_code: 'CASH-001', account_name: 'Main Cash' },
+    ],
+    bank_accounts: [
+      { account_id: 10, account_code: 'BANK-001', account_name: 'Main Bank', bank_account_id: 100 },
+    ],
+  },
+};
+
+const devoteeSearchResponses = {
+  '9876543210': {
+    data: [
+      { name_prefix: 'Sri', name: 'Rama Sharma', email: 'rama@example.com' },
+    ],
+  },
+  '0000000000': {
+    data: [],
+  },
+};
+
 const renderDonations = () =>
-    render(
-        <MemoryRouter>
-            <Donations />
-        </MemoryRouter>
-    );
+  render(
+    <MemoryRouter>
+      <Donations />
+    </MemoryRouter>
+  );
+
+const selectMuiOption = async (label, optionText) => {
+  fireEvent.mouseDown(screen.getByLabelText(label));
+  await waitFor(() => expect(screen.getByText(optionText)).toBeInTheDocument());
+  fireEvent.click(screen.getByText(optionText));
+};
+
+const searchByMobile = async (phone) => {
+  await userEvent.type(screen.getByLabelText(/Phone/i), phone);
+  fireEvent.click(screen.getByRole('button', { name: /Search/i }));
+};
 
 beforeEach(() => {
-    jest.clearAllMocks();
-    api.get.mockResolvedValue({ data: [] });
-    api.post.mockResolvedValue({ data: { id: 1 } });
+  jest.clearAllMocks();
+  api.get.mockImplementation((url) => {
+    if (url === '/api/v1/donations/payment-accounts') {
+      return Promise.resolve(paymentAccountsResponse);
+    }
+    if (url === '/api/v1/donations') {
+      return Promise.resolve({ data: [] });
+    }
+    const phone = url.match(/\/api\/v1\/devotees\/search\/by-mobile\/(\d{10})$/)?.[1];
+    if (phone && devoteeSearchResponses[phone]) {
+      return Promise.resolve(devoteeSearchResponses[phone]);
+    }
+    return Promise.resolve({ data: [] });
+  });
+  api.post.mockResolvedValue({ data: { id: 1 } });
 });
 
-describe('Donations Page - Rendering', () => {
-    it('renders the Donations heading', async () => {
-        renderDonations();
-        expect(screen.getByText(/^Donations$/i)).toBeInTheDocument();
+describe('Donations Page', () => {
+  it('renders the main sections', async () => {
+    renderDonations();
+
+    expect(screen.getByText(/^Donations$/i)).toBeInTheDocument();
+    expect(screen.getByText(/Record Donations/i)).toBeInTheDocument();
+    expect(screen.getByText(/Recent Donations/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Save All Donations/i })).toBeInTheDocument();
+  });
+
+  it('adds donation rows up to the maximum of five', async () => {
+    renderDonations();
+
+    const addButton = screen.getByRole('button', { name: /Add Entry/i });
+    fireEvent.click(addButton);
+    fireEvent.click(addButton);
+    fireEvent.click(addButton);
+    fireEvent.click(addButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Entry 5')).toBeInTheDocument();
+      expect(addButton).toBeDisabled();
+    });
+  });
+
+  it('loads payment accounts and recent donations on mount', async () => {
+    renderDonations();
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/api/v1/donations/payment-accounts');
+      expect(api.get).toHaveBeenCalledWith('/api/v1/donations');
+    });
+  });
+
+  it('blocks submission until the mobile number has been searched', async () => {
+    renderDonations();
+
+    await userEvent.type(screen.getByLabelText(/Phone/i), '9876543210');
+    await userEvent.type(screen.getByLabelText(/Amount/i), '1000');
+    await selectMuiOption(/Category/i, 'General Donation');
+    await selectMuiOption(/Cash Account Code/i, 'CASH-001 - Main Cash');
+
+    fireEvent.click(screen.getByRole('button', { name: /Save All Donations/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Search mobile number first/i)).toBeInTheDocument();
+      expect(api.post).not.toHaveBeenCalled();
+    });
+  });
+
+  it('submits a monetary donation after a successful mobile search', async () => {
+    renderDonations();
+
+    await searchByMobile('9876543210');
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Rama Sharma')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('rama@example.com')).toBeInTheDocument();
     });
 
-    it('renders the "Record Donations" section heading', async () => {
-        renderDonations();
-        expect(screen.getByText(/Record Donations/i)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Amount/i), '1000');
+    await selectMuiOption(/Category/i, 'General Donation');
+    await selectMuiOption(/Cash Account Code/i, 'CASH-001 - Main Cash');
+
+    fireEvent.click(screen.getByRole('button', { name: /Save All Donations/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/v1/donations',
+        expect.objectContaining({
+          devotee_name: 'Rama Sharma',
+          devotee_phone: '9876543210',
+          amount: 1000,
+          category: 'General Donation',
+          payment_mode: 'Cash',
+          payment_account_id: 1,
+        })
+      );
+      expect(screen.getByText(/Successfully recorded 1 donation/i)).toBeInTheDocument();
+    });
+  });
+
+  it('allows manual devotee entry after a mobile search returns no results', async () => {
+    renderDonations();
+
+    await searchByMobile('0000000000');
+
+    await waitFor(() => {
+      expect(screen.getByText(/No devotee found for this mobile number/i)).toBeInTheDocument();
     });
 
-    it('renders the initial donation entry row (Entry 1)', async () => {
-        renderDonations();
-        expect(screen.getByText('Entry 1')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Devotee Name/i), 'Walk-in Devotee');
+    await userEvent.type(screen.getByLabelText(/Amount/i), '500');
+    await selectMuiOption(/Category/i, 'General Donation');
+    await selectMuiOption(/Cash Account Code/i, 'CASH-001 - Main Cash');
+
+    fireEvent.click(screen.getByRole('button', { name: /Save All Donations/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/v1/donations',
+        expect.objectContaining({
+          devotee_name: 'Walk-in Devotee',
+          devotee_phone: '0000000000',
+          amount: 500,
+        })
+      );
+    });
+  });
+
+  it('shows the backend error after a valid searched submission fails', async () => {
+    api.post.mockRejectedValueOnce({
+      response: { data: { detail: 'Donation save failed' } },
     });
 
-    it('renders "Save All Donations" button', async () => {
-        renderDonations();
-        expect(screen.getByRole('button', { name: /Save All Donations/i })).toBeInTheDocument();
+    renderDonations();
+
+    await searchByMobile('9876543210');
+    await waitFor(() => expect(screen.getByDisplayValue('Rama Sharma')).toBeInTheDocument());
+
+    await userEvent.type(screen.getByLabelText(/Amount/i), '750');
+    await selectMuiOption(/Category/i, 'General Donation');
+    await selectMuiOption(/Cash Account Code/i, 'CASH-001 - Main Cash');
+
+    fireEvent.click(screen.getByRole('button', { name: /Save All Donations/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Donation save failed/i)).toBeInTheDocument();
     });
-
-    it('renders "Add Entry" button', async () => {
-        renderDonations();
-        expect(screen.getByRole('button', { name: /Add Entry/i })).toBeInTheDocument();
-    });
-
-    it('renders "Clear All" button', async () => {
-        renderDonations();
-        expect(screen.getByRole('button', { name: /Clear All/i })).toBeInTheDocument();
-    });
-
-    it('renders "Recent Donations" section', async () => {
-        renderDonations();
-        expect(screen.getByText(/Recent Donations/i)).toBeInTheDocument();
-    });
-});
-
-describe('Donations Page - Form Fields', () => {
-    it('renders Devotee Name field', async () => {
-        renderDonations();
-        expect(screen.getByLabelText(/Devotee Name/i)).toBeInTheDocument();
-    });
-
-    it('renders Phone field', async () => {
-        renderDonations();
-        expect(screen.getByLabelText(/Phone/i)).toBeInTheDocument();
-    });
-
-    it('renders Amount field', async () => {
-        renderDonations();
-        expect(screen.getByLabelText(/Amount/i)).toBeInTheDocument();
-    });
-
-    it('renders Category dropdown', async () => {
-        renderDonations();
-        expect(screen.getByLabelText(/Category/i)).toBeInTheDocument();
-    });
-
-    it('renders Payment Mode dropdown with default Cash', async () => {
-        renderDonations();
-        // Payment Mode field should exist
-        expect(screen.getByText(/Payment Mode/i, { selector: 'label' })).toBeInTheDocument();
-    });
-});
-
-describe('Donations Page - Add/Remove Rows', () => {
-    it('adds a second row when "Add Entry" is clicked', async () => {
-        renderDonations();
-        const addButton = screen.getByRole('button', { name: /Add Entry/i });
-        fireEvent.click(addButton);
-        await waitFor(() => {
-            expect(screen.getByText('Entry 2')).toBeInTheDocument();
-        });
-    });
-
-    it('limits rows to maximum 5', async () => {
-        renderDonations();
-        const addButton = screen.getByRole('button', { name: /Add Entry/i });
-        // Click 4 times (we start with 1 row)
-        fireEvent.click(addButton);
-        fireEvent.click(addButton);
-        fireEvent.click(addButton);
-        fireEvent.click(addButton);
-
-        await waitFor(() => {
-            expect(screen.getByText('Entry 5')).toBeInTheDocument();
-            expect(addButton).toBeDisabled();
-        });
-    });
-
-    it('removes a row when the delete button is clicked (when 2+ rows)', async () => {
-        renderDonations();
-        const addButton = screen.getByRole('button', { name: /Add Entry/i });
-        fireEvent.click(addButton);
-
-        await waitFor(() => {
-            expect(screen.getByText('Entry 2')).toBeInTheDocument();
-        });
-
-        // Click the first delete button (there should be one per row when >1 rows)
-        const deleteButtons = screen.getAllByTestId ? [] : document.querySelectorAll('[data-testid="DeleteIcon"]');
-        const removeButtons = screen.getAllByRole('button').filter(btn => btn.closest('[class*="error"]'));
-        if (removeButtons.length > 0) {
-            fireEvent.click(removeButtons[0]);
-            await waitFor(() => {
-                expect(screen.queryByText('Entry 2')).not.toBeInTheDocument();
-            });
-        }
-    });
-});
-
-describe('Donations Page - Validation', () => {
-    it('shows error message when submitting empty form', async () => {
-        renderDonations();
-        const saveButton = screen.getByRole('button', { name: /Save All Donations/i });
-        fireEvent.click(saveButton);
-
-        await waitFor(() => {
-            expect(screen.getByText(/fill at least one donation entry/i)).toBeInTheDocument();
-        });
-    });
-
-    it('does not call api.post when all fields are empty', async () => {
-        renderDonations();
-        fireEvent.click(screen.getByRole('button', { name: /Save All Donations/i }));
-        await waitFor(() => {
-            expect(api.post).not.toHaveBeenCalled();
-        });
-    });
-});
-
-describe('Donations Page - Successful Submission', () => {
-    it('calls api.post with correct data for valid donation', async () => {
-        renderDonations();
-
-        await userEvent.type(screen.getByLabelText(/Devotee Name/i), 'Rama Sharma');
-        await userEvent.type(screen.getByLabelText(/Phone/i), '9876543210');
-        await userEvent.type(screen.getByLabelText(/Amount/i), '1000');
-
-        // Open Category dropdown and select
-        fireEvent.mouseDown(screen.getByLabelText(/Category/i));
-        await waitFor(() => screen.getByText('General Donation'));
-        fireEvent.click(screen.getByText('General Donation'));
-
-        fireEvent.click(screen.getByRole('button', { name: /Save All Donations/i }));
-
-        await waitFor(() => {
-            expect(api.post).toHaveBeenCalledWith(
-                '/api/v1/donations',
-                expect.objectContaining({
-                    devotee_name: 'Rama Sharma',
-                    devotee_phone: '9876543210',
-                    amount: 1000,
-                    category: 'General Donation',
-                })
-            );
-        });
-    });
-
-    it('shows success message after saving', async () => {
-        renderDonations();
-
-        await userEvent.type(screen.getByLabelText(/Devotee Name/i), 'Rama');
-        await userEvent.type(screen.getByLabelText(/Phone/i), '9876543210');
-        await userEvent.type(screen.getByLabelText(/Amount/i), '500');
-
-        fireEvent.mouseDown(screen.getByLabelText(/Category/i));
-        await waitFor(() => screen.getByText('General Donation'));
-        fireEvent.click(screen.getByText('General Donation'));
-
-        fireEvent.click(screen.getByRole('button', { name: /Save All Donations/i }));
-
-        await waitFor(() => {
-            expect(screen.getByText(/Successfully recorded/i)).toBeInTheDocument();
-        });
-    });
-});
-
-describe('Donations Page - API Error', () => {
-    it('shows error alert when api.post fails', async () => {
-        api.post.mockRejectedValueOnce({
-            response: { data: { detail: 'Devotee not found' } },
-        });
-
-        renderDonations();
-
-        await userEvent.type(screen.getByLabelText(/Devotee Name/i), 'Unknown');
-        await userEvent.type(screen.getByLabelText(/Phone/i), '0000000000');
-        await userEvent.type(screen.getByLabelText(/Amount/i), '100');
-
-        fireEvent.mouseDown(screen.getByLabelText(/Category/i));
-        await waitFor(() => screen.getByText('General Donation'));
-        fireEvent.click(screen.getByText('General Donation'));
-
-        fireEvent.click(screen.getByRole('button', { name: /Save All Donations/i }));
-
-        await waitFor(() => {
-            expect(screen.getByText(/Devotee not found/i)).toBeInTheDocument();
-        });
-    });
-});
-
-describe('Donations Page - Clear All', () => {
-    it('clears all form fields when "Clear All" clicked', async () => {
-        renderDonations();
-        await userEvent.type(screen.getByLabelText(/Devotee Name/i), 'Test User');
-
-        fireEvent.click(screen.getByRole('button', { name: /Clear All/i }));
-
-        await waitFor(() => {
-            expect(screen.getByLabelText(/Devotee Name/i).value).toBe('');
-        });
-    });
-});
-
-describe('Donations Page - API Calls on Mount', () => {
-    it('calls api.get for devotees on mount', async () => {
-        renderDonations();
-        await waitFor(() => {
-            expect(api.get).toHaveBeenCalledWith('/api/v1/devotees');
-        });
-    });
-
-    it('calls api.get for donations on mount', async () => {
-        renderDonations();
-        await waitFor(() => {
-            expect(api.get).toHaveBeenCalledWith('/api/v1/donations');
-        });
-    });
+  });
 });

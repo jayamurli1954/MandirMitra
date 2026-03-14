@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.inventory import Item, Store, StockBalance, StockMovement, StockMovementType
 from app.models.stock_audit import (
@@ -24,6 +25,30 @@ from app.models.stock_audit import (
 from app.models.accounting import JournalEntry, JournalLine, JournalEntryStatus, TransactionType
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
+def _get_store_in_scope(db: Session, store_id: int, temple_id: int) -> Store | None:
+    return db.query(Store).filter(Store.id == store_id, Store.temple_id == temple_id).first()
+
+
+def _get_item_in_scope(db: Session, item_id: int, temple_id: int) -> Item | None:
+    return db.query(Item).filter(Item.id == item_id, Item.temple_id == temple_id).first()
+
+
+def _get_stock_balance_in_scope(db: Session, item_id: int, store_id: int, temple_id: int) -> StockBalance | None:
+    return db.query(StockBalance).filter(StockBalance.item_id == item_id, StockBalance.store_id == store_id, StockBalance.temple_id == temple_id).first()
+
+
+def _get_audit_in_scope(db: Session, audit_id: int, temple_id: int) -> StockAudit | None:
+    return db.query(StockAudit).filter(StockAudit.id == audit_id, StockAudit.temple_id == temple_id).first()
 
 
 # ===== SCHEMAS =====
@@ -125,11 +150,10 @@ def create_stock_audit(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new stock audit"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Verify store exists
     store = (
-        db.query(Store)
-        .filter(Store.id == audit_data.store_id, Store.temple_id == current_user.temple_id)
-        .first()
+        _get_store_in_scope(db, audit_data.store_id, temple_id)
     )
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
@@ -139,7 +163,7 @@ def create_stock_audit(
     prefix = f"AUD/{year}/"
     last_audit = (
         db.query(StockAudit)
-        .filter(StockAudit.audit_number.like(f"{prefix}%"))
+        .filter(StockAudit.audit_number.like(f"{prefix}%"), StockAudit.temple_id == temple_id)
         .order_by(StockAudit.id.desc())
         .first()
     )
@@ -156,7 +180,7 @@ def create_stock_audit(
 
     # Create audit
     audit = StockAudit(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         audit_number=audit_number,
         audit_date=audit_data.audit_date,
         store_id=audit_data.store_id,
@@ -182,11 +206,8 @@ def add_audit_item(
     current_user: User = Depends(get_current_user),
 ):
     """Add an item to stock audit"""
-    audit = (
-        db.query(StockAudit)
-        .filter(StockAudit.id == audit_id, StockAudit.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    audit = _get_audit_in_scope(db, audit_id, temple_id)
     if not audit:
         raise HTTPException(status_code=404, detail="Audit not found")
 
@@ -194,15 +215,13 @@ def add_audit_item(
         raise HTTPException(status_code=400, detail="Cannot add items to completed audit")
 
     # Get item
-    item = db.query(Item).filter(Item.id == item_data.item_id).first()
+    item = _get_item_in_scope(db, item_data.item_id, temple_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     # Get book balance
     stock_balance = (
-        db.query(StockBalance)
-        .filter(StockBalance.item_id == item_data.item_id, StockBalance.store_id == audit.store_id)
-        .first()
+        _get_stock_balance_in_scope(db, item_data.item_id, audit.store_id, temple_id)
     )
 
     book_quantity = stock_balance.quantity if stock_balance else 0.0
@@ -280,11 +299,8 @@ def complete_stock_audit(
     audit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Complete stock audit and calculate summary"""
-    audit = (
-        db.query(StockAudit)
-        .filter(StockAudit.id == audit_id, StockAudit.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    audit = _get_audit_in_scope(db, audit_id, temple_id)
     if not audit:
         raise HTTPException(status_code=404, detail="Audit not found")
 
@@ -325,7 +341,8 @@ def get_stock_audits(
     current_user: User = Depends(get_current_user),
 ):
     """Get all stock audits"""
-    query = db.query(StockAudit).filter(StockAudit.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(StockAudit).filter(StockAudit.temple_id == temple_id)
 
     if store_id:
         query = query.filter(StockAudit.store_id == store_id)
@@ -345,11 +362,8 @@ def get_stock_audit(
     audit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a specific stock audit"""
-    audit = (
-        db.query(StockAudit)
-        .filter(StockAudit.id == audit_id, StockAudit.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_temple_id(db, current_user)
+    audit = _get_audit_in_scope(db, audit_id, temple_id)
     if not audit:
         raise HTTPException(status_code=404, detail="Audit not found")
 
@@ -366,27 +380,21 @@ def create_stock_wastage(
     current_user: User = Depends(get_current_user),
 ):
     """Record stock wastage"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Verify item and store
-    item = db.query(Item).filter(Item.id == wastage_data.item_id).first()
+    item = _get_item_in_scope(db, wastage_data.item_id, temple_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     store = (
-        db.query(Store)
-        .filter(Store.id == wastage_data.store_id, Store.temple_id == current_user.temple_id)
-        .first()
+        _get_store_in_scope(db, wastage_data.store_id, temple_id)
     )
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
 
     # Check stock availability
     stock_balance = (
-        db.query(StockBalance)
-        .filter(
-            StockBalance.item_id == wastage_data.item_id,
-            StockBalance.store_id == wastage_data.store_id,
-        )
-        .first()
+        _get_stock_balance_in_scope(db, wastage_data.item_id, wastage_data.store_id, temple_id)
     )
 
     if not stock_balance or stock_balance.quantity < wastage_data.quantity:
@@ -400,7 +408,7 @@ def create_stock_wastage(
     prefix = f"WST/{year}/"
     last_wastage = (
         db.query(StockWastage)
-        .filter(StockWastage.wastage_number.like(f"{prefix}%"))
+        .filter(StockWastage.wastage_number.like(f"{prefix}%"), StockWastage.temple_id == temple_id)
         .order_by(StockWastage.id.desc())
         .first()
     )
@@ -418,7 +426,7 @@ def create_stock_wastage(
 
     # Create wastage record
     wastage = StockWastage(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         wastage_number=wastage_number,
         wastage_date=wastage_data.wastage_date,
         item_id=wastage_data.item_id,
@@ -444,7 +452,7 @@ def create_stock_wastage(
     prefix = f"ADJ/{year}/"
     last_movement = (
         db.query(StockMovement)
-        .filter(StockMovement.movement_number.like(f"{prefix}%"))
+        .filter(StockMovement.movement_number.like(f"{prefix}%"), StockMovement.temple_id == temple_id)
         .order_by(StockMovement.id.desc())
         .first()
     )
@@ -460,7 +468,7 @@ def create_stock_wastage(
     movement_number = f"{prefix}{new_num:04d}"
 
     movement = StockMovement(
-        temple_id=current_user.temple_id,
+        temple_id=temple_id,
         movement_type=StockMovementType.ADJUSTMENT,
         movement_number=movement_number,
         movement_date=wastage_data.wastage_date,
@@ -495,7 +503,8 @@ def get_stock_wastages(
     current_user: User = Depends(get_current_user),
 ):
     """Get all stock wastages"""
-    query = db.query(StockWastage).filter(StockWastage.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(StockWastage).filter(StockWastage.temple_id == temple_id)
 
     if item_id:
         query = query.filter(StockWastage.item_id == item_id)

@@ -46,9 +46,10 @@ function SevaSchedule() {
     }
   };
 
+  // Schedule reload is intentionally keyed to days; manual refresh uses the same fetch.
   useEffect(() => {
     fetchSchedule();
-  }, [days]);
+  }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleExport = (format) => {
     if (!scheduleData) return;
@@ -59,7 +60,7 @@ function SevaSchedule() {
       'Seva Name': s.seva_name,
       'Devotee Name': s.devotee_name,
       'Mobile': s.devotee_mobile || 'N/A',
-      'Amount (₹)': s.amount,
+      'Amount (â‚¹)': s.amount,
       'Status': s.status,
       'Special Request': s.special_request || 'N/A',
     }));
@@ -141,7 +142,7 @@ function SevaSchedule() {
                     <TableCell><strong>Seva Name</strong></TableCell>
                     <TableCell><strong>Devotee Name</strong></TableCell>
                     <TableCell><strong>Mobile</strong></TableCell>
-                    <TableCell align="right"><strong>Amount (₹)</strong></TableCell>
+                    <TableCell align="right"><strong>Amount (â‚¹)</strong></TableCell>
                     <TableCell><strong>Status</strong></TableCell>
                     <TableCell><strong>Special Request</strong></TableCell>
                   </TableRow>

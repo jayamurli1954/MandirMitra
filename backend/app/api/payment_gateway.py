@@ -10,6 +10,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.donation import Donation
 from app.models.seva import SevaBooking
@@ -25,6 +26,14 @@ from app.services.payment_gateway import payment_gateway_service
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payment-gateway"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
 
 
 # Schemas
@@ -114,6 +123,10 @@ def create_payment_order(
     This creates an order in Razorpay and returns order details
     that can be used by the frontend to initiate payment
     """
+    temple_id = _resolve_write_temple_id(db, current_user)
+
+    temple_id = _resolve_write_temple_id(db, current_user)
+
     if not payment_gateway_service.is_enabled():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -123,7 +136,7 @@ def create_payment_order(
     # Verify devotee exists
     devotee = (
         db.query(Devotee)
-        .filter(Devotee.id == request.devotee_id, Devotee.temple_id == current_user.temple_id)
+        .filter(Devotee.id == request.devotee_id, Devotee.temple_id == temple_id)
         .first()
     )
 
@@ -158,7 +171,7 @@ def create_payment_order(
 
     # Prepare notes for Razorpay
     notes = {
-        "temple_id": str(current_user.temple_id),
+        "temple_id": str(temple_id),
         "devotee_id": str(request.devotee_id),
         "purpose": request.purpose,
         "created_by": str(current_user.id),
@@ -242,7 +255,7 @@ def verify_payment(
     # Verify devotee
     devotee = (
         db.query(Devotee)
-        .filter(Devotee.id == request.devotee_id, Devotee.temple_id == current_user.temple_id)
+        .filter(Devotee.id == request.devotee_id, Devotee.temple_id == temple_id)
         .first()
     )
 
@@ -263,7 +276,7 @@ def verify_payment(
 
         # Create donation
         donation = Donation(
-            temple_id=current_user.temple_id,
+            temple_id=temple_id,
             devotee_id=request.devotee_id,
             category_id=request.donation_category_id,
             receipt_number=order_details.get("receipt", ""),
@@ -295,7 +308,7 @@ def verify_payment(
 
         # Create seva booking
         seva_booking = SevaBooking(
-            temple_id=current_user.temple_id,
+            temple_id=temple_id,
             devotee_id=request.devotee_id,
             seva_id=request.seva_id,
             booking_date=booking_date,
@@ -320,7 +333,7 @@ def verify_payment(
             bank_account = (
                 db.query(Account)
                 .filter(
-                    Account.temple_id == current_user.temple_id,
+                    Account.temple_id == temple_id,
                     Account.account_code.like("12%"),  # Bank accounts (12000-12999)
                     Account.is_active == True,
                 )
@@ -341,7 +354,7 @@ def verify_payment(
                 income_account = (
                     db.query(Account)
                     .filter(
-                        Account.temple_id == current_user.temple_id,
+                        Account.temple_id == temple_id,
                         Account.account_code == "44001",  # General Donations
                         Account.is_active == True,
                     )
@@ -359,7 +372,7 @@ def verify_payment(
                     narration=narration,
                     reference_type=TransactionType.DONATION,
                     reference_id=donation.id,
-                    temple_id=current_user.temple_id,
+                    temple_id=temple_id,
                     total_amount=amount,
                     status=JournalEntryStatus.POSTED,
                     created_by=current_user.id,
@@ -399,7 +412,7 @@ def verify_payment(
             bank_account = (
                 db.query(Account)
                 .filter(
-                    Account.temple_id == current_user.temple_id,
+                    Account.temple_id == temple_id,
                     Account.account_code.like("12%"),  # Bank accounts (12000-12999)
                     Account.is_active == True,
                 )
@@ -410,7 +423,7 @@ def verify_payment(
             seva_income_account = (
                 db.query(Account)
                 .filter(
-                    Account.temple_id == current_user.temple_id,
+                    Account.temple_id == temple_id,
                     Account.account_code.like("420%"),  # Seva Income (42000-42999)
                     Account.is_active == True,
                 )
@@ -428,7 +441,7 @@ def verify_payment(
                     narration=narration,
                     reference_type=TransactionType.SEVA_BOOKING,
                     reference_id=seva_booking.id,
-                    temple_id=current_user.temple_id,
+                    temple_id=temple_id,
                     total_amount=amount,
                     status=JournalEntryStatus.POSTED,
                     created_by=current_user.id,

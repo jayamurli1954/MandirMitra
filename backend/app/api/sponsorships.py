@@ -12,6 +12,7 @@ from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.temple_context import require_temple_id_for_user, require_temple_write_access
 from app.models.user import User
 from app.models.devotee import Devotee
 from app.models.vendor import Vendor
@@ -39,6 +40,18 @@ from app.schemas.sponsorship import (
 )
 
 router = APIRouter(prefix="/api/v1/sponsorships", tags=["sponsorships"])
+
+
+def _resolve_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_id_for_user(db, current_user, active_only=False)
+
+
+def _resolve_write_temple_id(db: Session, current_user: User) -> int:
+    return require_temple_write_access(db, current_user, active_only=False)
+
+
+def _get_sponsorship_in_scope(db: Session, sponsorship_id: int, temple_id: int) -> Sponsorship | None:
+    return db.query(Sponsorship).filter(Sponsorship.id == sponsorship_id, Sponsorship.temple_id == temple_id).first()
 
 
 # ===== HELPER FUNCTIONS =====
@@ -482,8 +495,10 @@ def create_sponsorship(
     """
     Create new sponsorship
     """
+    temple_id = _resolve_write_temple_id(db, current_user)
+
     # Verify temple_id matches current user
-    if sponsorship_data.temple_id != current_user.temple_id:
+    if sponsorship_data.temple_id != temple_id:
         raise HTTPException(
             status_code=403, detail="Cannot create sponsorship for different temple"
         )
@@ -492,7 +507,7 @@ def create_sponsorship(
     devotee = (
         db.query(Devotee)
         .filter(
-            Devotee.id == sponsorship_data.devotee_id, Devotee.temple_id == current_user.temple_id
+            Devotee.id == sponsorship_data.devotee_id, Devotee.temple_id == temple_id
         )
         .first()
     )
@@ -510,7 +525,7 @@ def create_sponsorship(
         vendor = (
             db.query(Vendor)
             .filter(
-                Vendor.id == sponsorship_data.vendor_id, Vendor.temple_id == current_user.temple_id
+                Vendor.id == sponsorship_data.vendor_id, Vendor.temple_id == temple_id
             )
             .first()
         )
@@ -519,11 +534,11 @@ def create_sponsorship(
             raise HTTPException(status_code=404, detail="Vendor not found")
 
     # Generate receipt number first (before creating sponsorship)
-    receipt_number = generate_sponsorship_receipt_number(db, current_user.temple_id)
+    receipt_number = generate_sponsorship_receipt_number(db, temple_id)
 
     # Create sponsorship record
     sponsorship = Sponsorship(
-        temple_id=sponsorship_data.temple_id,
+        temple_id=temple_id,
         devotee_id=sponsorship_data.devotee_id,
         receipt_number=receipt_number,  # Set receipt number at creation
         receipt_date=sponsorship_data.receipt_date,
@@ -548,7 +563,7 @@ def create_sponsorship(
     if sponsorship_data.payment_mode == SponsorshipPaymentMode.TEMPLE_PAYMENT:
         # Temple payment mode: Post commitment (Dr. Receivable, Cr. Income)
         journal_entry = post_sponsorship_commitment(
-            db, current_user.temple_id, sponsorship, current_user
+            db, temple_id, sponsorship, current_user
         )
         if journal_entry:
             sponsorship.journal_entry_id_commitment = journal_entry.id
@@ -557,7 +572,7 @@ def create_sponsorship(
         # This follows standard accounting practice: Dr. Expense, Cr. In-Kind Income
         if sponsorship_data.vendor_invoice_amount and sponsorship_data.vendor_invoice_number:
             journal_entry = post_direct_payment_to_vendor(
-                db, current_user.temple_id, sponsorship, current_user
+                db, temple_id, sponsorship, current_user
             )
             if journal_entry:
                 sponsorship.journal_entry_id_expense = journal_entry.id
@@ -595,7 +610,8 @@ def list_sponsorships(
     """
     Get list of sponsorships with filters
     """
-    query = db.query(Sponsorship).filter(Sponsorship.temple_id == current_user.temple_id)
+    temple_id = _resolve_temple_id(db, current_user)
+    query = db.query(Sponsorship).filter(Sponsorship.temple_id == temple_id)
 
     if status:
         query = query.filter(Sponsorship.status == status)
@@ -638,11 +654,8 @@ def get_sponsorship(
     """
     Get sponsorship by ID
     """
-    sponsorship = (
-        db.query(Sponsorship)
-        .filter(Sponsorship.id == sponsorship_id, Sponsorship.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_temple_id(db, current_user)
+    sponsorship = _get_sponsorship_in_scope(db, sponsorship_id, temple_id)
 
     if not sponsorship:
         raise HTTPException(status_code=404, detail="Sponsorship not found")
@@ -666,11 +679,8 @@ def update_sponsorship(
     """
     Update sponsorship
     """
-    sponsorship = (
-        db.query(Sponsorship)
-        .filter(Sponsorship.id == sponsorship_id, Sponsorship.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    sponsorship = _get_sponsorship_in_scope(db, sponsorship_id, temple_id)
 
     if not sponsorship:
         raise HTTPException(status_code=404, detail="Sponsorship not found")
@@ -705,8 +715,9 @@ def record_sponsorship_payment(
     """
     Record payment for sponsorship (temple_payment mode only)
     """
+    temple_id = _resolve_write_temple_id(db, current_user)
     # Verify temple_id matches current user
-    if payment_data.temple_id != current_user.temple_id:
+    if payment_data.temple_id != temple_id:
         raise HTTPException(status_code=403, detail="Cannot record payment for different temple")
 
     # Get sponsorship
@@ -714,7 +725,7 @@ def record_sponsorship_payment(
         db.query(Sponsorship)
         .filter(
             Sponsorship.id == payment_data.sponsorship_id,
-            Sponsorship.temple_id == current_user.temple_id,
+            Sponsorship.temple_id == temple_id,
         )
         .first()
     )
@@ -738,7 +749,7 @@ def record_sponsorship_payment(
     # Create payment record
     payment = SponsorshipPayment(
         sponsorship_id=payment_data.sponsorship_id,
-        temple_id=payment_data.temple_id,
+        temple_id=temple_id,
         payment_date=payment_data.payment_date,
         amount_paid=payment_data.amount_paid,
         payment_method=payment_data.payment_method,
@@ -757,7 +768,7 @@ def record_sponsorship_payment(
 
     # Post to accounting
     journal_entry = post_sponsorship_payment(
-        db, current_user.temple_id, sponsorship, payment, current_user
+        db, temple_id, sponsorship, payment, current_user
     )
     if journal_entry:
         payment.journal_entry_id = journal_entry.id
@@ -777,19 +788,16 @@ def get_sponsorship_payments(
     """
     Get payment history for a sponsorship
     """
+    temple_id = _resolve_temple_id(db, current_user)
     # Verify sponsorship exists and belongs to temple
-    sponsorship = (
-        db.query(Sponsorship)
-        .filter(Sponsorship.id == sponsorship_id, Sponsorship.temple_id == current_user.temple_id)
-        .first()
-    )
+    sponsorship = _get_sponsorship_in_scope(db, sponsorship_id, temple_id)
 
     if not sponsorship:
         raise HTTPException(status_code=404, detail="Sponsorship not found")
 
     payments = (
         db.query(SponsorshipPayment)
-        .filter(SponsorshipPayment.sponsorship_id == sponsorship_id)
+        .filter(SponsorshipPayment.sponsorship_id == sponsorship_id, SponsorshipPayment.temple_id == temple_id)
         .order_by(SponsorshipPayment.payment_date.desc())
         .all()
     )
@@ -810,11 +818,8 @@ def record_direct_vendor_payment(
     """
     Record that devotee paid vendor directly (for direct_payment mode)
     """
-    sponsorship = (
-        db.query(Sponsorship)
-        .filter(Sponsorship.id == sponsorship_id, Sponsorship.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    sponsorship = _get_sponsorship_in_scope(db, sponsorship_id, temple_id)
 
     if not sponsorship:
         raise HTTPException(status_code=404, detail="Sponsorship not found")
@@ -835,7 +840,7 @@ def record_direct_vendor_payment(
 
     # Post to accounting (non-cash transaction)
     journal_entry = post_direct_payment_to_vendor(
-        db, current_user.temple_id, sponsorship, current_user
+        db, temple_id, sponsorship, current_user
     )
     if journal_entry:
         sponsorship.journal_entry_id_expense = journal_entry.id
@@ -865,11 +870,8 @@ def fulfill_sponsorship(
     """
     Mark sponsorship as fulfilled (service/event completed)
     """
-    sponsorship = (
-        db.query(Sponsorship)
-        .filter(Sponsorship.id == sponsorship_id, Sponsorship.temple_id == current_user.temple_id)
-        .first()
-    )
+    temple_id = _resolve_write_temple_id(db, current_user)
+    sponsorship = _get_sponsorship_in_scope(db, sponsorship_id, temple_id)
 
     if not sponsorship:
         raise HTTPException(status_code=404, detail="Sponsorship not found")
