@@ -5,6 +5,8 @@ import { clearAuthSession, getAccessToken, readStoredUser, writeStoredUser, clea
 const LAYOUT_CACHE_TTL_MS = 2 * 60 * 1000;
 const USER_PROFILE_CACHE_KEY = 'layout_user_profile_cache_v1';
 
+const isAuthFailureStatus = (status) => status === 401 || status === 403;
+
 const CurrentUserContext = createContext({
   user: {},
   loading: false,
@@ -65,6 +67,7 @@ const normalizeCurrentUser = (userData, fallbackUser = {}) => ({
   module_permissions: userData?.module_permissions || fallbackUser.module_permissions || {},
   action_permissions: userData?.action_permissions || fallbackUser.action_permissions || {},
   is_superuser: Boolean(userData?.is_superuser ?? fallbackUser.is_superuser),
+  must_change_password: Boolean(userData?.must_change_password ?? fallbackUser.must_change_password),
 });
 
 export function CurrentUserProvider({ children }) {
@@ -108,7 +111,9 @@ export function CurrentUserProvider({ children }) {
       }, { timeoutMs: 12000 });
 
       if (!response.ok) {
-        throw new Error('Failed to load current user');
+        const error = new Error('Failed to load current user');
+        error.status = response.status;
+        throw error;
       }
 
       const data = await response.json();
@@ -127,8 +132,13 @@ export function CurrentUserProvider({ children }) {
 
     refreshUser().catch((error) => {
       console.error('Failed to refresh current user', error);
-      clearAuthSession();
-      clearUser();
+      if (isAuthFailureStatus(error?.status)) {
+        clearAuthSession();
+        clearUser();
+        return;
+      }
+      setUser(readStoredUser());
+      setLoading(false);
     });
   }, [clearUser, refreshUser]);
 
@@ -142,8 +152,13 @@ export function CurrentUserProvider({ children }) {
 
       refreshUser().catch((error) => {
         console.error('Failed to refresh current user after profile update', error);
-        clearAuthSession();
-        clearUser();
+        if (isAuthFailureStatus(error?.status)) {
+          clearAuthSession();
+          clearUser();
+          return;
+        }
+        setUser(readStoredUser());
+        setLoading(false);
       });
     };
 
@@ -155,8 +170,13 @@ export function CurrentUserProvider({ children }) {
 
       refreshUser().catch((error) => {
         console.error('Failed to refresh current user after auth state change', error);
-        clearAuthSession();
-        clearUser();
+        if (isAuthFailureStatus(error?.status)) {
+          clearAuthSession();
+          clearUser();
+          return;
+        }
+        setUser(readStoredUser());
+        setLoading(false);
       });
     };
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 import { getAccessToken, readStoredUser, writeStoredUser } from '../utils/authStorage';
+import { getActiveTempleId } from '../utils/activeTemple';
 
 const SETUP_REDIRECT_EXEMPT_PATHS = new Set(['/profile']);
 
@@ -21,6 +22,7 @@ const normalizeCurrentUser = (userData, fallbackUser = {}) => ({
   module_permissions: userData?.module_permissions || fallbackUser.module_permissions || {},
   action_permissions: userData?.action_permissions || fallbackUser.action_permissions || {},
   is_superuser: Boolean(userData?.is_superuser ?? fallbackUser.is_superuser),
+  must_change_password: Boolean(userData?.must_change_password ?? fallbackUser.must_change_password),
 });
 
 function ProtectedRoute({ children }) {
@@ -72,8 +74,13 @@ function ProtectedRoute({ children }) {
           || currentUser?.system_role === 'super_admin'
           || currentUser?.role === 'super_admin';
         let redirectTo = null;
+        const activeTempleId = getActiveTempleId();
 
-        if (data.force_setup && !onWizardPage && !isSetupRedirectExempt && !isPlatformSuperAdmin) {
+        if (Boolean(currentUser?.must_change_password) && location.pathname !== '/profile') {
+          redirectTo = '/profile';
+        } else if (location.pathname === '/dashboard' && isPlatformSuperAdmin && !activeTempleId) {
+          redirectTo = '/platform/temples';
+        } else if (data.force_setup && !onWizardPage && !isSetupRedirectExempt && !isPlatformSuperAdmin) {
           redirectTo = '/setup-wizard';
         } else if (onWizardPage && !data.can_manage_setup && !isPlatformSuperAdmin) {
           redirectTo = '/dashboard';

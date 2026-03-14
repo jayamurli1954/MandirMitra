@@ -38,6 +38,7 @@ from slowapi.errors import RateLimitExceeded
 from app.models.temple import Temple
 from app.models.user import User
 from app.models.role_permission import RolePermissionProfile, UserRoleAssignment
+from app.models.onboarding_request import OnboardingRequest
 from app.models.donation import Donation, DonationCategory
 from app.models.devotee import Devotee
 from app.models.panchang_display_settings import PanchangDisplaySettings
@@ -117,6 +118,7 @@ from app.api.pincode import router as pincode_router
 from app.api.opening_balances import router as opening_balances_router
 from app.api.backup_restore import router as backup_restore_router
 from app.api.temple_onboarding import router as temple_onboarding_router
+from app.api.onboarding_requests import router as onboarding_requests_router
 from app.api.account_imports import router as account_imports_router
 from app.api.opening_balance_imports import router as opening_balance_imports_router
 from app.api.setup_wizard import router as setup_wizard_router
@@ -219,6 +221,7 @@ app.include_router(pincode_router, prefix="/api/v1/pincode", tags=["pincode"])
 app.include_router(opening_balances_router)
 app.include_router(backup_restore_router)
 app.include_router(temple_onboarding_router)
+app.include_router(onboarding_requests_router)
 app.include_router(account_imports_router)
 app.include_router(opening_balance_imports_router)
 app.include_router(setup_wizard_router)

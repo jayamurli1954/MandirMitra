@@ -35,6 +35,7 @@ class User(Base):
     # Status
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+    must_change_password = Column(Boolean, default=False)
 
     # Security
     last_login_at = Column(String)

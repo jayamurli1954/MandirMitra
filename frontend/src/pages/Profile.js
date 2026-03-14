@@ -9,9 +9,11 @@ import {
   Button,
   CircularProgress,
   Chip,
+  Alert,
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
@@ -33,6 +35,7 @@ const splitName = (fullName = '') => {
 
 function Profile() {
   const { showSuccess, showError } = useNotification();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -46,6 +49,7 @@ function Profile() {
     phone: '',
     role: '',
     isActive: true,
+    mustChangePassword: false,
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -73,6 +77,7 @@ function Profile() {
           phone: data.phone || '',
           role: data.role_label || data.role || '',
           isActive: Boolean(data.is_active),
+          mustChangePassword: Boolean(data.must_change_password),
         });
       } catch (err) {
         showError(err.userMessage || 'Failed to load profile');
@@ -120,6 +125,7 @@ function Profile() {
         module_permissions: data.module_permissions || {},
         action_permissions: data.action_permissions || {},
         is_superuser: Boolean(data.is_superuser),
+        must_change_password: Boolean(data.must_change_password),
       };
 
       writeStoredUser(normalizedUser);
@@ -161,7 +167,12 @@ function Profile() {
         confirmPassword: '',
       });
 
+      const updatedUser = { ...readStoredUser(), must_change_password: false };
+      writeStoredUser(updatedUser);
+      window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: updatedUser }));
+
       showSuccess('Password changed successfully');
+      navigate(updatedUser.role === 'super_admin' || updatedUser.system_role === 'super_admin' || updatedUser.is_superuser ? '/platform/temples' : '/dashboard');
     } catch (err) {
       showError(err.userMessage || 'Failed to change password');
     } finally {
@@ -187,6 +198,11 @@ function Profile() {
         </Typography>
 
         <Grid container spacing={3}>
+          {profile.mustChangePassword && (
+            <Grid item xs={12}>
+              <Alert severity="warning">Your account is using a temporary password. Change it now before you continue to tenant operations.</Alert>
+            </Grid>
+          )}
           <Grid item xs={12} md={7}>
             <Card sx={{ borderLeft: '5px solid #FF9933' }}>
               <CardContent>

@@ -2,7 +2,7 @@
 Database Connection and Session Management
 """
 
-from sqlalchemy import MetaData, Table, create_engine, func, or_, text
+from sqlalchemy import Boolean, MetaData, Table, create_engine, func, or_, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
@@ -205,6 +205,25 @@ def ensure_temple_platform_access_columns(db: Session) -> None:
         db.commit()
 
 
+def ensure_user_security_columns(db: Session) -> None:
+    """Ensure newer user security columns exist across legacy databases."""
+
+    if not column_exists(db, "users", "must_change_password"):
+        dialect = db.get_bind().dialect.name
+        if dialect == "sqlite":
+            db.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN"))
+        else:
+            db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN"))
+
+    db.execute(
+        text(
+            "UPDATE users SET must_change_password = :must_change_password WHERE must_change_password IS NULL"
+        ),
+        {"must_change_password": False},
+    )
+    db.commit()
+
+
 def ensure_audit_log_tenant_column(db: Session) -> None:
     """Ensure audit logs carry tenant context for tenant-safe reporting."""
 
@@ -336,6 +355,7 @@ def init_db():
     from app.models.role_permission import RolePermissionProfile, UserRoleAssignment
     from app.models.budget import Budget
     from app.models.bank_reconciliation import BankReconciliation, BankStatement, BankStatementEntry
+    from app.models.onboarding_request import OnboardingRequest
     from app.models.financial_period import FinancialPeriod
     from app.models.inkind_sponsorship import InKindDonation, Sponsorship
 
@@ -347,6 +367,7 @@ def init_db():
         normalize_nullable_temple_module_flags(db)
         ensure_seva_tenant_columns(db)
         ensure_temple_platform_access_columns(db)
+        ensure_user_security_columns(db)
         ensure_audit_log_tenant_column(db)
         normalize_saas_superuser_flags(db)
     finally:

@@ -64,7 +64,7 @@ function Settings() {
     pincode: '',
     phone: '',
     email: '',
-    platform_demo_temple: false,
+    platform_demo_temple: true,
     admin_full_name: '',
     admin_email: '',
     admin_password: '',
@@ -114,7 +114,8 @@ function Settings() {
 
   const isPlatformSuperAdmin = Boolean(currentUser.is_superuser) || currentUser.role === 'super_admin';
   const canSwitchTemple = isPlatformSuperAdmin;
-  const canEditSelectedTemple = !isPlatformSuperAdmin || Boolean(selectedTempleMeta?.platform_can_write);
+  const canEditSelectedTemple = !isPlatformSuperAdmin || (selectedTempleMeta ? Boolean(selectedTempleMeta?.platform_can_write) : false);
+  const isPlatformConsoleView = canSwitchTemple && !selectedTempleMeta;
   const selectedTempleName = selectedTempleMeta?.name || selectedTempleMeta?.trust_name || 'selected temple';
 
   // These fetches intentionally rerun when the active temple changes.
@@ -129,6 +130,9 @@ function Settings() {
       if (Number.isInteger(nextTempleId) && nextTempleId > 0) {
         writeActiveTempleId(nextTempleId);
         setSelectedTempleId(nextTempleId);
+      } else {
+        writeActiveTempleId(null);
+        setSelectedTempleId(null);
       }
     };
 
@@ -160,39 +164,39 @@ function Settings() {
   const applyTempleSettings = (temple) => {
     setSelectedTempleMeta(temple || null);
     setSettings({
-      temple_name: temple.name || '',
-      name_kannada: temple.name_kannada || '',
-      name_sanskrit: temple.name_sanskrit || '',
-      address: temple.address || '',
-      city: temple.city || '',
-      state: temple.state || '',
-      pincode: temple.pincode || '',
-      phone: temple.phone || '',
-      email: temple.email || '',
-      website: temple.website || '',
-      financial_year_start: temple.financial_year_start_month || 4,
-      receipt_prefix_donation: temple.receipt_prefix_donation || 'DON',
-      receipt_prefix_seva: temple.receipt_prefix_seva || 'SEVA',
+      temple_name: temple?.name || '',
+      name_kannada: temple?.name_kannada || '',
+      name_sanskrit: temple?.name_sanskrit || '',
+      address: temple?.address || '',
+      city: temple?.city || '',
+      state: temple?.state || '',
+      pincode: temple?.pincode || '',
+      phone: temple?.phone || '',
+      email: temple?.email || '',
+      website: temple?.website || '',
+      financial_year_start: temple?.financial_year_start_month || 4,
+      receipt_prefix_donation: temple?.receipt_prefix_donation || 'DON',
+      receipt_prefix_seva: temple?.receipt_prefix_seva || 'SEVA',
       sms_enabled: false,
       sms_reminder_days: 7,
       email_enabled: false,
-      gst_applicable: temple.gst_applicable || false,
-      gstin: temple.gstin || '',
-      gst_registration_date: temple.gst_registration_date || '',
-      fcra_applicable: temple.fcra_applicable || false,
-      fcra_registration_number: temple.fcra_registration_number || '',
-      fcra_valid_from: temple.fcra_valid_from || '',
-      fcra_valid_to: temple.fcra_valid_to || '',
-      module_donations_enabled: temple.module_donations_enabled !== undefined ? temple.module_donations_enabled : true,
-      module_sevas_enabled: temple.module_sevas_enabled !== undefined ? temple.module_sevas_enabled : true,
-      module_inventory_enabled: temple.module_inventory_enabled !== undefined ? temple.module_inventory_enabled : false,
-      module_assets_enabled: temple.module_assets_enabled !== undefined ? temple.module_assets_enabled : false,
-      module_hr_enabled: temple.module_hr_enabled !== undefined ? temple.module_hr_enabled : false,
-      module_hundi_enabled: temple.module_hundi_enabled !== undefined ? temple.module_hundi_enabled : false,
-      module_accounting_enabled: temple.module_accounting_enabled !== undefined ? temple.module_accounting_enabled : true,
-      module_panchang_enabled: temple.module_panchang_enabled !== undefined ? temple.module_panchang_enabled : true,
-      logo_url: temple.logo_url || '',
-      banner_url: temple.banner_url || '',
+      gst_applicable: temple?.gst_applicable || false,
+      gstin: temple?.gstin || '',
+      gst_registration_date: temple?.gst_registration_date || '',
+      fcra_applicable: temple?.fcra_applicable || false,
+      fcra_registration_number: temple?.fcra_registration_number || '',
+      fcra_valid_from: temple?.fcra_valid_from || '',
+      fcra_valid_to: temple?.fcra_valid_to || '',
+      module_donations_enabled: temple?.module_donations_enabled !== undefined ? temple.module_donations_enabled : true,
+      module_sevas_enabled: temple?.module_sevas_enabled !== undefined ? temple.module_sevas_enabled : true,
+      module_inventory_enabled: temple?.module_inventory_enabled !== undefined ? temple.module_inventory_enabled : false,
+      module_assets_enabled: temple?.module_assets_enabled !== undefined ? temple.module_assets_enabled : false,
+      module_hr_enabled: temple?.module_hr_enabled !== undefined ? temple.module_hr_enabled : false,
+      module_hundi_enabled: temple?.module_hundi_enabled !== undefined ? temple.module_hundi_enabled : false,
+      module_accounting_enabled: temple?.module_accounting_enabled !== undefined ? temple.module_accounting_enabled : true,
+      module_panchang_enabled: temple?.module_panchang_enabled !== undefined ? temple.module_panchang_enabled : true,
+      logo_url: temple?.logo_url || '',
+      banner_url: temple?.banner_url || '',
     });
   };
 
@@ -203,17 +207,23 @@ function Settings() {
       const templeList = Array.isArray(response.data) ? response.data : [];
       setTemples(templeList);
       if (templeList.length > 0) {
-        const activeTemple = (canSwitchTemple && selectedTempleId)
-          ? templeList.find((temple) => temple.id === selectedTempleId)
-          : null;
-        const temple = activeTemple || templeList[0];
-        if (temple?.id && temple.id !== selectedTempleId) {
-          writeActiveTempleId(temple.id);
-          setSelectedTempleId(temple.id);
+        if (canSwitchTemple) {
+          const activeTemple = selectedTempleId ? templeList.find((temple) => temple.id === selectedTempleId) : null;
+          if (selectedTempleId && !activeTemple) {
+            writeActiveTempleId(null);
+            setSelectedTempleId(null);
+          }
+          applyTempleSettings(activeTemple || null);
+        } else {
+          const temple = templeList[0];
+          if (temple?.id && temple.id !== selectedTempleId) {
+            writeActiveTempleId(temple.id);
+            setSelectedTempleId(temple.id);
+          }
+          applyTempleSettings(temple);
         }
-        applyTempleSettings(temple);
       } else {
-        setSelectedTempleMeta(null);
+        applyTempleSettings(null);
       }
     } catch (err) {
       console.error('Failed to load settings:', err);
@@ -310,7 +320,7 @@ function Settings() {
         pincode: '',
         phone: '',
         email: '',
-        platform_demo_temple: false,
+        platform_demo_temple: true,
         admin_full_name: '',
         admin_email: '',
         admin_password: '',
@@ -493,7 +503,7 @@ function Settings() {
         )}
 
         <Grid container spacing={3} sx={{ mt: 2 }}>
-          {canSwitchTemple && temples.length > 1 && (
+          {canSwitchTemple && (
             <Grid item xs={12}>
               <Card sx={{ borderLeft: '5px solid #2E7D32' }}>
                 <CardContent>
@@ -501,7 +511,7 @@ function Settings() {
                     Active Temple / Trust
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Choose which onboarded temple or trust you want to view and edit in Settings.
+                    Choose which onboarded tenant you want to inspect. Keep the selector on Platform Console when you want only platform-level actions like approvals, demo-tenant creation, backup review, or role-matrix setup.
                   </Typography>
                   <TextField
                     select
@@ -509,7 +519,16 @@ function Settings() {
                     label="Temple / Trust"
                     value={selectedTempleId ? String(selectedTempleId) : ''}
                     onChange={(event) => {
-                      const nextTempleId = Number.parseInt(String(event.target.value), 10);
+                      const rawValue = String(event.target.value || '').trim();
+                      if (!rawValue) {
+                        writeActiveTempleId(null);
+                        setSelectedTempleId(null);
+                        window.dispatchEvent(new CustomEvent('active-temple-changed', {
+                          detail: { templeId: null },
+                        }));
+                        return;
+                      }
+                      const nextTempleId = Number.parseInt(rawValue, 10);
                       if (!Number.isInteger(nextTempleId) || nextTempleId <= 0) {
                         return;
                       }
@@ -520,6 +539,7 @@ function Settings() {
                       }));
                     }}
                   >
+                    <MenuItem value="">Platform Console (no tenant selected)</MenuItem>
                     {temples.map((temple) => (
                       <MenuItem key={temple.id} value={String(temple.id)}>
                         {temple.name || temple.trust_name || `Temple ${temple.id}`}
@@ -530,7 +550,7 @@ function Settings() {
               </Card>
             </Grid>
           )}
-          {isPlatformSuperAdmin && !canEditSelectedTemple && selectedTempleMeta && (
+          {isPlatformSuperAdmin && selectedTempleMeta && !canEditSelectedTemple && (
             <Grid item xs={12}>
               <Alert severity="info">
                 {`${selectedTempleName} is read-only for your platform account. You can review this tenant, but only temples created as platform demo tenants are editable.`}
@@ -542,10 +562,10 @@ function Settings() {
               <Card sx={{ borderLeft: '5px solid #1565C0' }}>
                 <CardContent>
                   <Typography variant="h6" gutterBottom color="primary">
-                    Temple / Trust Onboarding
+                    Demo Tenant Creation
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Create a new temple or trust and assign its concerned temple admin in one step. Fill Temple Name or Trust Name. If both are filled, the top banner will show Temple Name.
+                    Create a platform-managed demo tenant directly from here. Public registrations from the login page will appear for approval under Temples / Trusts. Fill Temple Name or Trust Name. If both are filled, the top banner will show Temple Name.
                   </Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={4}>
@@ -676,7 +696,13 @@ function Settings() {
             </Grid>
           )}
 
-          {canEditSelectedTemple ? (
+          {isPlatformConsoleView && (
+            <Grid item xs={12}>
+              <Alert severity="info">Platform console is active. Select an onboarded tenant from the selector above or from Temples / Trusts to review a tenant. Role permissions, backup management, and demo-tenant creation stay available here.</Alert>
+            </Grid>
+          )}
+
+          {(isPlatformConsoleView || canEditSelectedTemple) ? (
             <RolePermissionMatrix currentUser={currentUser} />
           ) : (
             <Grid item xs={12}>
@@ -684,6 +710,8 @@ function Settings() {
             </Grid>
           )}
 
+          {!isPlatformConsoleView && (
+            <>
           {/* Temple Identity */}
           <Grid item xs={12}>
             <Card sx={{ borderLeft: '5px solid #FF9933' }}>
@@ -1139,9 +1167,12 @@ function Settings() {
               </CardContent>
             </Card>
           </Grid>
+          </>
+          )}
         </Grid>
 
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+        {!isPlatformConsoleView && (
+          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
           <Button
             variant="contained"
             onClick={handleSave}
@@ -1152,6 +1183,7 @@ function Settings() {
             {canEditSelectedTemple ? 'Save All Settings' : 'Read-only Tenant'}
           </Button>
         </Box>
+        )}
       </Box>
     </Layout>
   );

@@ -17,6 +17,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { IconButton, InputAdornment } from '@mui/material';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 import { setAccessToken, writeStoredUser } from '../utils/authStorage';
+import { emitActiveTempleChanged, setActiveTempleId } from '../utils/activeTemple';
 
 const normalizeCurrentUser = (userData, email) => ({
   id: userData?.id,
@@ -31,6 +32,7 @@ const normalizeCurrentUser = (userData, email) => ({
   module_permissions: userData?.module_permissions || {},
   action_permissions: userData?.action_permissions || {},
   is_superuser: Boolean(userData?.is_superuser),
+  must_change_password: Boolean(userData?.must_change_password),
 });
 
 function Login() {
@@ -89,9 +91,13 @@ function Login() {
         currentUser = normalizeCurrentUser(profileData, email);
       }
 
+      if (currentUser.role === 'super_admin' || currentUser.is_superuser) {
+        setActiveTempleId(null);
+        emitActiveTempleChanged(null);
+      }
+
       writeStoredUser(currentUser);
       window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: currentUser }));
-      window.dispatchEvent(new CustomEvent('auth-state-changed'));
 
       sessionStorage.setItem('showBrandIntroAfterLogin', '1');
       navigate('/brand-intro');
@@ -185,13 +191,11 @@ function Login() {
             >
               {loading ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>
-            <Box sx={{ textAlign: 'right', mb: 2 }}>
-              <Link
-                component="button"
-                type="button"
-                variant="body2"
-                onClick={() => navigate('/forgot-password')}
-              >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2 }}>
+              <Link component="button" type="button" variant="body2" onClick={() => navigate('/register-temple')}>
+                New Temple / Trust Register
+              </Link>
+              <Link component="button" type="button" variant="body2" onClick={() => navigate('/forgot-password')}>
                 Forgot Password?
               </Link>
             </Box>

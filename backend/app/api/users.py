@@ -51,6 +51,7 @@ def _serialize_user_response(db: Session, user: User, temple_id: int | None = No
         "action_permissions": role_context["action_permissions"],
         "is_active": user.is_active,
         "is_superuser": bool(user.is_superuser) and user.role == "super_admin",
+        "must_change_password": bool(getattr(user, "must_change_password", False)),
         "last_login_at": user.last_login_at,
         "created_at": user.created_at,
     }
@@ -88,6 +89,7 @@ class UserResponse(BaseModel):
     action_permissions: dict[str, bool]
     is_active: bool
     is_superuser: bool
+    must_change_password: bool = False
     last_login_at: Optional[str]
     created_at: str
 
@@ -127,6 +129,7 @@ def create_user(
         role=system_role,
         is_active=user_data.is_active,
         temple_id=temple_id,
+        must_change_password=True,
         created_at=datetime.utcnow().isoformat(),
         updated_at=datetime.utcnow().isoformat(),
     )
@@ -277,6 +280,7 @@ def update_user(
 
         user.password_hash = get_password_hash(user_data.password)
         user.last_password_change = datetime.utcnow().isoformat()
+        user.must_change_password = False if is_own_profile else True
 
     user.updated_at = datetime.utcnow().isoformat()
 
