@@ -336,6 +336,7 @@ def list_cwip_expenses(
     cwip_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """List all expenses for a CWIP project"""
+    temple_id = _resolve_temple_id(db, current_user)
     cwip = (
         db.query(CapitalWorkInProgress)
         .filter(

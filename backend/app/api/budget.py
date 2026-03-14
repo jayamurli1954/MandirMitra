@@ -159,6 +159,7 @@ def update_budget(
     current_user: User = Depends(get_current_user),
 ):
     """Update a budget"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     budget = (
         db.query(Budget)
         .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
@@ -220,6 +221,7 @@ def approve_budget(
     current_user: User = Depends(get_current_user),
 ):
     """Approve or reject a budget"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     if current_user.role not in ["admin", "accountant"]:
         raise HTTPException(
             status_code=403, detail="Only admins and accountants can approve budgets"
@@ -259,6 +261,7 @@ def activate_budget(
     budget_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Activate an approved budget"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     if current_user.role not in ["admin", "accountant"]:
         raise HTTPException(
             status_code=403, detail="Only admins and accountants can activate budgets"
@@ -300,6 +303,7 @@ def get_budget_vs_actual(
     current_user: User = Depends(get_current_user),
 ):
     """Get Budget vs Actual comparison report"""
+    temple_id = _resolve_temple_id(db, current_user)
     budget = (
         db.query(Budget)
         .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
@@ -404,6 +408,7 @@ def add_budget_item(
     current_user: User = Depends(get_current_user),
 ):
     """Add an item to a budget"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     budget = (
         db.query(Budget)
         .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
@@ -465,6 +470,7 @@ def update_budget_item(
     current_user: User = Depends(get_current_user),
 ):
     """Update a budget item"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     budget = (
         db.query(Budget)
         .filter(Budget.id == budget_id, Budget.temple_id == temple_id)
@@ -526,6 +532,7 @@ def delete_budget_item(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a budget item"""
+    temple_id = _resolve_write_temple_id(db, current_user)
     budget = (
         db.query(Budget)
         .filter(Budget.id == budget_id, Budget.temple_id == temple_id)

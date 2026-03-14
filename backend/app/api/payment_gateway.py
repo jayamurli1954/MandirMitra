@@ -225,6 +225,7 @@ def verify_payment(
 
     This endpoint is called after payment is successful
     """
+    temple_id = _resolve_write_temple_id(db, current_user)
     if not payment_gateway_service.is_enabled():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Payment gateway is not enabled"

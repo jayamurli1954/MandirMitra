@@ -168,7 +168,6 @@ def ensure_seva_tenant_columns(db: Session) -> None:
         db.commit()
 
 
-
 def ensure_temple_platform_access_columns(db: Session) -> None:
     """Ensure temple governance columns exist for SaaS platform read-only access."""
 
