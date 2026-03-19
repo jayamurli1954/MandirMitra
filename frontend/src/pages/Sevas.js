@@ -33,6 +33,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import MinimizeIcon from '@mui/icons-material/Minimize';
 import api from '../services/api';
 import { useCurrentUser } from '../contexts/CurrentUserContext';
+import { ACTIVE_TEMPLE_EVENT, getActiveTempleId } from '../utils/activeTemple';
 
 function Sevas() {
   const bankSubModeOptions = [
@@ -120,6 +121,13 @@ function Sevas() {
     nakshatras: [],
     rashis: []
   });
+  const [tenantAccessLoading, setTenantAccessLoading] = useState(true);
+  const [tenantWriteBlocked, setTenantWriteBlocked] = useState(false);
+  const [tenantReadOnlyMessage, setTenantReadOnlyMessage] = useState('');
+
+  const systemRole = user?.system_role || user?.role;
+  const isPlatformSuperAdmin = !currentUserLoading && (Boolean(user?.is_superuser) || systemRole === 'super_admin');
+  const bookingBlockedReason = tenantReadOnlyMessage || 'This tenant is read-only for the current platform administrator';
 
   useEffect(() => {
     fetchSevas();
@@ -133,6 +141,67 @@ function Sevas() {
   useEffect(() => {
     filterSevas();
   }, [sevas, selectedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const evaluateTenantWriteAccess = async () => {
+      if (currentUserLoading) {
+        return;
+      }
+
+      if (!isPlatformSuperAdmin) {
+        if (!cancelled) {
+          setTenantWriteBlocked(false);
+          setTenantReadOnlyMessage('');
+          setTenantAccessLoading(false);
+        }
+        return;
+      }
+
+      const activeTempleId = getActiveTempleId();
+      if (!activeTempleId) {
+        if (!cancelled) {
+          setTenantWriteBlocked(true);
+          setTenantReadOnlyMessage('Select an onboarded tenant from the top selector before creating bookings.');
+          setTenantAccessLoading(false);
+        }
+        return;
+      }
+
+      try {
+        if (!cancelled) {
+          setTenantAccessLoading(true);
+        }
+        const response = await api.get('/api/v1/temples/', { params: { temple_id: activeTempleId } });
+        const temple = Array.isArray(response?.data) ? response.data[0] : response?.data;
+        const canWrite = Boolean(temple?.platform_can_write);
+
+        if (!cancelled) {
+          setTenantWriteBlocked(!canWrite);
+          setTenantReadOnlyMessage(
+            canWrite
+              ? ''
+              : `${temple?.name || temple?.trust_name || 'Selected tenant'} is read-only for the current platform administrator`
+          );
+          setTenantAccessLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setTenantWriteBlocked(false);
+          setTenantReadOnlyMessage('');
+          setTenantAccessLoading(false);
+        }
+      }
+    };
+
+    evaluateTenantWriteAccess();
+    window.addEventListener(ACTIVE_TEMPLE_EVENT, evaluateTenantWriteAccess);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(ACTIVE_TEMPLE_EVENT, evaluateTenantWriteAccess);
+    };
+  }, [currentUserLoading, isPlatformSuperAdmin]);
 
   const fetchSevas = async () => {
     try {
@@ -286,6 +355,10 @@ function Sevas() {
   };
 
   const handleBookNow = (seva) => {
+    if (tenantWriteBlocked) {
+      setBookingError(bookingBlockedReason);
+      return;
+    }
     resetBookingWorkflow(seva);
     setSelectedSeva(seva);
     setBookingDialogOpen(true);
@@ -327,6 +400,10 @@ function Sevas() {
   const handleCreateDevotee = async () => {
     if (!newDevoteeData.first_name?.trim()) {
       setBookingError('Please enter devotee first name');
+      return;
+    }
+    if (tenantWriteBlocked) {
+      setBookingError(bookingBlockedReason);
       return;
     }
 
@@ -384,6 +461,10 @@ function Sevas() {
   const handleBookingSubmit = async () => {
     try {
       setBookingError(null);
+      if (tenantWriteBlocked) {
+        setBookingError(bookingBlockedReason);
+        return;
+      }
 
       // Frontend validation for advance booking limit to provide immediate feedback
       const advanceDays = Number(selectedSeva?.advance_booking_days || 0);
@@ -679,6 +760,12 @@ function Sevas() {
         </Box>
       </Paper>
 
+      {tenantWriteBlocked && !tenantAccessLoading && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {bookingBlockedReason}. You can review this tenant, but booking and create actions are disabled.
+        </Alert>
+      )}
+
       {/* Category Filter */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Tabs
@@ -825,7 +912,7 @@ function Sevas() {
                   fullWidth
                   variant="contained"
                   onClick={() => handleBookNow(seva)}
-                  disabled={!seva.is_active}
+                  disabled={!seva.is_active || tenantWriteBlocked || tenantAccessLoading}
                   sx={{
                     bgcolor: getCategoryColor(seva.category),
                     '&:hover': {
@@ -834,7 +921,7 @@ function Sevas() {
                     }
                   }}
                 >
-                  Book Now
+                  {tenantWriteBlocked ? 'Read-only Tenant' : 'Book Now'}
                 </Button>
               </Box>
             </Card>
@@ -945,6 +1032,11 @@ function Sevas() {
           {bookingError && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {bookingError}
+            </Alert>
+          )}
+          {tenantWriteBlocked && !tenantAccessLoading && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {bookingBlockedReason}
             </Alert>
           )}
 
@@ -1112,7 +1204,7 @@ function Sevas() {
                         variant="contained"
                         onClick={handleCreateDevotee}
                         fullWidth
-                        disabled={!newDevoteeData.first_name?.trim()}
+                        disabled={!newDevoteeData.first_name?.trim() || tenantWriteBlocked}
                       >
                         Create & Continue
                       </Button>
@@ -1483,7 +1575,7 @@ function Sevas() {
           <Button
             onClick={handleBookingSubmit}
             variant="contained"
-            disabled={!bookingForm.devotee_id || !bookingForm.amount_paid || bookingSuccess}
+            disabled={!bookingForm.devotee_id || !bookingForm.amount_paid || bookingSuccess || tenantWriteBlocked}
           >
             Confirm Booking
           </Button>

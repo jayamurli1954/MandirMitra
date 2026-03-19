@@ -1042,7 +1042,7 @@ def get_payment_accounts_for_donations(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get active cash and bank accounts for donation/seva payment selection."""
-    temple_id = require_temple_write_access(db, current_user, active_only=False)
+    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
     return _get_payment_accounts_for_temple(db, temple_id)
 
 
@@ -1707,7 +1707,7 @@ async def bulk_import_donations(
     - CSV: devotee_name, devotee_phone, amount, category, payment_mode, address, city, state, pincode, notes
     - Excel: Same columns
     """
-    temple_id = require_temple_id_for_user(db, current_user, active_only=False)
+    temple_id = require_temple_write_access(db, current_user, active_only=False)
 
     # Read file
     contents = await file.read()

@@ -288,6 +288,7 @@ function Layout({ children }) {
 
   const handleProfileClick = () => navigate('/profile');
   const handleDrawerToggle = () => setMobileOpen((prev) => !prev);
+  const handleGoToDashboard = () => navigateTo('/dashboard');
 
   const handleLogout = () => {
     clearAuthSession();
@@ -485,6 +486,14 @@ function Layout({ children }) {
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, ml: 'auto' }}>
+            <Button
+              color="inherit"
+              startIcon={<DashboardIcon />}
+              onClick={handleGoToDashboard}
+              sx={{ textTransform: 'none', fontWeight: 700, minWidth: 0, px: { xs: 0.5, sm: 1.2 } }}
+            >
+              Dashboard
+            </Button>
             <Button color="inherit" onClick={handleProfileClick} sx={{ textTransform: 'none', fontWeight: 700, minWidth: 0, px: { xs: 0.5, sm: 1.2 } }}>
               {displayName}
             </Button>
