@@ -230,18 +230,6 @@ function Layout({ children }) {
 
         if (isPlatformSuperAdmin) {
           const selectedTemple = activeTempleId ? templeList.find((temple) => temple.id === activeTempleId) : null;
-          const isPlatformRoute = location.pathname.startsWith('/platform');
-
-          if (!selectedTemple && !isPlatformRoute && templeList[0]?.id) {
-            setActiveTempleId(templeList[0].id);
-            setActiveTempleState(templeList[0].id);
-            emitActiveTempleChanged(templeList[0].id);
-            const normalized = { ...DEFAULT_MODULE_CONFIG, ...templeList[0] };
-            setModuleConfig(normalized);
-            writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalized);
-            return;
-          }
-
           if (!selectedTemple && activeTempleId) {
             setActiveTempleId(null);
             setActiveTempleState(null);
@@ -267,7 +255,7 @@ function Layout({ children }) {
     };
 
     fetchTempleInfo();
-  }, [activeTempleId, isPlatformSuperAdmin, location.pathname]);
+  }, [activeTempleId, isPlatformSuperAdmin]);
 
   useEffect(() => {
     const handleModuleConfigUpdated = (event) => {
@@ -358,6 +346,37 @@ function Layout({ children }) {
     <Box sx={{ height: '100%', overflowY: 'auto' }}>
       <Toolbar />
       <Divider />
+      {showTempleSwitcher && (
+        <>
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+              Active Tenant
+            </Typography>
+            <FormControl fullWidth size="small" sx={{ mt: 0.7 }}>
+              <Select
+                value={activeTempleId ? String(activeTempleId) : ''}
+                onChange={handleActiveTempleChange}
+                displayEmpty
+                renderValue={(value) => {
+                  if (!value) {
+                    return 'Platform Console (no tenant selected)';
+                  }
+                  const matchedTemple = temples.find((temple) => String(temple.id) === String(value));
+                  return matchedTemple?.name || matchedTemple?.trust_name || `Temple ${value}`;
+                }}
+              >
+                <MenuItem value="">Platform Console (no tenant selected)</MenuItem>
+                {temples.map((temple) => (
+                  <MenuItem key={temple.id} value={String(temple.id)}>
+                    {temple.name || temple.trust_name || `Temple ${temple.id}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+          <Divider />
+        </>
+      )}
       <List>
         {visibleMenuItems.filter((item) => item.text === 'Dashboard').map((item) => {
           const isSelected = location.pathname === item.path || (!activeTempleId && isPlatformSuperAdmin && location.pathname === '/platform/temples');

@@ -107,6 +107,16 @@ def resolve_temple_id_for_user(
         if current_user.temple_id is not None and current_user.temple_id != requested_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Temple access denied")
 
+    if can_access_all_temples(current_user):
+        if not fallback_to_first:
+            return None
+
+        query = db.query(Temple.id)
+        if active_only:
+            query = query.filter(Temple.is_active == True)
+        first_temple = query.order_by(Temple.id.asc()).first()
+        return first_temple.id if first_temple else None
+
     if current_user.temple_id is not None:
         return current_user.temple_id
 
