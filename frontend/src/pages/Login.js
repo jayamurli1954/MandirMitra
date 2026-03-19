@@ -54,13 +54,24 @@ function Login() {
       const formData = new URLSearchParams();
       formData.append('username', email);
       formData.append('password', password);
-      const response = await fetchWithApiFallback('/api/v1/login', {
+      const doLoginRequest = () => fetchWithApiFallback('/api/v1/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: formData.toString(),
-      }, { timeoutMs: 20000 });
+      }, { timeoutMs: 60000 });
+
+      let response;
+      try {
+        response = await doLoginRequest();
+      } catch (loginErr) {
+        if (loginErr?.name === 'AbortError') {
+          response = await doLoginRequest();
+        } else {
+          throw loginErr;
+        }
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -129,7 +140,7 @@ function Login() {
     } catch (err) {
       console.error('Login error:', err);
       if (err?.name === 'AbortError') {
-        setError('Backend login request timed out. Please check whether the Render backend is awake and reachable.');
+        setError('Login timed out after retry. Render cold starts can take up to 1-2 minutes. Please wait 30 seconds and try again.');
       } else if (err instanceof TypeError) {
         setError('Cannot connect to backend server. Please check the backend URL, Render service status, and CORS settings.');
       } else {
