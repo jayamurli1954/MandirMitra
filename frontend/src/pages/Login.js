@@ -164,9 +164,12 @@ function Login() {
         <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
             <LockOutlinedIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-            <Typography component="h1" variant="h4" sx={{ fontWeight: 'bold' }}>
-              {'\u0950\uFE0F MandirMitra'}
-            </Typography>
+            <Box
+              component="img"
+              src="/branding/mandirmitra_logo1.jpg"
+              alt="MandirMitra"
+              sx={{ width: 120, height: 120, objectFit: 'contain', mt: 0.5 }}
+            />
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               Temple Management System
             </Typography>
@@ -243,4 +246,6 @@ function Login() {
 }
 
 export default Login;
+
+
 
