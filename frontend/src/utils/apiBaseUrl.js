@@ -1,21 +1,56 @@
 import { buildActiveTempleHeaders } from './activeTemple';
+
 const LOCAL_API_BASE_URL = 'http://localhost:8000';
 const PRODUCTION_FALLBACK_API_BASE_URL = (
   process.env.REACT_APP_FALLBACK_API_URL || process.env.REACT_APP_API_URL || 'https://mandirmitra-backend.onrender.com'
-).trim().replace(/\/$/, '');
+)
+  .trim()
+  .replace(/\/$/, '');
+
+function isLocalHostname(hostname = '') {
+  const host = String(hostname || '').toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+}
+
+function isLocalUrl(url = '') {
+  try {
+    const parsed = new URL(url);
+    return isLocalHostname(parsed.hostname);
+  } catch (_err) {
+    return /^https?:\/\/(localhost|127\.0\.0\.1|::1)(:\d+)?$/i.test(String(url || '').trim());
+  }
+}
+
+function isBrowserLocal() {
+  if (typeof window === 'undefined') return false;
+  return isLocalHostname(window.location.hostname);
+}
 
 export function getApiBaseUrl(options = {}) {
-  const { preferDirect: _preferDirect = false } = options;
+  const { preferDirect = false } = options;
   const configuredBaseUrl = (process.env.REACT_APP_API_URL || '').trim().replace(/\/$/, '');
+  const browserLocal = isBrowserLocal();
+
+  // Direct mode is used for explicit fallback attempts. In production-like hosts,
+  // always route to a reachable public backend origin.
+  if (preferDirect) {
+    if (!browserLocal) {
+      return PRODUCTION_FALLBACK_API_BASE_URL;
+    }
+    return configuredBaseUrl || LOCAL_API_BASE_URL;
+  }
+
   if (configuredBaseUrl) {
+    // Ignore localhost API URL when the app is served from non-localhost origins
+    // (common accidental production build misconfiguration).
+    if (!browserLocal && isLocalUrl(configuredBaseUrl)) {
+      return PRODUCTION_FALLBACK_API_BASE_URL;
+    }
     return configuredBaseUrl;
   }
 
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return LOCAL_API_BASE_URL;
-    }
+  if (browserLocal) {
+    return LOCAL_API_BASE_URL;
   }
 
   return PRODUCTION_FALLBACK_API_BASE_URL;

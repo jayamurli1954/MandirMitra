@@ -73,7 +73,13 @@ function TempleRegistration() {
       setSuccess('Registration request submitted successfully. The platform owner will review and approve your temple or trust onboarding.');
       setForm(INITIAL_FORM);
     } catch (err) {
-      setError(err.message || 'Failed to submit registration request');
+      const message = String(err?.message || '').trim();
+      const isNetworkError = /failed to fetch|networkerror|load failed/i.test(message);
+      if (isNetworkError) {
+        setError('Cannot connect to backend server right now. Please check backend URL/service status and retry.');
+      } else {
+        setError(message || 'Failed to submit registration request');
+      }
     } finally {
       setLoading(false);
     }
@@ -129,3 +135,4 @@ function TempleRegistration() {
 }
 
 export default TempleRegistration;
+
