@@ -297,16 +297,24 @@ def create_donation(
                 status_code=400, detail="devotee_first_name or devotee_name is required"
             )
 
-        # Search devotee by phone and country_code
+        # Search devotee within the current temple context (tenant-safe)
         devotee = (
             db.query(Devotee)
-            .filter(Devotee.phone == clean_phone, Devotee.country_code == country_code)
+            .filter(
+                Devotee.phone == clean_phone,
+                Devotee.country_code == country_code,
+                Devotee.temple_id == temple_id,
+            )
             .first()
         )
 
         # If not found with country_code, try without country_code (backward compatibility)
         if not devotee:
-            devotee = db.query(Devotee).filter(Devotee.phone == clean_phone).first()
+            devotee = (
+                db.query(Devotee)
+                .filter(Devotee.phone == clean_phone, Devotee.temple_id == temple_id)
+                .first()
+            )
 
         if not devotee:
             # Convert tags list to JSON string if provided
@@ -377,8 +385,25 @@ def create_donation(
                 devotee.country_code = donation.country_code
             db.flush()
 
-    # Find or create category
-    category = db.query(DonationCategory).filter(DonationCategory.name == donation.category).first()
+    # Find or create category within current temple context (tenant-safe)
+    category = (
+        db.query(DonationCategory)
+        .filter(
+            DonationCategory.name == donation.category,
+            DonationCategory.temple_id == temple_id,
+        )
+        .first()
+    )
+    if not category:
+        category = (
+            db.query(DonationCategory)
+            .filter(
+                DonationCategory.name == donation.category,
+                DonationCategory.temple_id.is_(None),
+            )
+            .first()
+        )
+
     if not category:
         category = DonationCategory(
             name=donation.category, temple_id=temple_id
@@ -2011,4 +2036,3 @@ def generate_bulk_80g_certificates(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-
