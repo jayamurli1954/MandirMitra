@@ -17,7 +17,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { IconButton, InputAdornment } from '@mui/material';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 import { setAccessToken, writeStoredUser } from '../utils/authStorage';
-import { emitActiveTempleChanged, setActiveTempleId } from '../utils/activeTemple';
+import { emitActiveTempleChanged, getActiveTempleId, setActiveTempleId } from '../utils/activeTemple';
 
 const normalizeCurrentUser = (userData, email) => ({
   id: userData?.id,
@@ -92,8 +92,33 @@ function Login() {
       }
 
       if (currentUser.role === 'super_admin' || currentUser.is_superuser) {
-        setActiveTempleId(null);
-        emitActiveTempleChanged(null);
+        const storedTempleId = getActiveTempleId();
+        const templesResponse = await fetchWithApiFallback('/api/v1/temples/', {
+          headers: {
+            Authorization: `Bearer ${data.access_token}`,
+          },
+        }, { timeoutMs: 12000 });
+
+        if (templesResponse.ok) {
+          const templesPayload = await templesResponse.json();
+          const temples = Array.isArray(templesPayload) ? templesPayload : [];
+          const hasStoredTemple = temples.some((temple) => Number(temple?.id) === Number(storedTempleId));
+
+          if (hasStoredTemple && storedTempleId) {
+            setActiveTempleId(storedTempleId);
+            emitActiveTempleChanged(storedTempleId);
+          } else if (temples.length === 1 && temples[0]?.id) {
+            const singleTempleId = Number(temples[0].id);
+            setActiveTempleId(singleTempleId);
+            emitActiveTempleChanged(singleTempleId);
+          } else {
+            setActiveTempleId(null);
+            emitActiveTempleChanged(null);
+          }
+        } else {
+          setActiveTempleId(null);
+          emitActiveTempleChanged(null);
+        }
       }
 
       writeStoredUser(currentUser);
@@ -207,3 +232,4 @@ function Login() {
 }
 
 export default Login;
+
