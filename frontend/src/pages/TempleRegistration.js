@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   Box,
@@ -80,7 +80,7 @@ function TempleRegistration() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
-      }, { timeoutMs: 20000 });
+      }, { timeoutMs: 90000 });
 
       const rawBody = await response.text();
       let data = null;
@@ -107,9 +107,9 @@ function TempleRegistration() {
       setForm(INITIAL_FORM);
     } catch (err) {
       const message = String(err?.message || '').trim();
-      const isNetworkError = /failed to fetch|networkerror|load failed/i.test(message);
+      const isNetworkError = /failed to fetch|networkerror|load failed|aborted|aborterror|timed out|timeout/i.test(message);
       if (isNetworkError) {
-        setError('Cannot connect to backend server right now. Please check backend URL/service status and retry.');
+        setError('Backend is taking too long to respond (possibly waking up). Please wait 30-60 seconds and retry.');
       } else {
         setError(message || 'Failed to submit registration request');
       }
@@ -168,6 +168,7 @@ function TempleRegistration() {
 }
 
 export default TempleRegistration;
+
 
 
 

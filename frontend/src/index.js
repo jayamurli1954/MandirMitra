@@ -10,15 +10,27 @@ root.render(
   </React.StrictMode>
 );
 
-
-if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
-  const swUrl = `${process.env.PUBLIC_URL}/service-worker.js`;
+// Disable service worker caching for now to prevent stale/offline intercepts
+// from breaking live API calls in browser/PWA.
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register(swUrl).catch((err) => {
-      // Keep runtime stable if SW registration fails.
-      // eslint-disable-next-line no-console
-      console.error('Service worker registration failed:', err);
-    });
+    navigator.serviceWorker.getRegistrations()
+      .then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister();
+        });
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('Service worker unregister failed:', err);
+      });
+
+    if ('caches' in window) {
+      caches.keys().then((keys) => {
+        keys.forEach((key) => {
+          caches.delete(key);
+        });
+      });
+    }
   });
 }
-

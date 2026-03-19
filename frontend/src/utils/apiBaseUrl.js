@@ -76,7 +76,14 @@ export async function fetchWithApiFallback(path, init = {}, options = {}) {
       const mergedHeaders = buildActiveTempleHeaders(init.headers || {});
       return await fetch(url, { ...init, headers: mergedHeaders, signal: controller.signal });
     } catch (error) {
-      lastError = error;
+      const message = String(error?.message || '').toLowerCase();
+      if (error?.name === 'AbortError' || message.includes('aborted')) {
+        lastError = new Error(
+          'Request timed out while waiting for backend. The backend may be waking up; please retry in 30-60 seconds.'
+        );
+      } else {
+        lastError = error;
+      }
     } finally {
       window.clearTimeout(timer);
     }
@@ -84,3 +91,4 @@ export async function fetchWithApiFallback(path, init = {}, options = {}) {
 
   throw lastError || new Error('Unable to reach backend');
 }
+
