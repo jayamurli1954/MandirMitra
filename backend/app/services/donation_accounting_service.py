@@ -23,6 +23,12 @@ def get_payment_accounts_for_temple(db: Session, temple_id: Optional[int]) -> di
     if not temple_id:
         return {"cash_accounts": [], "bank_accounts": []}
 
+    seed_result = ensure_default_coa_for_temple(db, temple_id, raise_on_error=False)
+    if seed_result.get("error"):
+        print(
+            f"WARNING: Could not auto-initialize COA for temple {temple_id} while loading payment accounts: {seed_result['error']}"
+        )
+
     cash_accounts = (
         db.query(Account)
         .filter(

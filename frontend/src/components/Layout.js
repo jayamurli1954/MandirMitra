@@ -230,6 +230,18 @@ function Layout({ children }) {
 
         if (isPlatformSuperAdmin) {
           const selectedTemple = activeTempleId ? templeList.find((temple) => temple.id === activeTempleId) : null;
+          const isPlatformRoute = location.pathname.startsWith('/platform');
+
+          if (!selectedTemple && !isPlatformRoute && templeList[0]?.id) {
+            setActiveTempleId(templeList[0].id);
+            setActiveTempleState(templeList[0].id);
+            emitActiveTempleChanged(templeList[0].id);
+            const normalized = { ...DEFAULT_MODULE_CONFIG, ...templeList[0] };
+            setModuleConfig(normalized);
+            writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalized);
+            return;
+          }
+
           if (!selectedTemple && activeTempleId) {
             setActiveTempleId(null);
             setActiveTempleState(null);
@@ -255,7 +267,7 @@ function Layout({ children }) {
     };
 
     fetchTempleInfo();
-  }, [activeTempleId, isPlatformSuperAdmin]);
+  }, [activeTempleId, isPlatformSuperAdmin, location.pathname]);
 
   useEffect(() => {
     const handleModuleConfigUpdated = (event) => {
@@ -442,24 +454,24 @@ function Layout({ children }) {
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <AppBar position="fixed" sx={{ width: '100%', ml: 0, bgcolor: '#FF9933', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Toolbar sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: { xs: 64, sm: 72 } }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { sm: drawerWidth }, minWidth: 0, pr: 1, flexShrink: 0 }}>
+        <Toolbar sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.2, sm: 1 }, px: { xs: 1, sm: 2 }, minHeight: { xs: 56, sm: 72 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.4, sm: 1 }, width: { xs: 'auto', sm: drawerWidth }, minWidth: 0, pr: { xs: 0.4, sm: 1 }, flexShrink: 0 }}>
             <IconButton color="inherit" aria-label="open drawer" edge="start" onClick={handleDrawerToggle} sx={{ mr: 0.5, display: { sm: 'none' } }}>
               <MenuIcon />
             </IconButton>
-            <Box component="img" src="/branding/mandirmitra_logo1.jpg" alt="MandirMitra Logo" sx={{ height: { xs: 40, sm: 52 }, width: '100%', maxWidth: { xs: 160, sm: 230 }, objectFit: 'contain' }} />
+            <Box component="img" src="/branding/mandirmitra_logo1.jpg" alt="MandirMitra Logo" sx={{ height: { xs: 30, sm: 52 }, width: '100%', maxWidth: { xs: 34, sm: 230 }, objectFit: 'contain' }} />
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: 0, pl: { xs: 0.2, sm: 1 } }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="body1" sx={{ fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: 0, pl: { xs: 0, sm: 1 }, overflow: 'hidden' }}>
+            <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff', fontSize: { xs: '0.78rem', sm: '1rem' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.1 }}>
                 {currentTempleLabel}
               </Typography>
               <Typography variant="caption" sx={{ display: { xs: 'none', md: 'block' }, color: 'rgba(255,255,255,0.95)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {selectedTemple ? 'Temple / Trust Management & Accounting System' : 'Platform tenant onboarding, approval, and tenant oversight'}
               </Typography>
               {showTempleSwitcher && (
-                <FormControl variant="standard" size="small" sx={{ mt: 0.5, minWidth: { xs: 200, sm: 260 }, '& .MuiInputBase-root': { color: '#fff', fontSize: 14, fontWeight: 600 }, '& .MuiSvgIcon-root': { color: '#fff' }, '& .MuiInput-underline:before': { borderBottomColor: 'rgba(255,255,255,0.55)' }, '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: '#fff' }, '& .MuiInput-underline:after': { borderBottomColor: '#fff' } }}>
+                <FormControl variant="standard" size="small" sx={{ display: { xs: 'none', md: 'block' }, mt: 0.5, minWidth: { sm: 220, md: 260 }, '& .MuiInputBase-root': { color: '#fff', fontSize: 14, fontWeight: 600 }, '& .MuiSvgIcon-root': { color: '#fff' }, '& .MuiInput-underline:before': { borderBottomColor: 'rgba(255,255,255,0.55)' }, '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: '#fff' }, '& .MuiInput-underline:after': { borderBottomColor: '#fff' } }}>
                   <Select
                     value={activeTempleId ? String(activeTempleId) : ''}
                     onChange={handleActiveTempleChange}
@@ -485,22 +497,40 @@ function Layout({ children }) {
             </Box>
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, ml: 'auto' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.2, sm: 0.8 }, ml: 'auto', flexShrink: 0 }}>
+            <IconButton
+              color="inherit"
+              onClick={handleGoToDashboard}
+              size="small"
+              aria-label="dashboard"
+              sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+            >
+              <DashboardIcon fontSize="small" />
+            </IconButton>
             <Button
               color="inherit"
               startIcon={<DashboardIcon />}
               onClick={handleGoToDashboard}
-              sx={{ textTransform: 'none', fontWeight: 700, minWidth: 0, px: { xs: 0.5, sm: 1.2 } }}
+              sx={{ display: { xs: 'none', sm: 'inline-flex' }, textTransform: 'none', fontWeight: 700, minWidth: 0, px: { sm: 1.2 } }}
             >
               Dashboard
             </Button>
-            <Button color="inherit" onClick={handleProfileClick} sx={{ textTransform: 'none', fontWeight: 700, minWidth: 0, px: { xs: 0.5, sm: 1.2 } }}>
+            <Button color="inherit" onClick={handleProfileClick} sx={{ display: { xs: 'none', md: 'inline-flex' }, textTransform: 'none', fontWeight: 700, minWidth: 0, px: { md: 1.2 } }}>
               {displayName}
             </Button>
             <IconButton color="inherit" onClick={handleProfileClick} size="small" aria-label="profile">
               <Avatar sx={{ width: 32, height: 32, bgcolor: '#138808' }}>{displayName?.[0]?.toUpperCase() || 'U'}</Avatar>
             </IconButton>
-            <Button color="inherit" startIcon={<LogoutIcon />} onClick={handleLogout} sx={{ textTransform: 'none', fontWeight: 700, px: { xs: 0.5, sm: 1.2 } }}>
+            <IconButton
+              color="inherit"
+              onClick={handleLogout}
+              size="small"
+              aria-label="logout"
+              sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+            >
+              <LogoutIcon fontSize="small" />
+            </IconButton>
+            <Button color="inherit" startIcon={<LogoutIcon />} onClick={handleLogout} sx={{ display: { xs: 'none', sm: 'inline-flex' }, textTransform: 'none', fontWeight: 700, px: { sm: 1.2 } }}>
               Logout
             </Button>
           </Box>
@@ -514,7 +544,7 @@ function Layout({ children }) {
           {drawer}
         </Drawer>
       </Box>
-      <Box component="main" sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${drawerWidth}px)` }, bgcolor: '#f5f5f5', minHeight: '100vh' }}>
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 1.5, sm: 3 }, width: { sm: `calc(100% - ${drawerWidth}px)` }, bgcolor: '#f5f5f5', minHeight: '100vh' }}>
         <Toolbar />
         {children}
       </Box>

@@ -79,6 +79,7 @@ function Dashboard() {
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [paymentAccounts, setPaymentAccounts] = useState({ cash_accounts: [], bank_accounts: [] });
+  const [paymentAccountsWarning, setPaymentAccountsWarning] = useState('');
   const [saving, setSaving] = useState(false);
   const [searchingDevotee, setSearchingDevotee] = useState(false);
   const [foundDevotee, setFoundDevotee] = useState(null);
@@ -87,6 +88,66 @@ function Dashboard() {
   const firstNameInputRef = useRef(null);
 
   const namePrefixes = ['Sri', 'Smt.', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'M/s.'];
+  const sleep = (delayMs) => new Promise((resolve) => window.setTimeout(resolve, delayMs));
+
+  const isTransientApiError = (err) => {
+    const status = err?.response?.status;
+    if (!status) {
+      return true;
+    }
+    return status >= 500 || status === 429;
+  };
+
+  const runWithRetry = async (requestFn, retries = 1, retryDelayMs = 1000) => {
+    let lastError = null;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        return await requestFn();
+      } catch (err) {
+        lastError = err;
+        if (attempt >= retries || !isTransientApiError(err)) {
+          throw err;
+        }
+        await sleep(retryDelayMs);
+      }
+    }
+    throw lastError || new Error('Request failed');
+  };
+
+  const getFriendlyApiError = (err, fallbackMessage) => {
+    const status = err?.response?.status;
+    const detail = err?.response?.data?.detail;
+    const detailText = Array.isArray(detail)
+      ? detail.map((item) => item?.msg || String(item)).join(', ')
+      : (typeof detail === 'string' ? detail : '');
+    const normalizedDetail = detailText.toLowerCase();
+
+    if (normalizedDetail.includes('temple context is required')) {
+      return 'Please select a temple first and then retry.';
+    }
+
+    if (status === 403 && normalizedDetail.includes('read-only')) {
+      return 'This tenant is read-only for the current platform administrator.';
+    }
+
+    if (status === 403) {
+      return 'You do not have permission to access this temple data.';
+    }
+
+    if (err?.code === 'ERR_NETWORK' || err?.code === 'ECONNABORTED' || err?.message?.includes('Network Error')) {
+      return 'Backend is not reachable right now. Render may be waking up. Please retry in a few seconds.';
+    }
+
+    if (status >= 500) {
+      return 'Backend service is temporarily unavailable. Please retry shortly.';
+    }
+
+    if (detailText) {
+      return detailText;
+    }
+
+    return fallbackMessage;
+  };
 
   useEffect(() => {
     fetchDashboardStats();
@@ -177,15 +238,25 @@ function Dashboard() {
 
   const fetchPaymentAccounts = async () => {
     try {
-      const response = await api.get('/api/v1/donations/payment-accounts');
+      const response = await runWithRetry(() => api.get('/api/v1/donations/payment-accounts'), 1, 1200);
       const data = response?.data || {};
+      const cashAccounts = Array.isArray(data.cash_accounts) ? data.cash_accounts : [];
+      const bankAccounts = Array.isArray(data.bank_accounts) ? data.bank_accounts : [];
+
       setPaymentAccounts({
-        cash_accounts: Array.isArray(data.cash_accounts) ? data.cash_accounts : [],
-        bank_accounts: Array.isArray(data.bank_accounts) ? data.bank_accounts : [],
+        cash_accounts: cashAccounts,
+        bank_accounts: bankAccounts,
       });
+
+      if (cashAccounts.length === 0 && bankAccounts.length === 0) {
+        setPaymentAccountsWarning('No active cash or bank accounts found for this temple. Please configure accounts in Accounting.');
+      } else {
+        setPaymentAccountsWarning('');
+      }
     } catch (err) {
       console.error('Error fetching payment accounts:', err);
       setPaymentAccounts({ cash_accounts: [], bank_accounts: [] });
+      setPaymentAccountsWarning(getFriendlyApiError(err, 'Could not fetch payment accounts right now.'));
     }
   };
 
@@ -258,14 +329,14 @@ function Dashboard() {
     setSuccess('');
 
     try {
-      const response = await api.get(`/api/v1/devotees/search/by-mobile/${phone}`);
+      const response = await runWithRetry(() => api.get(`/api/v1/devotees/search/by-mobile/${phone}`), 1, 1000);
       const devoteeList = Array.isArray(response.data) ? response.data : [];
       const devotee = devoteeList[0];
 
       if (devotee) {
         const parsedName = splitFullName(devotee.name);
 
-        setDonationForm(prev => ({
+        setDonationForm((prev) => ({
           ...prev,
           devotee_phone: phone,
           name_prefix: devotee.name_prefix || prev.name_prefix || 'Sri',
@@ -283,7 +354,7 @@ function Dashboard() {
       } else {
         setFoundDevotee(null);
         setLookupStatus('not_found');
-        setDonationForm(prev => ({
+        setDonationForm((prev) => ({
           ...prev,
           devotee_phone: phone,
           first_name: '',
@@ -302,7 +373,7 @@ function Dashboard() {
         setFoundDevotee(null);
         setLookupStatus('not_found');
         setMobileVerified(true);
-        setDonationForm(prev => ({
+        setDonationForm((prev) => ({
           ...prev,
           devotee_phone: phone,
           first_name: '',
@@ -316,13 +387,12 @@ function Dashboard() {
       } else {
         setMobileVerified(false);
         setLookupStatus('idle');
-        setError('Could not search devotee right now. Please try again.');
+        setError(getFriendlyApiError(err, 'Could not search devotee right now. Please try again.'));
       }
     } finally {
       setSearchingDevotee(false);
     }
   };
-
   const fetchPincodeDetails = async (pincode) => {
     if (!pincode || pincode.length !== 6) return;
 
@@ -593,6 +663,11 @@ function Dashboard() {
         </Alert>
       )}
 
+      {paymentAccountsWarning && (
+        <Alert severity="warning" sx={{ mb: 3 }} onClose={() => setPaymentAccountsWarning('')}>
+          {paymentAccountsWarning}
+        </Alert>
+      )}
       {success && (
         <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
           {success}
@@ -605,7 +680,7 @@ function Dashboard() {
           {/* Donations - Compact */}
           <Grid item xs={12}>
             <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, color: '#4CAF50' }}>
-              💰 Donations
+              Donations
             </Typography>
             <Grid container spacing={2}>
               {donationCards.map((stat, index) => (
@@ -640,7 +715,7 @@ function Dashboard() {
           {/* Sevas - Compact */}
           <Grid item xs={12} sx={{ mt: 2 }}>
             <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 600, color: '#FF9800' }}>
-              🕉️ Sevas
+              Sevas
             </Typography>
             <Grid container spacing={2}>
               {sevaCards.map((stat, index) => (
@@ -770,7 +845,7 @@ function Dashboard() {
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="Amount (₹)"
+                    label="Amount (INR)"
                     type="number"
                     value={donationForm.amount}
                     onChange={(e) => handleDonationChange('amount', e.target.value)}
@@ -1090,8 +1165,7 @@ function Dashboard() {
                 sx={{ mt: 2 }}
                 onClick={() => navigate('/panchang')}
               >
-                View Full Panchang →
-              </Button>
+                View Full Panchang</Button>
             </>
           ) : (
             <Paper sx={{ p: 3, boxShadow: 2, textAlign: 'center' }}>
