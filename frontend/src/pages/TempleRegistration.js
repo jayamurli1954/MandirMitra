@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   Alert,
   Box,
@@ -58,16 +58,49 @@ function TempleRegistration() {
 
     try {
       setLoading(true);
+      const payload = {
+        temple_name: form.temple_name.trim() || null,
+        trust_name: form.trust_name.trim() || null,
+        temple_slug: form.temple_slug.trim() || null,
+        primary_deity: form.primary_deity.trim() || 'Lord Ganesha',
+        address: form.address.trim() || null,
+        city: form.city.trim() || null,
+        state: form.state.trim() || null,
+        pincode: form.pincode.trim() || null,
+        phone: form.phone.trim() || null,
+        email: form.email.trim() || null,
+        admin_full_name: form.admin_full_name.trim(),
+        admin_email: form.admin_email.trim().toLowerCase(),
+        admin_phone: form.admin_phone.trim() || null,
+      };
+
       const response = await fetchWithApiFallback('/api/v1/onboarding-requests/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       }, { timeoutMs: 20000 });
-      const data = await response.json();
+
+      const rawBody = await response.text();
+      let data = null;
+      try {
+        data = rawBody ? JSON.parse(rawBody) : null;
+      } catch (_parseError) {
+        data = null;
+      }
+
       if (!response.ok) {
-        throw new Error(data?.detail || 'Failed to submit registration request');
+        const backendMessage =
+          data?.detail ||
+          data?.message ||
+          data?.error?.message ||
+          (Array.isArray(data?.detail)
+            ? data.detail.map((d) => d?.msg).filter(Boolean).join('; ')
+            : '') ||
+          rawBody ||
+          ('Failed to submit registration request (' + response.status + ')');
+        throw new Error(String(backendMessage).trim());
       }
 
       setSuccess('Registration request submitted successfully. The platform owner will review and approve your temple or trust onboarding.');
@@ -135,4 +168,8 @@ function TempleRegistration() {
 }
 
 export default TempleRegistration;
+
+
+
+
 
