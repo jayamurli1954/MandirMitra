@@ -113,15 +113,17 @@ function Login() {
         if (templesResponse.ok) {
           const templesPayload = await templesResponse.json();
           const temples = Array.isArray(templesPayload) ? templesPayload : [];
-          const hasStoredTemple = temples.some((temple) => Number(temple?.id) === Number(storedTempleId));
+          const demoEditableTemples = temples.filter((temple) => Boolean(temple?.platform_can_write));
+          const selectableTemples = demoEditableTemples.length > 0 ? demoEditableTemples : temples;
+          const hasStoredTemple = selectableTemples.some((temple) => Number(temple?.id) === Number(storedTempleId));
 
           if (hasStoredTemple && storedTempleId) {
             setActiveTempleId(storedTempleId);
             emitActiveTempleChanged(storedTempleId);
-          } else if (temples.length === 1 && temples[0]?.id) {
-            const singleTempleId = Number(temples[0].id);
-            setActiveTempleId(singleTempleId);
-            emitActiveTempleChanged(singleTempleId);
+          } else if (selectableTemples.length > 0 && selectableTemples[0]?.id) {
+            const preferredTempleId = Number(selectableTemples[0].id);
+            setActiveTempleId(preferredTempleId);
+            emitActiveTempleChanged(preferredTempleId);
           } else {
             setActiveTempleId(null);
             emitActiveTempleChanged(null);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 import {
@@ -229,12 +229,29 @@ function Layout({ children }) {
         }
 
         if (isPlatformSuperAdmin) {
-          const selectedTemple = activeTempleId ? templeList.find((temple) => temple.id === activeTempleId) : null;
+          const demoEditableTemples = templeList.filter((temple) => Boolean(temple?.platform_can_write));
+          const selectableTemples = demoEditableTemples.length > 0 ? demoEditableTemples : templeList;
+          const selectedTemple = activeTempleId
+            ? selectableTemples.find((temple) => Number(temple.id) === Number(activeTempleId))
+            : null;
+
+          if (!selectedTemple && selectableTemples.length > 0) {
+            const preferredTempleId = Number(selectableTemples[0].id);
+            setActiveTempleId(preferredTempleId);
+            setActiveTempleState(preferredTempleId);
+            emitActiveTempleChanged(preferredTempleId);
+            const normalizedPreferred = { ...DEFAULT_MODULE_CONFIG, ...selectableTemples[0] };
+            setModuleConfig(normalizedPreferred);
+            writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalizedPreferred);
+            return;
+          }
+
           if (!selectedTemple && activeTempleId) {
             setActiveTempleId(null);
             setActiveTempleState(null);
             emitActiveTempleChanged(null);
           }
+
           const normalized = selectedTemple ? { ...DEFAULT_MODULE_CONFIG, ...selectedTemple } : DEFAULT_MODULE_CONFIG;
           setModuleConfig(normalized);
           writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalized);
@@ -336,8 +353,18 @@ function Layout({ children }) {
     emitActiveTempleChanged(nextTempleId);
   };
 
-  const selectedTemple = activeTempleId ? temples.find((temple) => temple.id === activeTempleId) : null;
-  const showTempleSwitcher = isPlatformSuperAdmin && temples.length > 0;
+  const visibleTemples = useMemo(() => {
+    if (!isPlatformSuperAdmin) {
+      return temples;
+    }
+    const demoEditableTemples = temples.filter((temple) => Boolean(temple?.platform_can_write));
+    return demoEditableTemples.length > 0 ? demoEditableTemples : temples;
+  }, [isPlatformSuperAdmin, temples]);
+
+  const selectedTemple = activeTempleId
+    ? visibleTemples.find((temple) => Number(temple.id) === Number(activeTempleId))
+    : null;
+  const showTempleSwitcher = isPlatformSuperAdmin && visibleTemples.length > 0;
   const currentTempleLabel = selectedTemple
     ? (selectedTemple.name || selectedTemple.trust_name || 'MandirMitra')
     : (isPlatformSuperAdmin ? 'Platform Admin Console' : (moduleConfig?.name || moduleConfig?.trust_name || 'MandirMitra'));
@@ -361,12 +388,12 @@ function Layout({ children }) {
                   if (!value) {
                     return 'Platform Console (no tenant selected)';
                   }
-                  const matchedTemple = temples.find((temple) => String(temple.id) === String(value));
+                  const matchedTemple = visibleTemples.find((temple) => String(temple.id) === String(value));
                   return matchedTemple?.name || matchedTemple?.trust_name || `Temple ${value}`;
                 }}
               >
                 <MenuItem value="">Platform Console (no tenant selected)</MenuItem>
-                {temples.map((temple) => (
+                {visibleTemples.map((temple) => (
                   <MenuItem key={temple.id} value={String(temple.id)}>
                     {temple.name || temple.trust_name || `Temple ${temple.id}`}
                   </MenuItem>
@@ -500,12 +527,12 @@ function Layout({ children }) {
                       if (!value) {
                         return 'Platform Console (no tenant selected)';
                       }
-                      const matchedTemple = temples.find((temple) => String(temple.id) === String(value));
+                      const matchedTemple = visibleTemples.find((temple) => String(temple.id) === String(value));
                       return matchedTemple?.name || matchedTemple?.trust_name || `Temple ${value}`;
                     }}
                   >
                     <MenuItem value="">Platform Console (no tenant selected)</MenuItem>
-                    {temples.map((temple) => (
+                    {visibleTemples.map((temple) => (
                       <MenuItem key={temple.id} value={String(temple.id)}>
                         {temple.name || temple.trust_name || `Temple ${temple.id}`}
                       </MenuItem>

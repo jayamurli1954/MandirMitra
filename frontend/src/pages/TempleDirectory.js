@@ -109,6 +109,7 @@ function TempleDirectory() {
 
   const activeTempleCount = temples.filter((temple) => temple.is_active !== false).length;
   const pendingRequests = requests.filter((request) => request.status === 'pending');
+  const demoTemples = temples.filter((temple) => Boolean(temple.platform_can_write));
 
   return (
     <Layout>
@@ -240,14 +241,14 @@ function TempleDirectory() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {temples.length === 0 ? (
+                      {demoTemples.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={11}>
                             <Alert severity="info">No temples or trusts have been onboarded yet.</Alert>
                           </TableCell>
                         </TableRow>
                       ) : (
-                        temples.map((temple) => (
+                        demoTemples.map((temple) => (
                           <TableRow key={temple.id} hover>
                             <TableCell>{temple.id}</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{getDisplayName(temple)}</TableCell>

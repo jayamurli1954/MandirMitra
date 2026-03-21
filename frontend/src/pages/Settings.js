@@ -204,16 +204,27 @@ function Settings() {
     try {
       setLoading(true);
       const response = await api.get('/api/v1/temples/');
-      const templeList = Array.isArray(response.data) ? response.data : [];
+      const rawTempleList = Array.isArray(response.data) ? response.data : [];
+      const demoEditableTemples = isPlatformSuperAdmin
+        ? rawTempleList.filter((temple) => Boolean(temple?.platform_can_write))
+        : [];
+      const templeList = isPlatformSuperAdmin && demoEditableTemples.length > 0
+        ? demoEditableTemples
+        : rawTempleList;
+
       setTemples(templeList);
       if (templeList.length > 0) {
         if (canSwitchTemple) {
           const activeTemple = selectedTempleId ? templeList.find((temple) => temple.id === selectedTempleId) : null;
-          if (selectedTempleId && !activeTemple) {
-            writeActiveTempleId(null);
-            setSelectedTempleId(null);
+          const preferredTemple = activeTemple || templeList[0] || null;
+          if (preferredTemple?.id && preferredTemple.id !== selectedTempleId) {
+            writeActiveTempleId(preferredTemple.id);
+            setSelectedTempleId(preferredTemple.id);
+            window.dispatchEvent(new CustomEvent('active-temple-changed', {
+              detail: { templeId: preferredTemple.id },
+            }));
           }
-          applyTempleSettings(activeTemple || null);
+          applyTempleSettings(preferredTemple);
         } else {
           const temple = templeList[0];
           if (temple?.id && temple.id !== selectedTempleId) {
