@@ -128,7 +128,6 @@ class TempleDeleteRequest(BaseModel):
     confirm_text: str
 
 
-
 def _model_field_names(model: type[BaseModel]) -> set[str]:
     model_fields = getattr(model, "model_fields", None)
     if model_fields is not None:
@@ -777,5 +776,3 @@ async def upload_temple_media(
     url = f"/uploads/temples/{resolved_temple_id}/{safe_filename}"
     
     return {"url": url}
-
-
