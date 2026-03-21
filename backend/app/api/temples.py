@@ -7,7 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import MetaData, Table, text
+from sqlalchemy import MetaData, Table, text, inspect, select, or_
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -122,6 +122,12 @@ class TempleUpdate(BaseModel):
     opening_time: Optional[str] = None
     closing_time: Optional[str] = None
 
+class TempleDeleteRequest(BaseModel):
+    """Hard delete confirmation payload"""
+
+    confirm_text: str
+
+
 
 def _model_field_names(model: type[BaseModel]) -> set[str]:
     model_fields = getattr(model, "model_fields", None)
@@ -149,6 +155,83 @@ MODULE_FLAG_DEFAULTS = {
 
 def _can_access_all_temples(current_user: User) -> bool:
     return current_user.role == "super_admin"
+
+
+def _require_platform_super_admin(current_user: User) -> None:
+    if not _can_access_all_temples(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only platform super-admin can manage tenant lifecycle",
+        )
+
+
+def _build_temple_scope_clauses(metadata: MetaData, temple_id: int) -> dict[str, object]:
+    memo: dict[str, object] = {}
+
+    def resolve_clause(table, stack: set[str]):
+        table_name = table.name
+        if table_name in memo:
+            return memo[table_name]
+        if table_name in stack:
+            return None
+
+        stack.add(table_name)
+        clauses = []
+
+        if "temple_id" in table.c:
+            clauses.append(table.c.temple_id == temple_id)
+
+        for fk in table.foreign_key_constraints:
+            elements = list(fk.elements)
+            if len(elements) != 1:
+                continue
+
+            element = elements[0]
+            parent_col = element.column
+            parent_table = parent_col.table
+            local_col = element.parent
+
+            if parent_table.name == "temples":
+                clauses.append(local_col == temple_id)
+                continue
+
+            parent_clause = resolve_clause(parent_table, stack)
+            if parent_clause is None:
+                continue
+
+            clauses.append(local_col.in_(select(parent_col).where(parent_clause)))
+
+        stack.remove(table_name)
+        memo[table_name] = or_(*clauses) if clauses else None
+        return memo[table_name]
+
+    for table in metadata.sorted_tables:
+        resolve_clause(table, set())
+
+    return memo
+
+
+def _purge_temple_related_rows(db: Session, temple_id: int) -> dict[str, int]:
+    metadata = MetaData()
+    metadata.reflect(bind=db.get_bind())
+    scope_clauses = _build_temple_scope_clauses(metadata, temple_id)
+
+    deleted_counts: dict[str, int] = {}
+
+    for table in reversed(metadata.sorted_tables):
+        if table.name == "temples":
+            continue
+
+        clause = scope_clauses.get(table.name)
+        if clause is None:
+            continue
+
+        result = db.execute(table.delete().where(clause))
+        affected = int(result.rowcount or 0)
+        if affected > 0:
+            deleted_counts[table.name] = affected
+
+    return deleted_counts
 
 
 def _serialize_temple_response(temple) -> dict:
@@ -272,7 +355,7 @@ def get_temples(
 ):
     """Get temples available to the current user."""
     if _can_access_all_temples(current_user):
-        query = db.query(Temple).filter(Temple.is_active == True)
+        query = db.query(Temple)
         if temple_id is not None:
             query = query.filter(Temple.id == temple_id)
 
@@ -555,6 +638,103 @@ def update_current_temple(
     if not column_exists(db, "temples", "module_hundi_enabled"):
         setattr(temple, "module_hundi_enabled", False)
     return _attach_platform_access(_serialize_temple_response(temple), temple, db, current_user)
+
+
+@router.post("/{temple_id}/deactivate", response_model=dict)
+def deactivate_temple(
+    temple_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-remove a temple by deactivating it."""
+    _require_platform_super_admin(current_user)
+
+    temple = db.query(Temple).filter(Temple.id == temple_id).first()
+    if not temple:
+        raise HTTPException(status_code=404, detail="Temple not found")
+
+    temple.is_active = False
+    db.commit()
+
+    return {
+        "ok": True,
+        "temple_id": temple.id,
+        "temple_name": temple.name or temple.trust_name,
+        "is_active": False,
+        "message": "Temple deactivated successfully",
+    }
+
+
+@router.post("/{temple_id}/activate", response_model=dict)
+def activate_temple(
+    temple_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Reactivate a previously deactivated temple."""
+    _require_platform_super_admin(current_user)
+
+    temple = db.query(Temple).filter(Temple.id == temple_id).first()
+    if not temple:
+        raise HTTPException(status_code=404, detail="Temple not found")
+
+    temple.is_active = True
+    db.commit()
+
+    return {
+        "ok": True,
+        "temple_id": temple.id,
+        "temple_name": temple.name or temple.trust_name,
+        "is_active": True,
+        "message": "Temple activated successfully",
+    }
+
+
+@router.delete("/{temple_id}/remove", response_model=dict)
+def remove_temple_completely(
+    temple_id: int,
+    payload: TempleDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Hard-remove a temple and all related tenant-scoped data."""
+    _require_platform_super_admin(current_user)
+
+    temple = db.query(Temple).filter(Temple.id == temple_id).first()
+    if not temple:
+        raise HTTPException(status_code=404, detail="Temple not found")
+
+    if current_user.temple_id and int(current_user.temple_id) == int(temple_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot remove the temple currently assigned to your login. Switch to another tenant first.",
+        )
+
+    expected = f"DELETE {temple_id}"
+    provided = (payload.confirm_text or "").strip().upper()
+    if provided != expected:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Confirmation text mismatch. Type exactly: {expected}",
+        )
+
+    try:
+        deleted_counts = _purge_temple_related_rows(db, temple_id)
+        db.delete(temple)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to remove temple completely: {exc}",
+        )
+
+    return {
+        "ok": True,
+        "temple_id": temple_id,
+        "message": "Temple and related data removed completely",
+        "deleted_rows": deleted_counts,
+    }
 
 
 @router.post("/upload", response_model=dict)

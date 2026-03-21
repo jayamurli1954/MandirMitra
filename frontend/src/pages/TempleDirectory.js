@@ -35,6 +35,7 @@ function TempleDirectory() {
   const { showError, showSuccess } = useNotification();
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [tenantActionKey, setTenantActionKey] = useState('');
   const [temples, setTemples] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loadError, setLoadError] = useState('');
@@ -69,6 +70,68 @@ function TempleDirectory() {
     setActiveTempleId(templeId);
     emitActiveTempleChanged(templeId);
     navigate('/settings');
+  };
+
+  const handleDeactivateTemple = async (temple) => {
+    const label = getDisplayName(temple);
+    const confirmed = window.confirm(`Deactivate ${label}?\n\nYou can reactivate it later.`);
+    if (!confirmed) {
+      return;
+    }
+
+    const actionKey = `deactivate-${temple.id}`;
+    try {
+      setTenantActionKey(actionKey);
+      await api.post(`/api/v1/temples/${temple.id}/deactivate`);
+      showSuccess(`${label} deactivated`);
+      await fetchData();
+    } catch (err) {
+      showError(err.userMessage || err?.response?.data?.detail || 'Failed to deactivate temple');
+    } finally {
+      setTenantActionKey('');
+    }
+  };
+
+  const handleActivateTemple = async (temple) => {
+    const label = getDisplayName(temple);
+    const confirmed = window.confirm(`Activate ${label}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    const actionKey = `activate-${temple.id}`;
+    try {
+      setTenantActionKey(actionKey);
+      await api.post(`/api/v1/temples/${temple.id}/activate`);
+      showSuccess(`${label} activated`);
+      await fetchData();
+    } catch (err) {
+      showError(err.userMessage || err?.response?.data?.detail || 'Failed to activate temple');
+    } finally {
+      setTenantActionKey('');
+    }
+  };
+
+  const handleRemoveTemple = async (temple) => {
+    const label = getDisplayName(temple);
+    const confirmation = window.prompt(`Type DELETE ${temple.id} to permanently remove ${label} and all related data.`);
+    if (!confirmation) {
+      return;
+    }
+
+    const actionKey = `remove-${temple.id}`;
+    try {
+      setTenantActionKey(actionKey);
+      await api.delete(`/api/v1/temples/${temple.id}/remove`, {
+        data: { confirm_text: confirmation },
+      });
+      showSuccess(`${label} removed completely`);
+      await fetchData();
+    } catch (err) {
+      showError(err.userMessage || err?.response?.data?.detail || 'Failed to remove temple completely');
+    } finally {
+      setTenantActionKey('');
+    }
   };
 
   const handleApprove = async (requestId) => {
@@ -195,7 +258,7 @@ function TempleDirectory() {
                         {pendingRequests.map((request) => (
                           <TableRow key={request.id} hover>
                             <TableCell sx={{ fontWeight: 600 }}>{request.temple_name || request.trust_name || 'Unnamed request'}</TableCell>
-                            <TableCell>{request.city || '—'}</TableCell>
+                            <TableCell>{request.city || '--'}</TableCell>
                             <TableCell>{request.admin_full_name}</TableCell>
                             <TableCell>{request.admin_email}</TableCell>
                             <TableCell>{request.created_at}</TableCell>
@@ -252,12 +315,12 @@ function TempleDirectory() {
                           <TableRow key={temple.id} hover>
                             <TableCell>{temple.id}</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{getDisplayName(temple)}</TableCell>
-                            <TableCell>{temple.trust_name || '—'}</TableCell>
-                            <TableCell>{temple.primary_deity || '—'}</TableCell>
-                            <TableCell>{temple.city || '—'}</TableCell>
-                            <TableCell>{temple.state || '—'}</TableCell>
-                            <TableCell>{temple.phone || '—'}</TableCell>
-                            <TableCell>{temple.email || '—'}</TableCell>
+                            <TableCell>{temple.trust_name || '--'}</TableCell>
+                            <TableCell>{temple.primary_deity || '--'}</TableCell>
+                            <TableCell>{temple.city || '--'}</TableCell>
+                            <TableCell>{temple.state || '--'}</TableCell>
+                            <TableCell>{temple.phone || '--'}</TableCell>
+                            <TableCell>{temple.email || '--'}</TableCell>
                             <TableCell>
                               <Chip size="small" color={temple.is_active === false ? 'default' : 'success'} label={temple.is_active === false ? 'Inactive' : 'Active'} variant={temple.is_active === false ? 'outlined' : 'filled'} />
                             </TableCell>
@@ -265,9 +328,41 @@ function TempleDirectory() {
                               <Chip size="small" color={temple.platform_can_write ? 'warning' : 'default'} label={temple.platform_can_write ? 'Demo Editable' : 'Read-only'} variant={temple.platform_can_write ? 'filled' : 'outlined'} />
                             </TableCell>
                             <TableCell align="right">
-                              <Button size="small" variant="outlined" endIcon={<OpenInNewIcon />} onClick={() => handleOpenTemple(temple.id)}>
-                                {temple.platform_can_write ? 'Open in Settings' : 'Open Read-only'}
-                              </Button>
+                              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
+                                <Button size="small" variant="outlined" endIcon={<OpenInNewIcon />} onClick={() => handleOpenTemple(temple.id)}>
+                                  Open
+                                </Button>
+                                {temple.is_active === false ? (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="success"
+                                    disabled={tenantActionKey === `activate-${temple.id}`}
+                                    onClick={() => handleActivateTemple(temple)}
+                                  >
+                                    {tenantActionKey === `activate-${temple.id}` ? 'Activating...' : 'Activate'}
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="warning"
+                                    disabled={tenantActionKey === `deactivate-${temple.id}`}
+                                    onClick={() => handleDeactivateTemple(temple)}
+                                  >
+                                    {tenantActionKey === `deactivate-${temple.id}` ? 'Deactivating...' : 'Deactivate'}
+                                  </Button>
+                                )}
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="error"
+                                  disabled={tenantActionKey === `remove-${temple.id}`}
+                                  onClick={() => handleRemoveTemple(temple)}
+                                >
+                                  {tenantActionKey === `remove-${temple.id}` ? 'Removing...' : 'Remove Completely'}
+                                </Button>
+                              </Stack>
                             </TableCell>
                           </TableRow>
                         ))
