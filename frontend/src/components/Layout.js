@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 import {
@@ -67,7 +67,7 @@ const menuItems = [
   { text: 'Reports', icon: <AssessmentIcon />, path: '/reports', moduleFlag: 'module_reports_enabled', permissionKey: 'reports' },
   { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', moduleFlag: 'module_panchang_enabled', permissionKey: 'panchang' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', permissionKey: 'settings' },
-  { text: 'Temples / Trusts', icon: <TempleHinduIcon />, path: '/platform/temples', superAdminOnly: true },
+  { text: 'Platform Operations', icon: <TempleHinduIcon />, path: '/platform/operations', superAdminOnly: true },
 ];
 
 const sevaMenuItems = [
@@ -326,7 +326,7 @@ function Layout({ children }) {
   const showAccountingSection = isFeatureEnabled('module_accounting_enabled') && hasModuleAccess('accounting');
 
   const navigateTo = (path) => {
-    const destination = path === '/dashboard' && isPlatformSuperAdmin && !activeTempleId ? '/platform/temples' : path;
+    const destination = path === '/dashboard' && isPlatformSuperAdmin && !activeTempleId ? '/platform/operations' : path;
     navigate(destination);
     setMobileOpen(false);
   };
@@ -338,7 +338,7 @@ function Layout({ children }) {
       setActiveTempleId(null);
       emitActiveTempleChanged(null);
       if (location.pathname === '/dashboard') {
-        navigate('/platform/temples');
+        navigate('/platform/operations');
       }
       return;
     }
@@ -406,7 +406,7 @@ function Layout({ children }) {
       )}
       <List>
         {visibleMenuItems.filter((item) => item.text === 'Dashboard').map((item) => {
-          const isSelected = location.pathname === item.path || (!activeTempleId && isPlatformSuperAdmin && location.pathname === '/platform/temples');
+          const isSelected = location.pathname === item.path || (!activeTempleId && isPlatformSuperAdmin && location.pathname === '/platform/operations');
           return (
             <ListItem key={item.text} disablePadding>
               <ListItemButton
@@ -599,3 +599,4 @@ function Layout({ children }) {
 }
 
 export default Layout;
+

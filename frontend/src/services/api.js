@@ -1,7 +1,8 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 import { getApiBaseUrl } from '../utils/apiBaseUrl';
 import { buildActiveTempleHeaders } from '../utils/activeTemple';
 import { clearAuthSession, getAccessToken } from '../utils/authStorage';
+import { handleTenantInactive, isTenantInactiveMessage, isTenantInactivePayload } from '../utils/tenantInactive';
 
 const api = axios.create({
   baseURL: getApiBaseUrl({ preferDirect: true }),
@@ -30,15 +31,21 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const errorData = error.response?.data;
+
+    if (status === 401) {
       clearAuthSession();
       window.location.href = '/login';
     }
-    
+
+    if (status === 403 && (isTenantInactivePayload(errorData) || isTenantInactiveMessage(errorData?.detail))) {
+      handleTenantInactive(typeof errorData?.detail === 'string' ? errorData.detail : 'Tenant is inactive');
+    }
+
     // Extract error message from response
     let errorMessage = 'An error occurred';
-    if (error.response?.data) {
-      const errorData = error.response.data;
+    if (errorData) {
       if (errorData.error?.message) {
         errorMessage = errorData.error.message;
       } else if (errorData.message) {
@@ -49,13 +56,12 @@ api.interceptors.response.use(
     } else if (error.message) {
       errorMessage = error.message;
     }
-    
+
     // Add error message to error object for easy access
     error.userMessage = errorMessage;
-    
+
     return Promise.reject(error);
   }
 );
 
 export default api;
-

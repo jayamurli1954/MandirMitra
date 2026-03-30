@@ -1,4 +1,5 @@
-import { buildActiveTempleHeaders } from './activeTemple';
+﻿import { buildActiveTempleHeaders } from './activeTemple';
+import { handleTenantInactive, isTenantInactivePayload } from './tenantInactive';
 
 const LOCAL_API_BASE_URL = 'http://localhost:8000';
 const PRODUCTION_FALLBACK_API_BASE_URL = (
@@ -61,6 +62,24 @@ export function buildApiUrl(path, options = {}) {
   return `${getApiBaseUrl(options)}${normalizedPath}`;
 }
 
+async function maybeHandleTenantInactiveResponse(response) {
+  if (!response || response.status !== 403) {
+    return;
+  }
+
+  try {
+    const payload = await response.clone().json();
+    if (!isTenantInactivePayload(payload)) {
+      return;
+    }
+
+    const detail = typeof payload?.detail === 'string' ? payload.detail : 'Tenant is inactive';
+    handleTenantInactive(detail);
+  } catch (_error) {
+    // Ignore parse errors; caller will handle response as usual.
+  }
+}
+
 export async function fetchWithApiFallback(path, init = {}, options = {}) {
   const { timeoutMs = 15000 } = options;
   const primaryUrl = buildApiUrl(path);
@@ -74,7 +93,9 @@ export async function fetchWithApiFallback(path, init = {}, options = {}) {
 
     try {
       const mergedHeaders = buildActiveTempleHeaders(init.headers || {});
-      return await fetch(url, { ...init, headers: mergedHeaders, signal: controller.signal });
+      const response = await fetch(url, { ...init, headers: mergedHeaders, signal: controller.signal });
+      await maybeHandleTenantInactiveResponse(response);
+      return response;
     } catch (error) {
       const message = String(error?.message || '').toLowerCase();
       if (error?.name === 'AbortError' || message.includes('aborted')) {
@@ -91,4 +112,3 @@ export async function fetchWithApiFallback(path, init = {}, options = {}) {
 
   throw lastError || new Error('Unable to reach backend');
 }
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   Typography,
   Box,
@@ -87,6 +87,7 @@ function Settings() {
     financial_year_start: 4,
     receipt_prefix_donation: 'DON',
     receipt_prefix_seva: 'SEVA',
+    receipt_local_language: 'kannada',
     sms_enabled: false,
     sms_reminder_days: 7,
     email_enabled: false,
@@ -177,6 +178,7 @@ function Settings() {
       financial_year_start: temple?.financial_year_start_month || 4,
       receipt_prefix_donation: temple?.receipt_prefix_donation || 'DON',
       receipt_prefix_seva: temple?.receipt_prefix_seva || 'SEVA',
+      receipt_local_language: temple?.receipt_local_language || 'kannada',
       sms_enabled: false,
       sms_reminder_days: 7,
       email_enabled: false,
@@ -422,6 +424,7 @@ function Settings() {
         ...(Number.isNaN(financialYearStartMonth) ? {} : { financial_year_start_month: financialYearStartMonth }),
         receipt_prefix_donation: settings.receipt_prefix_donation,
         receipt_prefix_seva: settings.receipt_prefix_seva,
+        receipt_local_language: settings.receipt_local_language,
         gst_applicable: settings.gst_applicable,
         gstin: settings.gstin,
         gst_registration_date: settings.gst_registration_date,
@@ -924,6 +927,23 @@ function Settings() {
                       placeholder="e.g., SEVA"
                     />
                   </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      select
+                      label="Receipt Secondary Language"
+                      value={settings.receipt_local_language}
+                      onChange={(e) => setSettings({ ...settings, receipt_local_language: e.target.value })}
+                      margin="normal"
+                      helperText="Receipts will show English + selected language"
+                    >
+                      <MenuItem value="kannada">Kannada + English</MenuItem>
+                      <MenuItem value="tamil">Tamil + English</MenuItem>
+                      <MenuItem value="telugu">Telugu + English</MenuItem>
+                      <MenuItem value="malayalam">Malayalam + English</MenuItem>
+                      <MenuItem value="hindi">Hindi + English</MenuItem>
+                    </TextField>
+                  </Grid>
                 </Grid>
               </CardContent>
             </Card>
@@ -1201,3 +1221,4 @@ function Settings() {
 }
 
 export default Settings;
+

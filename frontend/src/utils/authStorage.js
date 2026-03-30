@@ -1,6 +1,8 @@
-const ACCESS_TOKEN_KEY = 'mm_access_token_v1';
+﻿const ACCESS_TOKEN_KEY = 'mm_access_token_v1';
+const REFRESH_TOKEN_KEY = 'mm_refresh_token_v1';
 const USER_KEY = 'mm_current_user_v1';
 const LEGACY_TOKEN_KEY = 'token';
+const LEGACY_REFRESH_TOKEN_KEY = 'refresh_token';
 const LEGACY_USER_KEY = 'user';
 
 const safeStorage = (storage) => {
@@ -47,6 +49,22 @@ export const getAccessToken = () => {
   return moveLegacyValue(LEGACY_TOKEN_KEY, ACCESS_TOKEN_KEY);
 };
 
+export const getRefreshToken = () => {
+  const sessionStore = session();
+  if (sessionStore) {
+    const current = sessionStore.getItem(REFRESH_TOKEN_KEY) || sessionStore.getItem(LEGACY_REFRESH_TOKEN_KEY);
+    if (current) {
+      if (!sessionStore.getItem(REFRESH_TOKEN_KEY)) {
+        sessionStore.setItem(REFRESH_TOKEN_KEY, current);
+        sessionStore.removeItem(LEGACY_REFRESH_TOKEN_KEY);
+      }
+      return current;
+    }
+  }
+
+  return moveLegacyValue(LEGACY_REFRESH_TOKEN_KEY, REFRESH_TOKEN_KEY);
+};
+
 export const hasAccessToken = () => Boolean(getAccessToken());
 
 export const setAccessToken = (token) => {
@@ -58,6 +76,22 @@ export const setAccessToken = (token) => {
   }
   if (localStore) {
     localStore.removeItem(LEGACY_TOKEN_KEY);
+  }
+};
+
+export const setRefreshToken = (token) => {
+  const sessionStore = session();
+  const localStore = local();
+  if (sessionStore) {
+    if (token) {
+      sessionStore.setItem(REFRESH_TOKEN_KEY, token);
+    } else {
+      sessionStore.removeItem(REFRESH_TOKEN_KEY);
+    }
+    sessionStore.removeItem(LEGACY_REFRESH_TOKEN_KEY);
+  }
+  if (localStore) {
+    localStore.removeItem(LEGACY_REFRESH_TOKEN_KEY);
   }
 };
 
@@ -112,8 +146,11 @@ export const clearAuthSession = () => {
   const localStore = local();
   sessionStore?.removeItem(ACCESS_TOKEN_KEY);
   sessionStore?.removeItem(LEGACY_TOKEN_KEY);
+  sessionStore?.removeItem(REFRESH_TOKEN_KEY);
+  sessionStore?.removeItem(LEGACY_REFRESH_TOKEN_KEY);
   sessionStore?.removeItem(USER_KEY);
   sessionStore?.removeItem(LEGACY_USER_KEY);
   localStore?.removeItem(LEGACY_TOKEN_KEY);
+  localStore?.removeItem(LEGACY_REFRESH_TOKEN_KEY);
   localStore?.removeItem(LEGACY_USER_KEY);
 };

@@ -11,7 +11,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
-    "serve:e2e": "python scripts/serve_build.py --port 3000",
+    "serve:e2e": "python scripts/serve_build.py --port 3200",
     "start:e2e": "npm run build && npm run serve:e2e"
   },
   "dependencies": {

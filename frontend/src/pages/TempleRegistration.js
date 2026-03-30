@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -12,7 +12,7 @@ import {
   Link,
 } from '@mui/material';
 import TempleHinduIcon from '@mui/icons-material/TempleHindu';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 
 const INITIAL_FORM = {
@@ -33,10 +33,28 @@ const INITIAL_FORM = {
 
 function TempleRegistration() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState(INITIAL_FORM);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '');
+    const queryEmail = (params.get('admin_email') || '').trim().toLowerCase();
+    const pendingEmail = (sessionStorage.getItem('pending_onboarding_email') || '').trim().toLowerCase();
+    const prefillEmail = queryEmail || pendingEmail;
+
+    if (!prefillEmail) {
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      admin_email: prev.admin_email || prefillEmail,
+      email: prev.email || prefillEmail,
+    }));
+  }, [location.search]);
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -104,6 +122,7 @@ function TempleRegistration() {
       }
 
       setSuccess('Registration request submitted successfully. The platform owner will review and approve your temple or trust onboarding.');
+      sessionStorage.removeItem('pending_onboarding_email');
       setForm(INITIAL_FORM);
     } catch (err) {
       const message = String(err?.message || '').trim();
