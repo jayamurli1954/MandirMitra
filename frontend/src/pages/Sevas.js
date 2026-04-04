@@ -243,10 +243,24 @@ function Sevas() {
       const response = await api.get('/api/v1/sevas/dropdown-options');
       console.log('Dropdown options response:', response.data);
       if (response.data) {
+        const gothras = Array.isArray(response.data.gothras)
+          ? response.data.gothras
+          : (Array.isArray(response.data.GOTHRAS) ? response.data.GOTHRAS : []);
+        const nakshatras = Array.isArray(response.data.nakshatras)
+          ? response.data.nakshatras
+          : (Array.isArray(response.data.NAKSHATRAS) ? response.data.NAKSHATRAS : []);
+        const rashis = Array.isArray(response.data.rashis)
+          ? response.data.rashis
+          : (Array.isArray(response.data.RASHIS) ? response.data.RASHIS : []);
+
+        if (gothras.length === 0 && nakshatras.length === 0 && rashis.length === 0) {
+          throw new Error('Dropdown options payload missing gothra/nakshatra/rashi lists');
+        }
+
         setDropdownOptions({
-          gothras: response.data.gothras || response.data.GOTHRAS || [],
-          nakshatras: response.data.nakshatras || response.data.NAKSHATRAS || [],
-          rashis: response.data.rashis || response.data.RASHIS || []
+          gothras,
+          nakshatras,
+          rashis,
         });
       }
     } catch (err) {
@@ -479,9 +493,9 @@ function Sevas() {
         }
       }
 
-      const devoteeIdNum = Number(bookingForm.devotee_id);
+      const devoteeId = String(bookingForm.devotee_id || '').trim();
       const amountNum = Number(bookingForm.amount_paid);
-      if (!Number.isFinite(devoteeIdNum) || devoteeIdNum <= 0) {
+      if (!devoteeId) {
         setBookingError('Please select a valid devotee before booking.');
         return;
       }
@@ -555,8 +569,8 @@ function Sevas() {
 
       const bookingData = {
         ...bookingForm,
-        seva_id: Number(selectedSeva.id),
-        devotee_id: devoteeIdNum,
+        seva_id: String(selectedSeva.id),
+        devotee_id: devoteeId,
         booking_date: normalizedBookingDate,
         booking_time: bookingForm.booking_time?.trim() || selectedSeva?.time_slot || null,
         amount_paid: amountNum,
