@@ -1,0 +1,359 @@
+﻿{
+  "info": {
+    "_postman_id": "2d2f0c1b-6b63-4a4f-bfa0-1e4a7f2a9b5c",
+    "name": "MandirMitra Smoke Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://sanmitra-backend-staging-sg.onrender.com" },
+    { "key": "token", "value": "" },
+    { "key": "temple_id", "value": "" },
+    { "key": "username", "value": "" },
+    { "key": "password", "value": "" },
+    { "key": "mobile", "value": "" },
+    { "key": "new_mobile", "value": "" },
+    { "key": "pincode", "value": "" },
+    { "key": "devotee_id", "value": "" },
+    { "key": "seva_id", "value": "" },
+    { "key": "booking_id", "value": "" },
+    { "key": "account_id", "value": "" },
+    { "key": "donation_id", "value": "" },
+    { "key": "donation_category", "value": "" },
+    { "key": "donation_amount", "value": "101" },
+    { "key": "booking_date", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const templeId = pm.collectionVariables.get('temple_id') || pm.environment.get('temple_id');",
+          "if (templeId && !pm.request.headers.has('X-Temple-Id')) {",
+          "  pm.request.headers.add({ key: 'X-Temple-Id', value: String(templeId) });",
+          "}",
+          "if (!pm.request.headers.has('X-App-Key')) {",
+          "  pm.request.headers.add({ key: 'X-App-Key', value: 'mandirmitra' });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "username", "value": "{{username}}", "type": "text" },
+                { "key": "password", "value": "{{password}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/login",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "login" ]
+            },
+            "description": "Exchange username/password for a bearer token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login returned 200', function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.expect(data).to.have.property('access_token');",
+                  "pm.collectionVariables.set('token', data.access_token);",
+                  "pm.environment.set('token', data.access_token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Utilities",
+      "item": [
+        {
+          "name": "Pincode Lookup",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/pincode/lookup?pincode={{pincode}}",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "pincode", "lookup" ],
+              "query": [
+                { "key": "pincode", "value": "{{pincode}}" }
+              ]
+            },
+            "description": "Validates city/state autofill from PIN code."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Pincode lookup returned 200', function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.expect(data).to.have.property('found');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Accounting",
+      "item": [
+        {
+          "name": "Initialize Default COA",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/accounts/initialize-default",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "accounts", "initialize-default" ]
+            },
+            "description": "Seeds or reactivates the default chart of accounts for the active temple."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('COA initialize returned 200', function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.expect(data).to.have.property('message');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Accounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/accounts",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "accounts" ]
+            },
+            "description": "Fetches active COA rows after bootstrap."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Accounts list returned 200', function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.expect(Array.isArray(data)).to.equal(true);",
+                  "pm.expect(data.length).to.be.greaterThan(0);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Devotees",
+      "item": [
+        {
+          "name": "Search by Mobile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/devotees/search/by-mobile/{{mobile}}",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "devotees", "search", "by-mobile", "{{mobile}}" ]
+            },
+            "description": "Finds an existing devotee for booking or donation flows."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Devotee search returned 200', function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "if (Array.isArray(data) && data.length > 0 && data[0].id) { pm.collectionVariables.set('devotee_id', String(data[0].id)); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Devotee (template)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name_prefix\": \"Sri\",\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Smoke\",\n  \"phone\": \"{{new_mobile}}\",\n  \"email\": \"postman.smoke@example.com\",\n  \"address\": \"12, Smoke Street\",\n  \"city\": \"Chennai\",\n  \"state\": \"Tamil Nadu\",\n  \"pincode\": \"{{pincode}}\",\n  \"country\": \"India\",\n  \"gothra\": \"\",\n  \"nakshatra\": \"\",\n  \"rashi\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/devotees",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "devotees" ]
+            },
+            "description": "Template create request. Use a new mobile number if you want this to succeed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Donations",
+      "item": [
+        {
+          "name": "Payment Accounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/donations/payment-accounts",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "donations", "payment-accounts" ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Donation payment accounts returned 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Donation (template)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"devotee_first_name\": \"Postman\",\n  \"devotee_last_name\": \"Smoke\",\n  \"devotee_phone\": \"{{new_mobile}}\",\n  \"amount\": {{donation_amount}},\n  \"category\": \"{{donation_category}}\",\n  \"donation_type\": \"cash\",\n  \"payment_mode\": \"Cash\",\n  \"payment_account_id\": {{account_id}},\n  \"notes\": \"Postman smoke donation\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/donations",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "donations" ]
+            },
+            "description": "Template donation create request. Fill category and account_id from the live selectors."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sevas",
+      "item": [
+        {
+          "name": "Payment Accounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sevas/payment-accounts",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "sevas", "payment-accounts" ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Seva payment accounts returned 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Booking (template)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"seva_id\": {{seva_id}},\n  \"devotee_id\": {{devotee_id}},\n  \"booking_date\": \"{{booking_date}}\",\n  \"amount_paid\": 500,\n  \"payment_method\": \"Cash\",\n  \"payment_account_id\": {{account_id}},\n  \"devotee_names\": \"Postman Smoke\",\n  \"gotra\": \"\",\n  \"nakshatra\": \"\",\n  \"rashi\": \"\",\n  \"special_request\": \"Postman smoke booking\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/sevas/bookings/",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "sevas", "bookings" ]
+            },
+            "description": "Template seva booking request. Use a valid seva_id, devotee_id, account_id and booking_date."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Books",
+      "item": [
+        {
+          "name": "Trial Balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/journal-entries/reports/trial-balance",
+              "host": [ "{{base_url}}" ],
+              "path": [ "api", "v1", "journal-entries", "reports", "trial-balance" ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Trial balance returned 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
