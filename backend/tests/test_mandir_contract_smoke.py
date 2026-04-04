@@ -116,6 +116,37 @@ class TestMandirAccountingSmoke:
 
             for row in cash_accounts[:2] + bank_accounts[:2]:
                 _assert_payment_account_row(row)
+    def test_payment_account_endpoints_recover_inactive_cash_defaults(
+        self, authenticated_client, db_session, test_user
+    ):
+        from app.models.accounting import Account
+
+        temple_id = test_user.temple_id
+        cash_account = (
+            db_session.query(Account)
+            .filter(Account.temple_id == temple_id, Account.account_code == "11001")
+            .first()
+        )
+        assert cash_account is not None, "Expected default cash account to exist in fixture"
+
+        cash_account.is_active = False
+        db_session.commit()
+
+        for endpoint in (
+            "/api/v1/donations/payment-accounts",
+            "/api/v1/sevas/payment-accounts",
+        ):
+            response = authenticated_client.get(endpoint)
+            assert response.status_code == status.HTTP_200_OK
+            payload = response.json()
+            cash_accounts = payload.get("cash_accounts") or []
+            assert cash_accounts, f"Expected cash accounts from {endpoint} after recovery"
+            assert any(
+                str(row.get("account_code")) == "11001" for row in cash_accounts if isinstance(row, dict)
+            ), f"Expected default cash account 11001 from {endpoint}"
+
+        db_session.refresh(cash_account)
+        assert cash_account.is_active is True
 
     def test_cash_donation_booking_accepts_payment_account_id(self, authenticated_client):
         payment_accounts_response = authenticated_client.get("/api/v1/donations/payment-accounts")
@@ -239,4 +270,5 @@ class TestMandirAccountingSmoke:
         assert str(payload.get("seva_id")) == str(seva_id)
         assert str(payload.get("devotee_id")) == str(devotee_id)
         assert float(payload.get("amount_paid", 0)) == 500.0
+
 
