@@ -206,11 +206,12 @@ def initialize_default_accounts(
     require_temple_write_access_to_temple(db, current_user, temple_id)
     result = _seed_default_accounts_for_temple(db, temple_id, raise_on_error=True)
     result["temple_id"] = temple_id
-    result["message"] = (
-        "Default chart of accounts initialized"
-        if result["created"] > 0
-        else "Default chart of accounts already initialized"
-    )
+    if result.get("created", 0) > 0:
+        result["message"] = "Default chart of accounts initialized"
+    elif result.get("reactivated", 0) > 0:
+        result["message"] = "Default chart of accounts reactivated"
+    else:
+        result["message"] = "Default chart of accounts already initialized"
     return result
 
 

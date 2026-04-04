@@ -286,7 +286,7 @@ function ChartOfAccounts() {
 
       setMessage({
         type: 'success',
-        text: `${data.message || 'Default accounts initialized'} (Created: ${data.created || 0})`,
+        text: `${data.message || 'Default accounts initialized'} (Created: ${data.created || 0}${typeof data.reactivated === 'number' ? `, Reactivated: ${data.reactivated}` : ''})`,
       });
       await fetchAccounts();
     } catch (error) {

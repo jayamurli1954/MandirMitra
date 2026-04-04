@@ -20,26 +20,37 @@ def ensure_default_coa_for_temple(
     Safe to call repeatedly: only missing account codes are inserted.
     """
     default_accounts = DefaultCOA.get_default_accounts()
-    existing_codes = {
-        row[0]
-        for row in db.query(Account.account_code).filter(Account.temple_id == temple_id).all()
+    existing_accounts = {
+        row[0]: row[1]
+        for row in db.query(Account.account_code, Account).filter(Account.temple_id == temple_id).all()
     }
 
     created_count = 0
+    reactivated_count = 0
     skipped_count = 0
 
     for account_data in default_accounts:
         code = account_data["account_code"]
-        if code in existing_codes:
-            skipped_count += 1
+        existing_account = existing_accounts.get(code)
+        if existing_account:
+            if not existing_account.is_active:
+                existing_account.is_active = True
+                existing_account.account_name = account_data.get("account_name")
+                existing_account.account_name_kannada = account_data.get("account_name_kannada")
+                existing_account.account_type = account_data.get("account_type")
+                existing_account.account_subtype = account_data.get("account_subtype")
+                existing_account.description = account_data.get("description")
+                existing_account.parent_account_id = account_data.get("parent_account_id")
+                reactivated_count += 1
+            else:
+                skipped_count += 1
             continue
 
         db.add(Account(temple_id=temple_id, **account_data))
-        existing_codes.add(code)
         created_count += 1
 
     error = None
-    if created_count > 0:
+    if created_count > 0 or reactivated_count > 0:
         try:
             db.commit()
         except Exception as exc:
@@ -51,9 +62,11 @@ def ensure_default_coa_for_temple(
                     detail=f"Failed to initialize default accounts: {exc}",
                 )
             created_count = 0
+            reactivated_count = 0
 
     return {
         "created": created_count,
+        "reactivated": reactivated_count,
         "skipped": skipped_count,
         "total_defaults": len(default_accounts),
         "error": error,
