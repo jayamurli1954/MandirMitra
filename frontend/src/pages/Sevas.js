@@ -242,6 +242,29 @@ function Sevas() {
     }
   };
 
+  const selectDevoteeForBooking = (devotee) => {
+    if (!devotee) return;
+    setFoundDevotee(devotee);
+    setShowNewDevoteeForm(false);
+    setBookingError(null);
+    setBookingForm((prev) => ({ ...prev, devotee_id: String(devotee.id || '') }));
+  };
+
+  const resolveDevoteeByMobile = async (mobile) => {
+    if (!mobile) return null;
+    try {
+      const response = await api.get(`/api/v1/devotees/search/by-mobile/${mobile}`);
+      const devotee = Array.isArray(response.data) && response.data.length > 0 ? response.data[0] : null;
+      if (devotee) {
+        selectDevoteeForBooking(devotee);
+      }
+      return devotee;
+    } catch (err) {
+      console.error('Failed to resolve devotee by mobile:', err);
+      return null;
+    }
+  };
+
   const fetchPriests = async () => {
     try {
       const response = await api.get('/api/v1/sevas/lists/priests');
@@ -401,15 +424,8 @@ function Sevas() {
     setBookingError(null);
 
     try {
-      const response = await api.get(`/api/v1/devotees/search/by-mobile/${mobileNumber}`);
-
-      if (response.data && response.data.length > 0) {
-        // Devotee found - use the first match
-        const devotee = response.data[0];
-        setFoundDevotee(devotee);
-        setShowNewDevoteeForm(false);
-        setBookingForm((prev) => ({ ...prev, devotee_id: devotee.id }));
-      } else {
+      const devotee = await resolveDevoteeByMobile(mobileNumber);
+      if (!devotee) {
         // Devotee not found - show create form
         setFoundDevotee(null);
         setShowNewDevoteeForm(true);
@@ -450,13 +466,19 @@ function Sevas() {
       };
 
       const response = await api.post('/api/v1/devotees/', devoteeData);
-      setFoundDevotee(response.data);
-      setShowNewDevoteeForm(false);
-      setBookingForm((prev) => ({ ...prev, devotee_id: response.data.id }));
+      selectDevoteeForBooking(response.data);
 
       // Refresh devotees list
       fetchDevotees();
     } catch (err) {
+      const detail = String(err.response?.data?.detail || '').toLowerCase();
+      const isDuplicateDevotee = detail.includes('phone number already exists') || detail.includes('search for this devotee');
+      if (isDuplicateDevotee) {
+        const recoveredDevotee = await resolveDevoteeByMobile(mobileNumber);
+        if (recoveredDevotee) {
+          return;
+        }
+      }
       setBookingError(err.response?.data?.detail || 'Failed to create devotee');
     }
   };
@@ -1628,3 +1650,5 @@ function Sevas() {
 }
 
 export default Sevas;
+
+

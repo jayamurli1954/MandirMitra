@@ -148,6 +148,37 @@ class TestMandirAccountingSmoke:
         db_session.refresh(cash_account)
         assert cash_account.is_active is True
 
+    def test_pincode_lookup_uses_remote_fallback_when_csv_is_empty(self, monkeypatch):
+        from app.api import pincode as pincode_api
+
+        monkeypatch.setattr(pincode_api, "load_pincode_data", lambda: {})
+
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return [
+                    {
+                        "Status": "Success",
+                        "PostOffice": [
+                            {
+                                "District": "Chennai",
+                                "State": "Tamil Nadu",
+                                "Name": "Mylapore",
+                            }
+                        ],
+                    }
+                ]
+
+        monkeypatch.setattr(pincode_api.requests, "get", lambda *args, **kwargs: FakeResponse())
+
+        result = pincode_api.lookup_pincode("600004")
+        assert result["found"] is True
+        assert result["city"] == "Chennai"
+        assert result["state"] == "Tamil Nadu"
+        assert result["source"] == "india_post"
+
     def test_cash_donation_booking_accepts_payment_account_id(self, authenticated_client):
         payment_accounts_response = authenticated_client.get("/api/v1/donations/payment-accounts")
         assert payment_accounts_response.status_code == status.HTTP_200_OK
@@ -270,5 +301,7 @@ class TestMandirAccountingSmoke:
         assert str(payload.get("seva_id")) == str(seva_id)
         assert str(payload.get("devotee_id")) == str(devotee_id)
         assert float(payload.get("amount_paid", 0)) == 500.0
+
+
 
 
