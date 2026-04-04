@@ -25,6 +25,7 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import PrintIcon from '@mui/icons-material/Print';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { ACTIVE_TEMPLE_EVENT } from '../utils/activeTemple';
 
 const createEmptyDonationEntry = () => ({
   name_prefix: 'Sri',
@@ -118,6 +119,17 @@ function Donations() {
     fetchCategories();
     fetchPaymentAccounts();
     fetchDonations();
+  }, []);
+
+  useEffect(() => {
+    const handleActiveTempleChange = () => {
+      fetchCategories();
+      fetchPaymentAccounts();
+      fetchDonations();
+    };
+
+    window.addEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
+    return () => window.removeEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
   }, []);
 
   const fetchCategories = async () => {

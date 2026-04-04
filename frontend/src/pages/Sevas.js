@@ -137,6 +137,19 @@ function Sevas() {
     fetchPaymentAccounts();
   }, []);
 
+  useEffect(() => {
+    const handleActiveTempleChange = () => {
+      fetchSevas();
+      fetchDevotees();
+      fetchDropdownOptions();
+      fetchPriests();
+      fetchPaymentAccounts();
+    };
+
+    window.addEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
+    return () => window.removeEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
+  }, []);
+
   // Filtering intentionally tracks the seva list and category only.
   useEffect(() => {
     filterSevas();

@@ -35,6 +35,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import EditIcon from '@mui/icons-material/Edit';
 import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 import { getAccessToken } from '../../utils/authStorage';
+import { ACTIVE_TEMPLE_EVENT } from '../../utils/activeTemple';
 
 const ACCOUNT_TYPES = [
   { value: 'asset', label: 'Asset' },
@@ -210,6 +211,15 @@ function ChartOfAccounts() {
 
   useEffect(() => {
     fetchAccounts();
+  }, []);
+
+  useEffect(() => {
+    const handleActiveTempleChange = () => {
+      fetchAccounts();
+    };
+
+    window.addEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
+    return () => window.removeEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
   }, []);
 
   const fetchAccounts = async () => {
