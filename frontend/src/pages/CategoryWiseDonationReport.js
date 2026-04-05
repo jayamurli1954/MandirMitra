@@ -18,18 +18,31 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import ExportButton from '../components/ExportButton';
 import PrintButton from '../components/PrintButton';
 import { exportToCSV, exportToExcel } from '../utils/export';
 
+const getCategoryRows = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.categories)) return data.categories;
+  if (Array.isArray(data?.by_category)) return data.by_category;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+};
+
 function CategoryWiseDonationReport() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fromDate, setFromDate] = useState(new Date());
   const [toDate, setToDate] = useState(new Date());
   const [reportData, setReportData] = useState(null);
+  const categoryRows = getCategoryRows(reportData);
+  const totalCount = reportData?.total_count ?? reportData?.count ?? categoryRows.reduce((sum, item) => sum + (Number(item?.count) || 0), 0);
+  const totalAmount = reportData?.total_amount ?? reportData?.total ?? categoryRows.reduce((sum, item) => sum + (Number(item?.amount) || 0), 0);
 
   const fetchReport = async () => {
     try {
@@ -60,7 +73,7 @@ function CategoryWiseDonationReport() {
   const handleExport = (format) => {
     if (!reportData) return;
 
-    const exportData = reportData.categories.map(cat => ({
+    const exportData = categoryRows.map(cat => ({
       'Category': cat.category,
       'Count': cat.count,
       'Amount (INR)': cat.amount,
@@ -76,9 +89,14 @@ function CategoryWiseDonationReport() {
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
-          Category-Wise Donation Report
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
+            Category-Wise Donation Report
+          </Typography>
+          <Button variant="outlined" onClick={() => navigate('/reports')}>
+            Back to Reports
+          </Button>
+        </Box>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
@@ -146,7 +164,7 @@ function CategoryWiseDonationReport() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.categories.map((item, index) => (
+                  {categoryRows.map((item, index) => (
                     <TableRow key={index}>
                       <TableCell>{item.category}</TableCell>
                       <TableCell align="right">{item.count}</TableCell>
@@ -161,14 +179,14 @@ function CategoryWiseDonationReport() {
                   ))}
                   <TableRow sx={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
                     <TableCell><strong>TOTAL</strong></TableCell>
-                    <TableCell align="right"><strong>{reportData.total_count}</strong></TableCell>
+                    <TableCell align="right"><strong>{totalCount}</strong></TableCell>
                     <TableCell align="right">
                       <strong>
                         {new Intl.NumberFormat('en-IN', {
                           style: 'currency',
                           currency: 'INR',
                           maximumFractionDigits: 0,
-                        }).format(reportData.total_amount)}
+                        }).format(totalAmount)}
                       </strong>
                     </TableCell>
                   </TableRow>
