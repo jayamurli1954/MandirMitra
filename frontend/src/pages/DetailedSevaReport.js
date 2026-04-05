@@ -29,6 +29,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import IconButton from '@mui/material/IconButton';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import ExportButton from '../components/ExportButton';
@@ -36,7 +37,15 @@ import PrintButton from '../components/PrintButton';
 import { exportToCSV, exportToExcel } from '../utils/export';
 import { useNotification } from '../contexts/NotificationContext';
 
+const getSevaRows = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.sevas)) return data.sevas;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+};
+
 function DetailedSevaReport() {
+  const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -44,6 +53,11 @@ function DetailedSevaReport() {
   const [toDate, setToDate] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState('');
   const [reportData, setReportData] = useState(null);
+  const sevaRows = getSevaRows(reportData);
+  const totalCount = reportData?.total_count ?? sevaRows.length;
+  const completedCount = reportData?.completed_count ?? sevaRows.filter((seva) => seva.status === 'Completed').length;
+  const pendingCount = reportData?.pending_count ?? sevaRows.filter((seva) => seva.status === 'Pending').length;
+  const totalAmount = reportData?.total_amount ?? sevaRows.reduce((sum, seva) => sum + (Number(seva?.amount) || 0), 0);
   const [rescheduleDialog, setRescheduleDialog] = useState({ open: false, booking: null });
   const [newDate, setNewDate] = useState(null);
   const [rescheduleReason, setRescheduleReason] = useState('');
@@ -126,7 +140,7 @@ function DetailedSevaReport() {
   const handleExport = (format) => {
     if (!reportData) return;
 
-    const exportData = reportData.sevas.map(s => ({
+    const exportData = sevaRows.map(s => ({
       'Receipt Date': new Date(s.receipt_date || s.seva_date).toLocaleDateString(),
       'Seva Date': new Date(s.seva_date || s.booking_date).toLocaleDateString(),
       'Receipt Number': s.receipt_number,
@@ -153,9 +167,14 @@ function DetailedSevaReport() {
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
-          Detailed Seva Report
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
+            Detailed Seva Report
+          </Typography>
+          <Button variant="outlined" onClick={() => navigate('/reports')}>
+            Back to Reports
+          </Button>
+        </Box>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
@@ -219,10 +238,10 @@ function DetailedSevaReport() {
           <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
-                Total: {reportData.total_count} sevas |
-                Completed: {reportData.completed_count} |
-                Pending: {reportData.pending_count} |
-                Amount: Rs {new Intl.NumberFormat('en-IN').format(reportData.total_amount)}
+                Total: {totalCount} sevas |
+                Completed: {completedCount} |
+                Pending: {pendingCount} |
+                Amount: Rs {new Intl.NumberFormat('en-IN').format(totalAmount)}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <ExportButton onExport={handleExport} />
@@ -246,7 +265,7 @@ function DetailedSevaReport() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.sevas.map((seva) => (
+                  {sevaRows.map((seva) => (
                     <TableRow key={seva.id}>
                       <TableCell>{new Date(seva.receipt_date || seva.seva_date).toLocaleDateString()}</TableCell>
                       <TableCell>{new Date(seva.seva_date || seva.booking_date).toLocaleDateString()}</TableCell>
@@ -347,6 +366,7 @@ function DetailedSevaReport() {
 }
 
 export default DetailedSevaReport;
+
 
 
 

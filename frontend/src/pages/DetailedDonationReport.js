@@ -24,13 +24,22 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import IconButton from '@mui/material/IconButton';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import ExportButton from '../components/ExportButton';
 import PrintButton from '../components/PrintButton';
 import { exportToCSV, exportToExcel } from '../utils/export';
 
+const getDonationRows = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.donations)) return data.donations;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+};
+
 function DetailedDonationReport() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fromDate, setFromDate] = useState(new Date());
@@ -39,6 +48,9 @@ function DetailedDonationReport() {
   const [paymentModeFilter, setPaymentModeFilter] = useState('');
   const [categories, setCategories] = useState([]);
   const [reportData, setReportData] = useState(null);
+  const donationRows = getDonationRows(reportData);
+  const totalCount = reportData?.total_count ?? donationRows.length;
+  const totalAmount = reportData?.total_amount ?? donationRows.reduce((sum, donation) => sum + (Number(donation?.amount) || 0), 0);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -105,7 +117,7 @@ function DetailedDonationReport() {
   const handleExport = (format) => {
     if (!reportData) return;
 
-    const exportData = reportData.donations.map(d => ({
+    const exportData = donationRows.map(d => ({
       'Date': new Date(d.date).toLocaleDateString(),
       'Receipt Number': d.receipt_number,
       'Devotee Name': d.devotee_name,
@@ -125,9 +137,14 @@ function DetailedDonationReport() {
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
-          Detailed Donation Report
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
+            Detailed Donation Report
+          </Typography>
+          <Button variant="outlined" onClick={() => navigate('/reports')}>
+            Back to Reports
+          </Button>
+        </Box>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
@@ -208,8 +225,8 @@ function DetailedDonationReport() {
           <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
-                Total: {reportData.total_count} donations |
-                Amount: ₹{new Intl.NumberFormat('en-IN').format(reportData.total_amount)}
+                Total: {totalCount} donations |
+                Amount: ₹{new Intl.NumberFormat('en-IN').format(totalAmount)}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <ExportButton onExport={handleExport} />
@@ -232,7 +249,7 @@ function DetailedDonationReport() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.donations.map((donation) => (
+                  {donationRows.map((donation) => (
                     <TableRow key={donation.id}>
                       <TableCell>{new Date(donation.date).toLocaleDateString()}</TableCell>
                       <TableCell>{donation.receipt_number}</TableCell>
