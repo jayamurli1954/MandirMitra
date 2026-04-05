@@ -361,7 +361,7 @@ function AccountingReports() {
             {trialBalance && (
               <>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Trial Balance as of {new Date(trialBalance.as_of_date).toLocaleDateString()}
+                  Trial Balance as of {new Date(trialBalance.as_of || trialBalance.as_of_date).toLocaleDateString()}
                 </Alert>
 
                 <TableContainer>
@@ -370,37 +370,37 @@ function AccountingReports() {
                       <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                         <TableCell><strong>Account Code</strong></TableCell>
                         <TableCell><strong>Account Name</strong></TableCell>
-                        <TableCell align="right"><strong>Debit (â‚¹)</strong></TableCell>
-                        <TableCell align="right"><strong>Credit (â‚¹)</strong></TableCell>
+                        <TableCell align="right"><strong>Debit (₹)</strong></TableCell>
+                        <TableCell align="right"><strong>Credit (₹)</strong></TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {safeArray(trialBalance?.accounts).map((account) => (
+                      {safeArray(trialBalance?.lines || trialBalance?.accounts).map((account) => (
                         <TableRow key={account.account_id}>
-                          <TableCell>{account.account_code}</TableCell>
-                          <TableCell>{account.account_name}</TableCell>
+                          <TableCell>{account.account_code ?? account.code ?? account.account_id}</TableCell>
+                          <TableCell>{account.account_name ?? account.name}</TableCell>
                           <TableCell align="right">
-                            {safeNumber(account.debit_balance) > 0 ? safeAmount(account.debit_balance) : '-'}
+                            {safeNumber(account.debit_total ?? account.debit_balance) > 0 ? safeAmount(account.debit_total ?? account.debit_balance) : '-'}
                           </TableCell>
                           <TableCell align="right">
-                            {safeNumber(account.credit_balance) > 0 ? safeAmount(account.credit_balance) : '-'}
+                            {safeNumber(account.credit_total ?? account.credit_balance) > 0 ? safeAmount(account.credit_total ?? account.credit_balance) : '-'}
                           </TableCell>
                         </TableRow>
                       ))}
                       <TableRow sx={{ bgcolor: '#FFF3E0', fontWeight: 'bold' }}>
                         <TableCell colSpan={2}><strong>TOTAL</strong></TableCell>
                         <TableCell align="right">
-                          <strong>â‚¹{safeAmount(trialBalance.total_debits)}</strong>
+                          <strong>₹{safeAmount(trialBalance.total_debit ?? trialBalance.total_debits)}</strong>
                         </TableCell>
                         <TableCell align="right">
-                          <strong>â‚¹{safeAmount(trialBalance.total_credits)}</strong>
+                          <strong>₹{safeAmount(trialBalance.total_credit ?? trialBalance.total_credits)}</strong>
                         </TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
 
-                {trialBalance.total_debits !== trialBalance.total_credits && (
+                {safeNumber(trialBalance.total_debit ?? trialBalance.total_debits) !== safeNumber(trialBalance.total_credit ?? trialBalance.total_credits) && (
                   <Alert severity="error" sx={{ mt: 2 }}>
                     Warning: Trial Balance is not balanced! Debits and Credits do not match.
                   </Alert>
@@ -429,7 +429,7 @@ function AccountingReports() {
                     </MenuItem>
                     {accounts.map((account) => (
                       <MenuItem key={account.id} value={account.id}>
-                        {account.account_code} - {account.account_name}
+                        {account.account_code ?? account.code ?? account.account_id} - {account.account_name ?? account.name}
                       </MenuItem>
                     ))}
                   </Select>
@@ -483,9 +483,9 @@ function AccountingReports() {
                         <TableCell><strong>Date</strong></TableCell>
                         <TableCell><strong>Entry #</strong></TableCell>
                         <TableCell><strong>Description</strong></TableCell>
-                        <TableCell align="right"><strong>Debit (â‚¹)</strong></TableCell>
-                        <TableCell align="right"><strong>Credit (â‚¹)</strong></TableCell>
-                        <TableCell align="right"><strong>Balance (â‚¹)</strong></TableCell>
+                        <TableCell align="right"><strong>Debit (₹)</strong></TableCell>
+                        <TableCell align="right"><strong>Credit (₹)</strong></TableCell>
+                        <TableCell align="right"><strong>Balance (₹)</strong></TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -493,7 +493,7 @@ function AccountingReports() {
                       <TableRow sx={{ bgcolor: '#FFF3E0' }}>
                         <TableCell colSpan={5}><strong>Opening Balance</strong></TableCell>
                         <TableCell align="right">
-                          <strong>â‚¹{safeAmount(ledger.opening_balance)}</strong>
+                          <strong>₹{safeAmount(ledger.opening_balance)}</strong>
                         </TableCell>
                       </TableRow>
 
@@ -517,7 +517,7 @@ function AccountingReports() {
                       <TableRow sx={{ bgcolor: '#FFF3E0' }}>
                         <TableCell colSpan={5}><strong>Closing Balance</strong></TableCell>
                         <TableCell align="right">
-                          <strong>â‚¹{safeAmount(ledger.closing_balance)}</strong>
+                          <strong>₹{safeAmount(ledger.closing_balance)}</strong>
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -554,16 +554,16 @@ function AccountingReports() {
                             <TableCell><strong>Date</strong></TableCell>
                             <TableCell><strong>Entry #</strong></TableCell>
                             <TableCell><strong>Description</strong></TableCell>
-                            <TableCell align="right"><strong>Debit (â‚¹)</strong></TableCell>
-                            <TableCell align="right"><strong>Credit (â‚¹)</strong></TableCell>
-                            <TableCell align="right"><strong>Balance (â‚¹)</strong></TableCell>
+                            <TableCell align="right"><strong>Debit (₹)</strong></TableCell>
+                            <TableCell align="right"><strong>Credit (₹)</strong></TableCell>
+                            <TableCell align="right"><strong>Balance (₹)</strong></TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
                           <TableRow sx={{ bgcolor: '#FFF3E0' }}>
                             <TableCell colSpan={5}><strong>Opening Balance</strong></TableCell>
                             <TableCell align="right">
-                              <strong>â‚¹{Number(accountLedger.opening_balance || 0).toFixed(2)}</strong>
+                              <strong>₹{safeAmount(accountLedger.opening_balance)}</strong>
                             </TableCell>
                           </TableRow>
 
@@ -585,7 +585,7 @@ function AccountingReports() {
                           <TableRow sx={{ bgcolor: '#FFF3E0' }}>
                             <TableCell colSpan={5}><strong>Closing Balance</strong></TableCell>
                             <TableCell align="right">
-                              <strong>â‚¹{Number(accountLedger.closing_balance || 0).toFixed(2)}</strong>
+                              <strong>₹{safeAmount(accountLedger.closing_balance)}</strong>
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -656,7 +656,7 @@ function AccountingReports() {
                             <TableRow key={`${group.category_name}-${acc.account_code}-${accIdx}`}>
                               <TableCell sx={{ pl: 4 }}>{acc.account_code}</TableCell>
                               <TableCell>{acc.account_name}</TableCell>
-                              <TableCell align="right">â‚¹{safeAmount(acc.amount)}</TableCell>
+                              <TableCell align="right">₹{safeAmount(acc.amount)}</TableCell>
                             </TableRow>
                           ))}
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
@@ -664,7 +664,7 @@ function AccountingReports() {
                               <strong>Total {group.category_name}</strong>
                             </TableCell>
                             <TableCell align="right">
-                              <strong>â‚¹{safeAmount(group.total)}</strong>
+                              <strong>₹{safeAmount(group.total)}</strong>
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -678,7 +678,7 @@ function AccountingReports() {
                       <Typography variant="h6"><strong>TOTAL INCOME</strong></Typography>
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                      <Typography variant="h6"><strong>â‚¹{safeAmount(profitLoss.total_income)}</strong></Typography>
+                      <Typography variant="h6"><strong>₹{safeAmount(profitLoss.total_income)}</strong></Typography>
                     </Grid>
                   </Grid>
                 </Box>
@@ -699,7 +699,7 @@ function AccountingReports() {
                             <TableRow key={`${group.category_name}-${acc.account_code}-${accIdx}`}>
                               <TableCell sx={{ pl: 4 }}>{acc.account_code}</TableCell>
                               <TableCell>{acc.account_name}</TableCell>
-                              <TableCell align="right">â‚¹{safeAmount(acc.amount)}</TableCell>
+                              <TableCell align="right">₹{safeAmount(acc.amount)}</TableCell>
                             </TableRow>
                           ))}
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
@@ -707,7 +707,7 @@ function AccountingReports() {
                               <strong>Total {group.category_name}</strong>
                             </TableCell>
                             <TableCell align="right">
-                              <strong>â‚¹{safeAmount(group.total)}</strong>
+                              <strong>₹{safeAmount(group.total)}</strong>
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -721,7 +721,7 @@ function AccountingReports() {
                       <Typography variant="h6"><strong>TOTAL EXPENSES</strong></Typography>
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                      <Typography variant="h6"><strong>â‚¹{safeAmount(profitLoss.total_expenses)}</strong></Typography>
+                      <Typography variant="h6"><strong>₹{safeAmount(profitLoss.total_expenses)}</strong></Typography>
                     </Grid>
                   </Grid>
                 </Box>
@@ -736,7 +736,7 @@ function AccountingReports() {
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
                       <Typography variant="h5">
-                        <strong>â‚¹{safeAmount(Math.abs(safeNumber(profitLoss.net_surplus)))}</strong>
+                        <strong>₹{safeAmount(Math.abs(safeNumber(profitLoss.net_surplus)))}</strong>
                       </Typography>
                     </Grid>
                   </Grid>
@@ -787,7 +787,7 @@ function AccountingReports() {
                   <br />
                   Period: {new Date(categoryIncome.from_date).toLocaleDateString()} to {new Date(categoryIncome.to_date).toLocaleDateString()}
                   <br />
-                  Total Income: â‚¹{safeAmount(categoryIncome.total_income)}
+                  Total Income: ₹{safeAmount(categoryIncome.total_income)}
                 </Alert>
 
                 {/* Donation Income */}
@@ -800,7 +800,7 @@ function AccountingReports() {
                       <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                         <TableCell><strong>Code</strong></TableCell>
                         <TableCell><strong>Category</strong></TableCell>
-                        <TableCell align="right"><strong>Amount (â‚¹)</strong></TableCell>
+                        <TableCell align="right"><strong>Amount (₹)</strong></TableCell>
                         <TableCell align="right"><strong>%</strong></TableCell>
                         <TableCell align="right"><strong>Transactions</strong></TableCell>
                       </TableRow>
@@ -810,7 +810,7 @@ function AccountingReports() {
                         <TableRow key={idx}>
                           <TableCell>{item.account_code}</TableCell>
                           <TableCell>{item.account_name}</TableCell>
-                          <TableCell align="right">â‚¹{safeAmount(item.amount)}</TableCell>
+                          <TableCell align="right">₹{safeAmount(item.amount)}</TableCell>
                           <TableCell align="right">{item.percentage}%</TableCell>
                           <TableCell align="right">{item.transaction_count}</TableCell>
                         </TableRow>
@@ -829,7 +829,7 @@ function AccountingReports() {
                       <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                         <TableCell><strong>Code</strong></TableCell>
                         <TableCell><strong>Seva Type</strong></TableCell>
-                        <TableCell align="right"><strong>Amount (â‚¹)</strong></TableCell>
+                        <TableCell align="right"><strong>Amount (₹)</strong></TableCell>
                         <TableCell align="right"><strong>%</strong></TableCell>
                         <TableCell align="right"><strong>Bookings</strong></TableCell>
                       </TableRow>
@@ -839,7 +839,7 @@ function AccountingReports() {
                         <TableRow key={idx}>
                           <TableCell>{item.account_code}</TableCell>
                           <TableCell>{item.account_name}</TableCell>
-                          <TableCell align="right">â‚¹{safeAmount(item.amount)}</TableCell>
+                          <TableCell align="right">₹{safeAmount(item.amount)}</TableCell>
                           <TableCell align="right">{item.percentage}%</TableCell>
                           <TableCell align="right">{item.transaction_count}</TableCell>
                         </TableRow>
@@ -860,7 +860,7 @@ function AccountingReports() {
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell><strong>Code</strong></TableCell>
                             <TableCell><strong>Category</strong></TableCell>
-                            <TableCell align="right"><strong>Amount (â‚¹)</strong></TableCell>
+                            <TableCell align="right"><strong>Amount (₹)</strong></TableCell>
                             <TableCell align="right"><strong>%</strong></TableCell>
                             <TableCell align="right"><strong>Transactions</strong></TableCell>
                           </TableRow>
@@ -870,7 +870,7 @@ function AccountingReports() {
                             <TableRow key={idx}>
                               <TableCell>{item.account_code}</TableCell>
                               <TableCell>{item.account_name}</TableCell>
-                              <TableCell align="right">â‚¹{safeAmount(item.amount)}</TableCell>
+                              <TableCell align="right">₹{safeAmount(item.amount)}</TableCell>
                               <TableCell align="right">{item.percentage}%</TableCell>
                               <TableCell align="right">{item.transaction_count}</TableCell>
                             </TableRow>
@@ -926,7 +926,7 @@ function AccountingReports() {
                   <br />
                   Period: {new Date(topDonors.from_date).toLocaleDateString()} to {new Date(topDonors.to_date).toLocaleDateString()}
                   <br />
-                  Total Donations: â‚¹{safeAmount(topDonors.total_amount)} from {topDonors.total_donors} donors
+                  Total Donations: ₹{safeAmount(topDonors.total_amount)} from {topDonors.total_donors} donors
                 </Alert>
 
                 <TableContainer>
@@ -935,7 +935,7 @@ function AccountingReports() {
                       <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                         <TableCell><strong>Rank</strong></TableCell>
                         <TableCell><strong>Devotee Name</strong></TableCell>
-                        <TableCell align="right"><strong>Total Donated (â‚¹)</strong></TableCell>
+                        <TableCell align="right"><strong>Total Donated (₹)</strong></TableCell>
                         <TableCell align="right"><strong>Donations</strong></TableCell>
                         <TableCell><strong>Last Donation</strong></TableCell>
                         <TableCell><strong>Categories</strong></TableCell>
@@ -964,7 +964,7 @@ function AccountingReports() {
                           <TableCell><strong>{donor.devotee_name}</strong></TableCell>
                           <TableCell align="right">
                             <Typography variant="h6" sx={{ color: '#FF9933' }}>
-                              â‚¹{safeAmount(donor.total_donated)}
+                              ₹{safeAmount(donor.total_donated)}
                             </Typography>
                           </TableCell>
                           <TableCell align="right">{donor.donation_count}</TableCell>
