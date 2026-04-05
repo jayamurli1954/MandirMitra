@@ -272,7 +272,7 @@ function ChartOfAccounts() {
       setInitializing(true);
       setMessage({ type: '', text: '' });
       const token = getAccessToken();
-      const response = await fetchWithApiFallback(`/api/v1/accounts/initialize-default`, {
+      const response = await fetchWithApiFallback(`/api/v1/accounts/import-legacy`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -281,17 +281,17 @@ function ChartOfAccounts() {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.detail || 'Failed to initialize default accounts');
+        throw new Error(data.detail || 'Failed to import legacy accounts');
       }
 
       setMessage({
         type: 'success',
-        text: `${data.message || 'Default accounts initialized'} (Created: ${data.created || 0}${typeof data.reactivated === 'number' ? `, Reactivated: ${data.reactivated}` : ''})`,
+        text: `${data.message || 'Legacy COA imported'} (Created: ${data.created || 0}${typeof data.reactivated === 'number' ? `, Reactivated: ${data.reactivated}` : ''})`,
       });
       await fetchAccounts();
     } catch (error) {
       console.error('Error initializing default accounts:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to initialize default accounts' });
+      setMessage({ type: 'error', text: error.message || 'Failed to import legacy accounts' });
     } finally {
       setInitializing(false);
     }
@@ -493,7 +493,7 @@ function ChartOfAccounts() {
               onClick={handleInitializeDefaults}
               disabled={initializing || loading}
             >
-              {initializing ? 'Initializing...' : 'Initialize Default Accounts'}
+              {initializing ? 'Importing...' : 'Import Legacy COA'}
             </Button>
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenAddDialog(true)}>
               Add Account
@@ -742,3 +742,4 @@ function ChartOfAccounts() {
 }
 
 export default ChartOfAccounts;
+
