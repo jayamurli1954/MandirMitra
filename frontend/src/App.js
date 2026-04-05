@@ -1,4 +1,4 @@
-﻿import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -6,6 +6,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import { LoadingProvider } from './contexts/LoadingContext';
 import { CurrentUserProvider } from './contexts/CurrentUserContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { clearAuthSession, getAccessToken } from './utils/authStorage';
 
 const Login = lazy(() => import('./pages/Login'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
@@ -42,6 +43,9 @@ const BankReconciliation = lazy(() => import('./pages/accounting/BankReconciliat
 const FinancialClosing = lazy(() => import('./pages/accounting/FinancialClosing'));
 const AccountingReports = lazy(() => import('./pages/accounting/AccountingReports'));
 
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const IDLE_CHECK_INTERVAL_MS = 15000;
+
 const theme = createTheme({
   palette: {
     primary: {
@@ -54,6 +58,60 @@ const theme = createTheme({
 });
 
 function App() {
+  useEffect(() => {
+    let lastActivityAt = Date.now();
+
+    const recordActivity = () => {
+      lastActivityAt = Date.now();
+    };
+
+    const performIdleLogout = () => {
+      if (!getAccessToken()) {
+        return;
+      }
+
+      clearAuthSession();
+      window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: { clear: true, reason: 'idle-timeout' } }));
+
+      if (window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
+    };
+
+    const checkIdle = () => {
+      if (!getAccessToken()) {
+        lastActivityAt = Date.now();
+        return;
+      }
+
+      if (Date.now() - lastActivityAt >= IDLE_TIMEOUT_MS) {
+        performIdleLogout();
+      }
+    };
+
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, recordActivity, { passive: true });
+    });
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        checkIdle();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    const intervalId = window.setInterval(checkIdle, IDLE_CHECK_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, recordActivity);
+      });
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -318,3 +376,5 @@ function App() {
 }
 
 export default App;
+
+

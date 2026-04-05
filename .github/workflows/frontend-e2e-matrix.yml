@@ -1,0 +1,72 @@
+name: Unified Frontend E2E Matrix
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-e2e-matrix.yml'
+      - 'docs/UNIFIED_E2E_MATRIX.md'
+
+jobs:
+  playwright-matrix:
+    name: "Playwright E2E (${{ matrix.app_name }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app_name: MandirMitra
+            app_variant: mandirmitra
+            frontend_url: ${{ vars.MANDIRMITRA_FRONTEND_URL }}
+          - app_name: LegalMitra
+            app_variant: legalmitra
+            frontend_url: ${{ vars.LEGALMITRA_FRONTEND_URL }}
+          - app_name: GruhaMitra
+            app_variant: gruhamitra
+            frontend_url: ${{ vars.GRUHAMITRA_FRONTEND_URL }}
+          - app_name: InvestMitra
+            app_variant: investmitra
+            frontend_url: ${{ vars.INVESTMITRA_FRONTEND_URL }}
+          - app_name: SharedFrontend
+            app_variant: shared
+            frontend_url: ${{ vars.SHARED_FRONTEND_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Skip empty matrix row
+        if: ${{ matrix.frontend_url == '' || vars.SANMITRA_BACKEND_URL == '' || secrets.E2E_TEST_USERNAME == '' || secrets.E2E_TEST_PASSWORD == '' }}
+        run: |
+          echo "Skipping ${{ matrix.app_name }} because one or more required settings are missing."
+
+      - name: Set up Node.js
+        if: ${{ matrix.frontend_url != '' && vars.SANMITRA_BACKEND_URL != '' && secrets.E2E_TEST_USERNAME != '' && secrets.E2E_TEST_PASSWORD != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install frontend dependencies
+        if: ${{ matrix.frontend_url != '' && vars.SANMITRA_BACKEND_URL != '' && secrets.E2E_TEST_USERNAME != '' && secrets.E2E_TEST_PASSWORD != '' }}
+        working-directory: frontend
+        run: npm install
+
+      - name: Install Playwright browsers
+        if: ${{ matrix.frontend_url != '' && vars.SANMITRA_BACKEND_URL != '' && secrets.E2E_TEST_USERNAME != '' && secrets.E2E_TEST_PASSWORD != '' }}
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: Run Playwright smoke
+        if: ${{ matrix.frontend_url != '' && vars.SANMITRA_BACKEND_URL != '' && secrets.E2E_TEST_USERNAME != '' && secrets.E2E_TEST_PASSWORD != '' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SKIP_WEBSERVER: '1'
+          PLAYWRIGHT_BASE_URL: ${{ matrix.frontend_url }}
+          PLAYWRIGHT_BACKEND_URL: ${{ vars.SANMITRA_BACKEND_URL }}
+          PLAYWRIGHT_TEST_USERNAME: ${{ secrets.E2E_TEST_USERNAME }}
+          PLAYWRIGHT_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+          PLAYWRIGHT_APP_NAME: ${{ matrix.app_name }}
+          PLAYWRIGHT_APP_VARIANT: ${{ matrix.app_variant }}
+        run: npm run test:e2e -- --project=chromium

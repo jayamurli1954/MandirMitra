@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -40,20 +40,16 @@ function DetailedDonationReport() {
   const [categories, setCategories] = useState([]);
   const [reportData, setReportData] = useState(null);
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await api.get('/api/v1/donations/categories/');
       setCategories(response.data.map(cat => cat.name));
     } catch (err) {
       console.error('Failed to load categories');
     }
-  };
+  }, []);
 
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -75,7 +71,12 @@ function DetailedDonationReport() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fromDate, toDate, categoryFilter, paymentModeFilter]);
+
+  useEffect(() => {
+    fetchCategories();
+    fetchReport();
+  }, [fetchCategories, fetchReport]);
 
   const handleDownloadReceipt = async (donationId, receiptNumber) => {
     try {

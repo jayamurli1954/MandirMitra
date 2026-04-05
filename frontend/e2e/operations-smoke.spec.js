@@ -1,5 +1,6 @@
 ﻿const { test, expect } = require('@playwright/test');
 const { login } = require('./support/auth');
+const { getUiProfile } = require('./support/uiProfile');
 
 async function openProtectedPage(page, path) {
   await page.goto(path);
@@ -13,35 +14,37 @@ test.describe('Operational page smoke checks', () => {
   });
 
   test('loads donation and seva workflows', async ({ page }) => {
+    const ui = getUiProfile();
     await openProtectedPage(page, '/donations');
-    await expect(page.getByText(/record donations/i)).toBeVisible();
-    await expect(page.getByText(/recent donations/i)).toBeVisible();
+    await expect(page.getByText(new RegExp(ui.recordDonationButtonName, 'i'))).toBeVisible();
+    await expect(page.getByText(new RegExp(ui.recentDonationsText, 'i'))).toBeVisible();
 
     await openProtectedPage(page, '/sevas');
-    await expect(page.getByRole('heading', { name: /sevas/i })).toBeVisible();
-    await expect(page.getByText(/bookings \/ reschedule/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /book now/i }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: new RegExp(ui.sevasHeading, 'i') })).toBeVisible();
+    await expect(page.getByText(new RegExp(ui.bookingsRescheduleText, 'i'))).toBeVisible();
+    await expect(page.getByRole('button', { name: new RegExp(ui.bookNowButtonName, 'i') }).first()).toBeVisible();
   });
 
   test('loads inventory, HR, reports, panchang, and payment pages', async ({ page }) => {
+    const ui = getUiProfile();
     await openProtectedPage(page, '/inventory');
     await expect(page.getByText(/current stock balances/i)).toBeVisible();
-    await page.getByRole('tab', { name: /item master/i }).click();
-    await expect(page.getByText(/item master register/i)).toBeVisible();
+    await page.getByRole('tab', { name: new RegExp(ui.itemMasterTabName, 'i') }).click();
+    await expect(page.getByText(new RegExp(ui.itemMasterRegisterText, 'i'))).toBeVisible();
 
     await openProtectedPage(page, '/hr');
-    await expect(page.getByText(/employee & priest directory/i)).toBeVisible();
-    await expect(page.getByRole('tab', { name: /payroll & salaries/i })).toBeVisible();
+    await expect(page.getByText(new RegExp(ui.employeeDirectoryText, 'i'))).toBeVisible();
+    await expect(page.getByRole('tab', { name: new RegExp(ui.payrollTabName, 'i') })).toBeVisible();
 
     await openProtectedPage(page, '/accounting/upi-payments');
-    await expect(page.getByRole('heading', { name: /upi payment logging/i })).toBeVisible();
-    await expect(page.getByText(/quick log upi payment/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: new RegExp(ui.upiHeading, 'i') })).toBeVisible();
+    await expect(page.getByText(new RegExp(ui.quickLogUpiText, 'i'))).toBeVisible();
 
     await openProtectedPage(page, '/accounting/reports');
-    await expect(page.getByRole('button', { name: /generate report/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: new RegExp(ui.generateReportButtonName, 'i') }).first()).toBeVisible();
 
     await openProtectedPage(page, '/panchang');
-    await expect(page.getByRole('heading', { name: "Today's Panchang", exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: new RegExp(ui.panchangHeading, 'i'), exact: true })).toBeVisible();
   });
 });
 

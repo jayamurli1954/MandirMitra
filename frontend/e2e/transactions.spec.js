@@ -1,5 +1,6 @@
 ﻿const { test, expect } = require('@playwright/test');
 const { login } = require('./support/auth');
+const { getUiProfile } = require('./support/uiProfile');
 
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -112,7 +113,8 @@ async function getDashboardSnapshot(page) {
 async function getTrialBalanceTotals(page) {
   await openProtectedPage(page, '/accounting/reports');
   const panel = activeTabPanel(page);
-  await panel.getByRole('button', { name: /generate report/i }).click();
+  const ui = getUiProfile();
+  await panel.getByRole('button', { name: new RegExp(ui.generateReportButtonName, 'i') }).click();
   await expect(panel.getByText(/trial balance as of/i)).toBeVisible();
 
   const totalRow = panel.getByRole('row').filter({ hasText: /^TOTAL/ }).last();
@@ -131,9 +133,10 @@ async function getTrialBalanceTotals(page) {
 }
 
 async function ensureDevoteeInBookingDialog(page, bookingDialog, phone, firstName, lastName) {
+  const ui = getUiProfile();
   await expect(bookingDialog.getByText(/step 1: enter devotee mobile number/i)).toBeVisible();
-  await bookingDialog.getByLabel(/mobile number/i).fill(phone);
-  await bookingDialog.getByRole('button', { name: /^search$/i }).click();
+  await bookingDialog.getByLabel(new RegExp(ui.mobileNumberLabel, 'i')).fill(phone);
+  await bookingDialog.getByRole('button', { name: new RegExp(ui.searchButtonName, 'i') }).click();
 
   await expect
     .poll(async () => {
@@ -147,7 +150,7 @@ async function ensureDevoteeInBookingDialog(page, bookingDialog, phone, firstNam
   if (needsCreate) {
     await bookingDialog.getByLabel(/first name/i).fill(firstName);
     await bookingDialog.getByLabel(/^last name$/i).fill(lastName);
-    await bookingDialog.getByRole('button', { name: /create & continue/i }).click();
+    await bookingDialog.getByRole('button', { name: new RegExp(ui.createContinueButtonName, 'i') }).click();
   }
 
   await expect(bookingDialog.getByText(/devotee found!/i)).toBeVisible();
@@ -155,17 +158,19 @@ async function ensureDevoteeInBookingDialog(page, bookingDialog, phone, firstNam
 }
 
 async function getAvailableSevaCard(page) {
+  const ui = getUiProfile();
   return page
     .getByText(/^Available Today$/)
     .first()
-    .locator('xpath=ancestor::*[.//button[normalize-space()="Book Now"]][1]');
+    .locator(`xpath=ancestor::*[.//button[normalize-space()="${ui.bookNowButtonName}"]][1]`);
 }
 
 async function getUnavailableSevaCard(page) {
+  const ui = getUiProfile();
   return page
     .getByText(/^Not Available Today$/)
     .first()
-    .locator('xpath=ancestor::*[.//button[normalize-space()="Book Now"]][1]');
+    .locator(`xpath=ancestor::*[.//button[normalize-space()="${ui.bookNowButtonName}"]][1]`);
 }
 
 test.describe('Transactional E2E coverage', () => {
@@ -179,13 +184,14 @@ test.describe('Transactional E2E coverage', () => {
     const sevaAmount = 6200 + (Date.now() % 200);
     const uniquePhone = `9${String(Date.now()).slice(-9)}`;
     const today = new Date().toISOString().split('T')[0];
+    const ui = getUiProfile();
 
     await login(page);
 
     const trialBalanceBefore = await getTrialBalanceTotals(page);
 
     await openProtectedPage(page, '/dashboard');
-    await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: new RegExp(ui.dashboardHeading, 'i') })).toBeVisible();
     const dashboardBefore = await getDashboardSnapshot(page);
 
     await page.getByLabel(/phone number/i).fill(uniquePhone);
@@ -222,9 +228,9 @@ test.describe('Transactional E2E coverage', () => {
     });
 
     await openProtectedPage(page, '/sevas');
-    await expect(page.getByRole('heading', { name: /sevas/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: new RegExp(ui.sevasHeading, 'i') })).toBeVisible();
     const availableSevaCard = await getAvailableSevaCard(page);
-    await availableSevaCard.getByRole('button', { name: /book now/i }).click();
+    await availableSevaCard.getByRole('button', { name: new RegExp(ui.bookNowButtonName, 'i') }).click();
 
     const bookingDialog = page.getByRole('dialog');
     await ensureDevoteeInBookingDialog(page, bookingDialog, uniquePhone, firstName, lastName);
@@ -240,7 +246,7 @@ test.describe('Transactional E2E coverage', () => {
     await expect(bookingDialog).toBeHidden({ timeout: 7000 });
 
     await openProtectedPage(page, '/dashboard');
-    await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: new RegExp(ui.dashboardHeading, 'i') })).toBeVisible();
 
     await expect.poll(async () => (await readDashboardCardByTitle(page, "Today's Donation")).amount).toBe(
       dashboardBefore.donationToday.amount + donationAmount
@@ -272,14 +278,14 @@ test.describe('Transactional E2E coverage', () => {
     expect(trialBalanceAfter.debit).toBeCloseTo(trialBalanceBefore.debit + totalIncrease, 2);
     expect(trialBalanceAfter.credit).toBeCloseTo(trialBalanceBefore.credit + totalIncrease, 2);
 
-    await page.getByRole('tab', { name: /account ledger/i }).click();
+    await page.getByRole('tab', { name: new RegExp(ui.accountLedgerTabName, 'i') }).click();
     const ledgerPanel = activeTabPanel(page);
     const ledgerAccountSelect = ledgerPanel.getByRole('combobox').first();
     await ledgerAccountSelect.click();
     await page.getByRole('option', { name: new RegExp(`^${escapeRegex(cashAccountLabel)}$`) }).click();
     await ledgerPanel.getByLabel(/^from date$/i).fill(today);
     await ledgerPanel.getByLabel(/^to date$/i).fill(today);
-    await ledgerPanel.getByRole('button', { name: /view ledger/i }).click();
+    await ledgerPanel.getByRole('button', { name: new RegExp(ui.viewLedgerButtonName, 'i') }).click();
 
     await expect(ledgerPanel.getByText(/opening balance/i)).toBeVisible();
     await expect(ledgerPanel.getByText(new RegExp(`^${escapeRegex(donationAmount.toFixed(2))}$`)).first()).toBeVisible();
@@ -294,13 +300,14 @@ test.describe('Transactional E2E coverage', () => {
     const firstName = `PWB${uniqueSuffix}`;
     const lastName = 'Blocked';
     const uniquePhone = `8${String(Date.now()).slice(-9)}`;
+    const ui = getUiProfile();
 
     await login(page);
     await openProtectedPage(page, '/sevas');
-    await expect(page.getByRole('heading', { name: /sevas/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: new RegExp(ui.sevasHeading, 'i') })).toBeVisible();
 
     const unavailableSevaCard = await getUnavailableSevaCard(page);
-    await unavailableSevaCard.getByRole('button', { name: /book now/i }).click();
+    await unavailableSevaCard.getByRole('button', { name: new RegExp(ui.bookNowButtonName, 'i') }).click();
 
     const bookingDialog = page.getByRole('dialog');
     await expect(bookingDialog.getByText(/not available today/i)).toBeVisible();

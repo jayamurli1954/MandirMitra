@@ -1,4 +1,5 @@
-﻿const { expect } = require('@playwright/test');
+const { expect } = require('@playwright/test');
+const { getUiProfile } = require('./uiProfile');
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -9,14 +10,15 @@ function requireEnv(name) {
 }
 
 async function login(page) {
+  const ui = getUiProfile();
   const username = requireEnv('PLAYWRIGHT_TEST_USERNAME');
   const password = requireEnv('PLAYWRIGHT_TEST_PASSWORD');
 
   await page.goto('/login');
-  await expect(page.getByLabel(/email address/i)).toBeVisible();
-  await page.getByLabel(/email address/i).fill(username);
-  await page.locator('#password').fill(password);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await expect(page.getByLabel(new RegExp(ui.loginEmailLabel, 'i'))).toBeVisible();
+  await page.getByLabel(new RegExp(ui.loginEmailLabel, 'i')).fill(username);
+  await page.locator(ui.loginPasswordSelector).fill(password);
+  await page.getByRole('button', { name: new RegExp(ui.loginButtonName, 'i') }).click();
 
   await page.waitForURL(/\/brand-intro|\/dashboard|\/setup-wizard/, { timeout: 30000 });
 
@@ -31,9 +33,7 @@ async function login(page) {
   }
 
   await expect(page).toHaveURL(/\/dashboard/);
-  await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: new RegExp(ui.dashboardHeading, 'i') })).toBeVisible();
 }
 
 module.exports = { login };
-
-

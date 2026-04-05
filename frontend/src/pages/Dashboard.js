@@ -398,18 +398,16 @@ function Dashboard() {
 
     try {
       setPincodeLoading(true);
-      // Using Indian Postal PIN code API
-      const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
-      const data = await response.json();
+      const response = await api.get('/api/v1/pincode/lookup', {
+        params: { pincode },
+      });
 
-      if (data && data[0] && data[0].Status === 'Success' && data[0].PostOffice && data[0].PostOffice.length > 0) {
-        const postOffice = data[0].PostOffice[0];
-        setDonationForm(prev => ({
-          ...prev,
-          city: postOffice.District || postOffice.Name || '',
-          state: postOffice.State || '',
-        }));
-      }
+      const lookup = response.data || {};
+      setDonationForm((prev) => ({
+        ...prev,
+        city: lookup.found ? (lookup.city || lookup.district || '') : '',
+        state: lookup.found ? (lookup.state || '') : '',
+      }));
     } catch (err) {
       console.error('Error fetching PIN code details:', err);
       // Don't show error to user, just silently fail
