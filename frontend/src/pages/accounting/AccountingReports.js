@@ -92,7 +92,7 @@ function AccountingReports() {
       const token = getAccessToken();
       const asOfDate = toDate.toISOString().split('T')[0];
       const response = await fetchWithApiFallback(
-        `/api/v1/journal-entries/reports/trial-balance?as_of_date=${asOfDate}`,
+        `/api/v1/journal-entries/reports/trial-balance?as_of=${asOfDate}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -132,7 +132,7 @@ function AccountingReports() {
         let candidateAccounts = accounts;
         try {
           const tbResponse = await fetchWithApiFallback(
-            `/api/v1/journal-entries/reports/trial-balance?as_of_date=${toDateStr}`,
+            `/api/v1/journal-entries/reports/trial-balance?as_of=${toDateStr}`,
             {
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -1023,6 +1023,7 @@ function AccountingReports() {
 }
 
 export default AccountingReports;
+
 
 
 
