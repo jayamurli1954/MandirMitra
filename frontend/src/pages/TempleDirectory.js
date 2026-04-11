@@ -18,7 +18,6 @@ import {
   Typography,
 } from '@mui/material';
 import TempleHinduIcon from '@mui/icons-material/TempleHindu';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import AddBusinessIcon from '@mui/icons-material/AddBusiness';
 import { Navigate, useNavigate } from 'react-router-dom';
@@ -66,11 +65,6 @@ function TempleDirectory() {
     fetchData();
   }, [fetchData]);
 
-  const handleOpenTemple = (templeId) => {
-    setActiveTempleId(templeId);
-    emitActiveTempleChanged(templeId);
-    navigate('/settings');
-  };
 
   const handleDeactivateTemple = async (temple) => {
     const label = getDisplayName(temple);
@@ -194,7 +188,7 @@ function TempleDirectory() {
 
         {approvalSummary && (
           <Alert severity="success" sx={{ mb: 3 }}>
-            Approved request for {approvalSummary.admin_email}. Temporary password: <strong>{approvalSummary.temporary_password}</strong>. {approvalSummary.email_sent ? 'Activation email sent.' : 'Email service is not configured, so share the password manually.'}
+            Approved request for {approvalSummary.admin_email}. Temporary password: <strong>{approvalSummary.temporary_password}</strong>. {approvalSummary.email_sent ? 'Activation email sent.' : approvalSummary.email_error ? `Activation email could not be sent (${approvalSummary.email_error}). Share the password manually.` : 'Share the password manually.'}
           </Alert>
         )}
 
@@ -329,9 +323,6 @@ function TempleDirectory() {
                             </TableCell>
                             <TableCell align="right">
                               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
-                                <Button size="small" variant="outlined" endIcon={<OpenInNewIcon />} onClick={() => handleOpenTemple(temple.id)}>
-                                  Open
-                                </Button>
                                 {temple.is_active === false ? (
                                   <Button
                                     size="small"

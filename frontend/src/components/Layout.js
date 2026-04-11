@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 import {
@@ -183,7 +183,7 @@ function Layout({ children }) {
   };
 
   const isFeatureEnabled = (moduleFlag) => (!moduleFlag ? true : Boolean(moduleConfig[moduleFlag]));
-  const isSevaManager = !currentUserLoading && (hasActionAccess('manage_seva_master') || ['admin', 'super_admin', 'temple_manager'].includes(systemRole) || Boolean(userInfo.is_superuser));
+  const isSevaManager = !currentUserLoading && (hasActionAccess('manage_seva_master') || ['admin', 'tenant_admin', 'temple_admin', 'super_admin', 'temple_manager'].includes(systemRole) || Boolean(userInfo.is_superuser));
   const canApproveReschedule = hasActionAccess('approve_seva_reschedule') || isSevaManager;
 
   const visibleSevaMenuItems = sevaMenuItems.filter((item) => {
@@ -229,32 +229,13 @@ function Layout({ children }) {
         }
 
         if (isPlatformSuperAdmin) {
-          const demoEditableTemples = templeList.filter((temple) => Boolean(temple?.platform_can_write));
-          const selectableTemples = demoEditableTemples.length > 0 ? demoEditableTemples : templeList;
-          const selectedTemple = activeTempleId
-            ? selectableTemples.find((temple) => Number(temple.id) === Number(activeTempleId))
-            : null;
-
-          if (!selectedTemple && selectableTemples.length > 0) {
-            const preferredTempleId = Number(selectableTemples[0].id);
-            setActiveTempleId(preferredTempleId);
-            setActiveTempleState(preferredTempleId);
-            emitActiveTempleChanged(preferredTempleId);
-            const normalizedPreferred = { ...DEFAULT_MODULE_CONFIG, ...selectableTemples[0] };
-            setModuleConfig(normalizedPreferred);
-            writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalizedPreferred);
-            return;
-          }
-
-          if (!selectedTemple && activeTempleId) {
+          if (activeTempleId) {
             setActiveTempleId(null);
             setActiveTempleState(null);
             emitActiveTempleChanged(null);
           }
-
-          const normalized = selectedTemple ? { ...DEFAULT_MODULE_CONFIG, ...selectedTemple } : DEFAULT_MODULE_CONFIG;
-          setModuleConfig(normalized);
-          writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalized);
+          setModuleConfig(DEFAULT_MODULE_CONFIG);
+          writeLayoutCache(MODULE_CONFIG_CACHE_KEY, DEFAULT_MODULE_CONFIG);
           return;
         }
 
@@ -316,14 +297,18 @@ function Layout({ children }) {
     navigate('/login');
   };
 
+  const isPlatformConsole = isPlatformSuperAdmin && !activeTempleId;
   const visibleMenuItems = menuItems.filter((item) => {
     if (item.superAdminOnly && !isPlatformSuperAdmin) {
       return false;
     }
+    if (isPlatformConsole && item.text !== 'Dashboard' && item.text !== 'Platform Operations') {
+      return false;
+    }
     return isFeatureEnabled(item.moduleFlag) && hasModuleAccess(item.permissionKey);
   });
-  const showSevaSection = isFeatureEnabled('module_sevas_enabled') && hasModuleAccess('sevas');
-  const showAccountingSection = isFeatureEnabled('module_accounting_enabled') && hasModuleAccess('accounting');
+  const showSevaSection = !isPlatformConsole && isFeatureEnabled('module_sevas_enabled') && hasModuleAccess('sevas');
+  const showAccountingSection = !isPlatformConsole && isFeatureEnabled('module_accounting_enabled') && hasModuleAccess('accounting');
 
   const navigateTo = (path) => {
     const destination = path === '/dashboard' && isPlatformSuperAdmin && !activeTempleId ? '/platform/operations' : path;
@@ -364,7 +349,7 @@ function Layout({ children }) {
   const selectedTemple = activeTempleId
     ? visibleTemples.find((temple) => Number(temple.id) === Number(activeTempleId))
     : null;
-  const showTempleSwitcher = isPlatformSuperAdmin && visibleTemples.length > 0;
+  const showTempleSwitcher = false;
   const currentTempleLabel = selectedTemple
     ? (selectedTemple.name || selectedTemple.trust_name || 'MandirMitra')
     : (isPlatformSuperAdmin ? 'Platform Admin Console' : (moduleConfig?.name || moduleConfig?.trust_name || 'MandirMitra'));
