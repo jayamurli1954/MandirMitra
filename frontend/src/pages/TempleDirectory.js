@@ -28,7 +28,18 @@ import { readStoredUser } from '../utils/authStorage';
 import { setActiveTempleId, emitActiveTempleChanged } from '../utils/activeTemple';
 
 const getDisplayName = (temple) => temple?.name || temple?.trust_name || `Temple ${temple?.id || ''}`;
-const getRequestId = (request) => String(request?.id || request?.request_id || '').trim();
+const getRequestIdCandidates = (request) => {
+  const candidates = [
+    request?.request_id,
+    request?.onboarding_request_id,
+    request?.id,
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  return Array.from(new Set(candidates));
+};
+
+const getRequestId = (request) => getRequestIdCandidates(request)[0] || '';
 
 function TempleDirectory() {
   const navigate = useNavigate();
@@ -162,8 +173,8 @@ function TempleDirectory() {
   };
 
   const handleResendCredentials = async (request, temple) => {
-    const requestId = getRequestId(request);
-    if (!requestId) {
+    const requestIds = getRequestIdCandidates(request);
+    if (requestIds.length === 0) {
       showError('No approved onboarding request found for this temple.');
       return;
     }
@@ -175,8 +186,23 @@ function TempleDirectory() {
     }
 
     try {
-      setResendLoadingRequestId(requestId);
-      const response = await api.post(`/api/v1/onboarding-requests/${requestId}/resend-credentials`, {});
+      setResendLoadingRequestId(requestIds[0]);
+      let response = null;
+      let lastError = null;
+      for (const requestId of requestIds) {
+        try {
+          response = await api.post(`/api/v1/onboarding-requests/${requestId}/resend-credentials`, {});
+          break;
+        } catch (error) {
+          lastError = error;
+          if (error?.response?.status !== 404) {
+            throw error;
+          }
+        }
+      }
+      if (!response) {
+        throw lastError || new Error('Failed to resend onboarding email');
+      }
       setApprovalSummary({ ...(response.data || {}), _action: 'resent' });
       if (response.data?.email_sent) {
         showSuccess(`Onboarding email re-sent to ${response.data.admin_email}`);
@@ -426,3 +452,6 @@ function TempleDirectory() {
 }
 
 export default TempleDirectory;
+
+
+

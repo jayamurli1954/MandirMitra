@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Container,
   Paper,
@@ -85,6 +85,18 @@ function Login() {
 
   useEffect(() => {
     clearTenantInactiveReason();
+
+    // Warm backend early so users are less likely to hit cold-start failures on first login attempt.
+    fetchWithApiFallback('/health', {
+      method: 'GET',
+      cache: 'no-store',
+    }, {
+      timeoutMs: 12000,
+      maxAttemptsPerOrigin: 2,
+      retryDelayMs: 1000,
+    }).catch(() => {
+      // Ignore here; explicit login action handles user-facing errors.
+    });
   }, []);
 
   const handleClickShowPassword = () => setShowPassword(!showPassword);
@@ -214,10 +226,10 @@ function Login() {
       console.error('Login error:', err);
       if (err?.name === 'AbortError') {
         setError('Login timed out after retry. Render cold starts can take up to 1-2 minutes. Please wait 30 seconds and try again.');
-      } else if (err instanceof TypeError) {
-        setError('Cannot connect to backend server. Please check the backend URL, Render service status, and CORS settings.');
+      } else if (typeof err?.message === 'string' && err.message.trim()) {
+        setError(err.message);
       } else {
-        setError(err.message || 'Login failed. Please check your credentials.');
+        setError('Cannot connect to backend server right now. Please wait 30-60 seconds and try again.');
       }
     } finally {
       setLoading(false);
@@ -434,4 +446,6 @@ function Login() {
 }
 
 export default Login;
+
+
 
