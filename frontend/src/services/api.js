@@ -33,6 +33,16 @@ const shouldSkipRefresh = (config) => {
   return url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/logout');
 };
 
+const isRefreshAuthFailure = (error) => {
+  const status = Number(error?.response?.status);
+  if (status === 401 || status === 403) {
+    return true;
+  }
+
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('missing refresh token') || message.includes('refresh response missing access token');
+};
+
 const forceLogout = (reason = 'unauthorized') => {
   clearAuthSession();
   window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: { clear: true, reason } }));
@@ -111,15 +121,24 @@ api.interceptors.response.use(
     const originalRequest = error.config || {};
 
     if (status === 401) {
-      if (!originalRequest._retry && !shouldSkipRefresh(originalRequest)) {
+      if (shouldSkipRefresh(originalRequest)) {
+        return Promise.reject(error);
+      }
+
+      if (!originalRequest._retry) {
         originalRequest._retry = true;
         try {
           const newAccessToken = await requestTokenRefresh();
           originalRequest.headers = buildActiveTempleHeaders(originalRequest.headers || {});
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return api(originalRequest);
-        } catch (_refreshError) {
-          forceLogout('unauthorized');
+        } catch (refreshError) {
+          if (isRefreshAuthFailure(refreshError)) {
+            forceLogout('unauthorized');
+          } else {
+            error.userMessage = 'Session refresh is temporarily unavailable. Please retry.';
+            return Promise.reject(error);
+          }
         }
       } else {
         forceLogout('unauthorized');

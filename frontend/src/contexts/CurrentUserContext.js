@@ -1,11 +1,21 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
-import { clearAuthSession, getAccessToken, readStoredUser, writeStoredUser, clearStoredUser } from '../utils/authStorage';
+import {
+  clearAuthSession,
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+  readStoredUser,
+  writeStoredUser,
+  clearStoredUser,
+} from '../utils/authStorage';
 
 const LAYOUT_CACHE_TTL_MS = 2 * 60 * 1000;
 const USER_PROFILE_CACHE_KEY = 'layout_user_profile_cache_v1';
+const AUTH_REFRESH_ENDPOINTS = ['/api/v1/auth/refresh', '/api/auth/refresh'];
 
-const isAuthFailureStatus = (status) => status === 401 || status === 403;
+const isAuthFailureStatus = (status) => status === 401;
 
 const CurrentUserContext = createContext({
   user: {},
@@ -96,19 +106,73 @@ export function CurrentUserProvider({ children }) {
   }, []);
 
   const refreshUser = useCallback(async () => {
-    const token = getAccessToken();
+    let token = getAccessToken();
     if (!token) {
       clearUser();
       return {};
     }
 
+    const tryRefreshToken = async () => {
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) {
+        return null;
+      }
+
+      let lastRefreshError = null;
+      for (const endpoint of AUTH_REFRESH_ENDPOINTS) {
+        const refreshResponse = await fetchWithApiFallback(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        }, { timeoutMs: 12000, maxAttemptsPerOrigin: 1 });
+
+        if (refreshResponse.ok) {
+          const payload = await refreshResponse.json();
+          if (!payload?.access_token) {
+            throw new Error('Refresh response missing access token');
+          }
+          setAccessToken(payload.access_token);
+          setRefreshToken(payload.refresh_token || refreshToken);
+          return payload.access_token;
+        }
+
+        if ([404, 405].includes(Number(refreshResponse.status))) {
+          lastRefreshError = new Error('Refresh endpoint not found');
+          continue;
+        }
+
+        lastRefreshError = new Error('Refresh request failed');
+        lastRefreshError.status = refreshResponse.status;
+        break;
+      }
+
+      if (lastRefreshError) {
+        throw lastRefreshError;
+      }
+      return null;
+    };
+
     setLoading(true);
     try {
-      const response = await fetchWithApiFallback('/api/v1/users/me', {
+      let response = await fetchWithApiFallback('/api/v1/users/me', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       }, { timeoutMs: 12000 });
+
+      if (response.status === 401) {
+        const refreshedToken = await tryRefreshToken();
+        if (refreshedToken) {
+          token = refreshedToken;
+          response = await fetchWithApiFallback('/api/v1/users/me', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }, { timeoutMs: 12000 });
+        }
+      }
 
       if (!response.ok) {
         const error = new Error('Failed to load current user');
