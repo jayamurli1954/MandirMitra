@@ -48,6 +48,7 @@ import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { useCurrentUser } from '../contexts/CurrentUserContext';
 import { clearAuthSession, getAccessToken, hasAccessToken } from '../utils/authStorage';
+import { useTranslation } from 'react-i18next';
 import {
   ACTIVE_TEMPLE_EVENT,
   getActiveTempleId,
@@ -103,6 +104,11 @@ const DEFAULT_MODULE_CONFIG = {
 
 const LAYOUT_CACHE_TTL_MS = 2 * 60 * 1000;
 const MODULE_CONFIG_CACHE_KEY = 'layout_module_config_cache_v1';
+const LANGUAGE_OPTIONS = [
+  { code: 'en', label: 'EN' },
+  { code: 'kn', label: 'ಕನ್ನಡ' },
+  { code: 'hi', label: 'हिन्दी' },
+];
 
 const readLayoutCache = (key) => {
   try {
@@ -135,6 +141,7 @@ const writeLayoutCache = (key, value, ttlMs = LAYOUT_CACHE_TTL_MS) => {
 };
 
 function Layout({ children }) {
+  const { t, i18n } = useTranslation();
   const { user, clearUser, loading: currentUserLoading } = useCurrentUser();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(true);
@@ -198,7 +205,7 @@ function Layout({ children }) {
     return true;
   });
 
-  const displayName = userInfo.full_name || userInfo.name || (userInfo.email ? userInfo.email.split('@')[0] : '') || 'Admin';
+  const displayName = userInfo.full_name || userInfo.name || (userInfo.email ? userInfo.email.split('@')[0] : '') || t('common.user');
 
   useEffect(() => {
     const fetchTempleInfo = async () => {
@@ -301,6 +308,13 @@ function Layout({ children }) {
   const handleProfileClick = () => navigate('/profile');
   const handleDrawerToggle = () => setMobileOpen((prev) => !prev);
   const handleGoToDashboard = () => navigateTo('/dashboard');
+  const handleLanguageChange = (event) => {
+    const languageCode = String(event.target.value || 'en').trim();
+    if (!languageCode) {
+      return;
+    }
+    i18n.changeLanguage(languageCode);
+  };
 
   const handleLogout = () => {
     clearAuthSession();
@@ -359,8 +373,8 @@ function Layout({ children }) {
     : null;
   const showTempleSwitcher = false;
   const currentTempleLabel = selectedTemple
-    ? (selectedTemple.name || selectedTemple.trust_name || 'MandirMitra')
-    : (isPlatformSuperAdmin ? 'Platform Admin Console' : (moduleConfig?.name || moduleConfig?.trust_name || 'MandirMitra'));
+    ? (selectedTemple.name || selectedTemple.trust_name || t('layout.defaultTenant'))
+    : (isPlatformSuperAdmin ? t('layout.platformAdminConsole') : (moduleConfig?.name || moduleConfig?.trust_name || t('layout.defaultTenant')));
 
   const drawer = (
     <Box sx={{ height: '100%', overflowY: 'auto' }}>
@@ -370,7 +384,7 @@ function Layout({ children }) {
         <>
           <Box sx={{ px: 2, py: 1.5 }}>
             <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-              Active Tenant
+              {t('layout.activeTenant')}
             </Typography>
             <FormControl fullWidth size="small" sx={{ mt: 0.7 }}>
               <Select
@@ -379,13 +393,13 @@ function Layout({ children }) {
                 displayEmpty
                 renderValue={(value) => {
                   if (!value) {
-                    return 'Platform Console (no tenant selected)';
+                    return t('layout.platformConsole');
                   }
                   const matchedTemple = visibleTemples.find((temple) => String(temple.id) === String(value));
                   return matchedTemple?.name || matchedTemple?.trust_name || `Temple ${value}`;
                 }}
               >
-                <MenuItem value="">Platform Console (no tenant selected)</MenuItem>
+                <MenuItem value="">{t('layout.platformConsole')}</MenuItem>
                 {visibleTemples.map((temple) => (
                   <MenuItem key={temple.id} value={String(temple.id)}>
                     {temple.name || temple.trust_name || `Temple ${temple.id}`}
@@ -507,7 +521,7 @@ function Layout({ children }) {
                 {currentTempleLabel}
               </Typography>
               <Typography variant="caption" sx={{ display: { xs: 'none', md: 'block' }, color: 'rgba(255,255,255,0.95)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {selectedTemple ? 'Temple / Trust Management & Accounting System' : 'Platform tenant onboarding, approval, and tenant oversight'}
+                {selectedTemple ? t('layout.templeSubtitle') : t('layout.platformSubtitle')}
               </Typography>
               {showTempleSwitcher && (
                 <FormControl variant="standard" size="small" sx={{ display: { xs: 'none', md: 'block' }, mt: 0.5, minWidth: { sm: 220, md: 260 }, '& .MuiInputBase-root': { color: '#fff', fontSize: 14, fontWeight: 600 }, '& .MuiSvgIcon-root': { color: '#fff' }, '& .MuiInput-underline:before': { borderBottomColor: 'rgba(255,255,255,0.55)' }, '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: '#fff' }, '& .MuiInput-underline:after': { borderBottomColor: '#fff' } }}>
@@ -518,13 +532,13 @@ function Layout({ children }) {
                     displayEmpty
                     renderValue={(value) => {
                       if (!value) {
-                        return 'Platform Console (no tenant selected)';
+                        return t('layout.platformConsole');
                       }
                       const matchedTemple = visibleTemples.find((temple) => String(temple.id) === String(value));
                       return matchedTemple?.name || matchedTemple?.trust_name || `Temple ${value}`;
                     }}
                   >
-                    <MenuItem value="">Platform Console (no tenant selected)</MenuItem>
+                    <MenuItem value="">{t('layout.platformConsole')}</MenuItem>
                     {visibleTemples.map((temple) => (
                       <MenuItem key={temple.id} value={String(temple.id)}>
                         {temple.name || temple.trust_name || `Temple ${temple.id}`}
@@ -535,8 +549,37 @@ function Layout({ children }) {
               )}
             </Box>
           </Box>
-
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.2, sm: 0.8 }, ml: 'auto', flexShrink: 0 }}>
+            <FormControl
+              size="small"
+              sx={{
+                minWidth: { xs: 72, sm: 96 },
+                mr: { xs: 0.2, sm: 0.4 },
+                '& .MuiOutlinedInput-root': {
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: { xs: 12, sm: 13 },
+                  '& fieldset': { borderColor: 'rgba(255,255,255,0.7)' },
+                  '&:hover fieldset': { borderColor: '#fff' },
+                  '&.Mui-focused fieldset': { borderColor: '#fff' },
+                },
+                '& .MuiSvgIcon-root': { color: '#fff' },
+              }}
+            >
+              <Select
+                value={i18n.resolvedLanguage || i18n.language || 'en'}
+                onChange={handleLanguageChange}
+                size="small"
+                displayEmpty
+                inputProps={{ 'aria-label': t('layout.language') }}
+              >
+                {LANGUAGE_OPTIONS.map((language) => (
+                  <MenuItem key={language.code} value={language.code}>
+                    {language.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <IconButton
               color="inherit"
               onClick={handleGoToDashboard}
@@ -552,7 +595,7 @@ function Layout({ children }) {
               onClick={handleGoToDashboard}
               sx={{ display: { xs: 'none', sm: 'inline-flex' }, textTransform: 'none', fontWeight: 700, minWidth: 0, px: { sm: 1.2 } }}
             >
-              Dashboard
+              {t('layout.dashboard')}
             </Button>
             <Button color="inherit" onClick={handleProfileClick} sx={{ display: { xs: 'none', md: 'inline-flex' }, textTransform: 'none', fontWeight: 700, minWidth: 0, px: { md: 1.2 } }}>
               {displayName}
@@ -570,7 +613,7 @@ function Layout({ children }) {
               <LogoutIcon fontSize="small" />
             </IconButton>
             <Button color="inherit" startIcon={<LogoutIcon />} onClick={handleLogout} sx={{ display: { xs: 'none', sm: 'inline-flex' }, textTransform: 'none', fontWeight: 700, px: { sm: 1.2 } }}>
-              Logout
+              {t('layout.logout')}
             </Button>
           </Box>
         </Toolbar>
@@ -592,5 +635,3 @@ function Layout({ children }) {
 }
 
 export default Layout;
-
-

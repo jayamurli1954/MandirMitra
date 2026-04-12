@@ -14,6 +14,7 @@ import {
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
@@ -36,6 +37,7 @@ const splitName = (fullName = '') => {
 function Profile() {
   const { showSuccess, showError } = useNotification();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -80,14 +82,14 @@ function Profile() {
           mustChangePassword: Boolean(data.must_change_password),
         });
       } catch (err) {
-        showError(err.userMessage || 'Failed to load profile');
+        showError(err.userMessage || t('profile.messages.loadFailed'));
       } finally {
         setLoading(false);
       }
     };
 
     fetchProfile();
-  }, [showError]);
+  }, [showError, t]);
 
   const handleSaveProfile = async () => {
     if (!profile.id) {
@@ -95,7 +97,7 @@ function Profile() {
     }
 
     if (!profile.firstName.trim()) {
-      showError('First name is required');
+      showError(t('profile.messages.firstNameRequired'));
       return;
     }
 
@@ -131,9 +133,9 @@ function Profile() {
       writeStoredUser(normalizedUser);
       window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: normalizedUser }));
 
-      showSuccess('Profile updated successfully');
+      showSuccess(t('profile.messages.profileUpdated'));
     } catch (err) {
-      showError(err.userMessage || 'Failed to update profile');
+      showError(err.userMessage || t('profile.messages.updateFailed'));
     } finally {
       setSavingProfile(false);
     }
@@ -145,12 +147,12 @@ function Profile() {
     }
 
     if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
-      showError('Please fill all password fields');
+      showError(t('profile.messages.fillPasswordFields'));
       return;
     }
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      showError('New password and confirm password do not match');
+      showError(t('profile.messages.passwordMismatch'));
       return;
     }
 
@@ -171,10 +173,10 @@ function Profile() {
       writeStoredUser(updatedUser);
       window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: updatedUser }));
 
-      showSuccess('Password changed successfully');
+      showSuccess(t('profile.messages.passwordChanged'));
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      showError(err.userMessage || 'Failed to change password');
+      showError(err.userMessage || t('profile.messages.passwordChangeFailed'));
     } finally {
       setSavingPassword(false);
     }
@@ -194,13 +196,13 @@ function Profile() {
     <Layout>
       <Box sx={{ p: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
-          Profile
+          {t('profile.title')}
         </Typography>
 
         <Grid container spacing={3}>
           {profile.mustChangePassword && (
             <Grid item xs={12}>
-              <Alert severity="warning">Your account is using a temporary password. Change it now before you continue to tenant operations.</Alert>
+              <Alert severity="warning">{t('profile.tempPasswordWarning')}</Alert>
             </Grid>
           )}
           <Grid item xs={12} md={7}>
@@ -209,14 +211,14 @@ function Profile() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                   <PersonIcon color="primary" />
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    Personal Details
+                    {t('profile.personalDetails')}
                   </Typography>
                 </Box>
 
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      label="First Name"
+                      label={t('profile.firstName')}
                       fullWidth
                       value={profile.firstName}
                       onChange={(e) => setProfile((prev) => ({ ...prev, firstName: e.target.value }))}
@@ -224,7 +226,7 @@ function Profile() {
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      label="Last Name"
+                      label={t('profile.lastName')}
                       fullWidth
                       value={profile.lastName}
                       onChange={(e) => setProfile((prev) => ({ ...prev, lastName: e.target.value }))}
@@ -232,7 +234,7 @@ function Profile() {
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
-                      label="Email Address"
+                      label={t('profile.emailAddress')}
                       type="email"
                       fullWidth
                       value={profile.email}
@@ -241,7 +243,7 @@ function Profile() {
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
-                      label="Mobile Number"
+                      label={t('profile.mobileNumber')}
                       fullWidth
                       value={profile.phone}
                       onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))}
@@ -249,9 +251,9 @@ function Profile() {
                   </Grid>
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      <Chip label={`Role: ${profile.role || 'user'}`} color="primary" variant="outlined" />
+                      <Chip label={t('profile.role', { role: profile.role || t('common.user') })} color="primary" variant="outlined" />
                       <Chip
-                        label={profile.isActive ? 'Status: Active' : 'Status: Inactive'}
+                        label={profile.isActive ? t('profile.statusActive') : t('profile.statusInactive')}
                         color={profile.isActive ? 'success' : 'default'}
                         variant="outlined"
                       />
@@ -266,7 +268,7 @@ function Profile() {
                     disabled={savingProfile}
                     sx={{ bgcolor: '#FF9933', '&:hover': { bgcolor: '#E68A00' } }}
                   >
-                    {savingProfile ? 'Saving...' : 'Save Profile'}
+                    {savingProfile ? t('profile.saving') : t('profile.saveProfile')}
                   </Button>
                 </Box>
               </CardContent>
@@ -279,14 +281,14 @@ function Profile() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                   <LockIcon color="primary" />
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    Change Password
+                    {t('profile.changePassword')}
                   </Typography>
                 </Box>
 
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
                     <TextField
-                      label="Current Password"
+                      label={t('profile.currentPassword')}
                       type="password"
                       fullWidth
                       value={passwordForm.currentPassword}
@@ -295,7 +297,7 @@ function Profile() {
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
-                      label="New Password"
+                      label={t('profile.newPassword')}
                       type="password"
                       fullWidth
                       value={passwordForm.newPassword}
@@ -304,7 +306,7 @@ function Profile() {
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
-                      label="Confirm New Password"
+                      label={t('profile.confirmNewPassword')}
                       type="password"
                       fullWidth
                       value={passwordForm.confirmPassword}
@@ -320,7 +322,7 @@ function Profile() {
                     disabled={savingPassword}
                     sx={{ bgcolor: '#FF9933', '&:hover': { bgcolor: '#E68A00' } }}
                   >
-                    {savingPassword ? 'Updating...' : 'Update Password'}
+                    {savingPassword ? t('profile.updating') : t('profile.updatePassword')}
                   </Button>
                 </Box>
               </CardContent>

@@ -12,6 +12,7 @@ import {
   Divider,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
@@ -76,6 +77,7 @@ function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const googleButtonRef = useRef(null);
 
@@ -222,7 +224,7 @@ function Login() {
       }
 
       if (!response.ok) {
-        const message = await parseErrorMessage(response, 'Login failed. Please check your credentials.');
+        const message = await parseErrorMessage(response, t('login.errors.loginFailed'));
         throw new Error(message);
       }
 
@@ -231,11 +233,11 @@ function Login() {
     } catch (err) {
       console.error('Login error:', err);
       if (err?.name === 'AbortError') {
-        setError('Login request timed out after retry. Please check backend status and try again.');
+        setError(t('login.errors.timedOut'));
       } else if (typeof err?.message === 'string' && err.message.trim()) {
         setError(err.message);
       } else {
-        setError('Cannot connect to backend server right now. Please check backend status and try again.');
+        setError(t('login.errors.cannotConnect'));
       }
     } finally {
       setLoading(false);
@@ -245,7 +247,7 @@ function Login() {
   const handleGoogleCredentialResponse = useCallback(async (credentialResponse) => {
     const idToken = credentialResponse?.credential;
     if (!idToken) {
-      setError('Google login did not return an ID token. Please try again.');
+      setError(t('login.errors.googleTokenMissing'));
       return;
     }
 
@@ -265,7 +267,7 @@ function Login() {
       }, { timeoutMs: 20000, maxAttemptsPerOrigin: 2, retryDelayMs: 1000 });
 
       if (!response.ok) {
-        const message = await parseErrorMessage(response, 'Google login failed.');
+        const message = await parseErrorMessage(response, t('login.errors.googleLoginFailed'));
         if (response.status === 400 && message.includes('tenant_id is required')) {
           const claims = decodeJwtPayload(idToken) || {};
           const onboardingEmail = String(claims?.email || '').trim().toLowerCase();
@@ -284,11 +286,11 @@ function Login() {
       await completeLoginSession(data);
     } catch (err) {
       console.error('Google login error:', err);
-      setError(err.message || 'Google login failed. Please try again.');
+      setError(err.message || t('login.errors.googleLoginFailed'));
     } finally {
       setGoogleLoading(false);
     }
-  }, [completeLoginSession, defaultGoogleTenantId, navigate]);
+  }, [completeLoginSession, defaultGoogleTenantId, navigate, t]);
 
   useEffect(() => {
     if (!googleClientId || !googleButtonRef.current) {
@@ -367,7 +369,7 @@ function Login() {
               sx={{ width: 120, height: 120, objectFit: 'contain', mt: 0.5 }}
             />
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Temple Management System
+              {t('login.systemTagline')}
             </Typography>
           </Box>
 
@@ -383,7 +385,7 @@ function Login() {
               required
               fullWidth
               id="email"
-              label="Email Address"
+              label={t('login.emailLabel')}
               name="email"
               autoComplete="email"
               autoFocus
@@ -396,7 +398,7 @@ function Login() {
               required
               fullWidth
               name="password"
-              label="Password"
+              label={t('login.passwordLabel')}
               type={showPassword ? 'text' : 'password'}
               id="password"
               autoComplete="current-password"
@@ -424,12 +426,12 @@ function Login() {
               sx={{ mt: 3, mb: 2, py: 1.5 }}
               disabled={isSubmitting}
             >
-              {loading ? <CircularProgress size={24} /> : 'Sign In'}
+              {loading ? <CircularProgress size={24} /> : t('login.signIn')}
             </Button>
 
             {googleClientId && (
               <>
-                <Divider sx={{ my: 2 }}>OR</Divider>
+                <Divider sx={{ my: 2 }}>{t('common.or')}</Divider>
                 <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2, minHeight: 44 }}>
                   {googleLoading ? <CircularProgress size={24} /> : <Box ref={googleButtonRef} />}
                 </Box>
@@ -438,10 +440,10 @@ function Login() {
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2 }}>
               <Link component="button" type="button" variant="body2" onClick={() => navigate('/register-temple')}>
-                New Temple / Trust Register
+                {t('login.newTempleRegister')}
               </Link>
               <Link component="button" type="button" variant="body2" onClick={() => navigate('/forgot-password')}>
-                Forgot Password?
+                {t('login.forgotPassword')}
               </Link>
             </Box>
           </Box>
@@ -452,4 +454,3 @@ function Login() {
 }
 
 export default Login;
-

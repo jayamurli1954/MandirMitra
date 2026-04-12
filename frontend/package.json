@@ -24,13 +24,16 @@
     "@tanstack/react-query": "^5.12.2",
     "axios": "^1.6.2",
     "date-fns": "^2.30.0",
+    "i18next": "^23.16.8",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.48.2",
+    "react-i18next": "^13.5.0",
     "react-router-dom": "^6.20.0",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -38,8 +41,7 @@
     "@types/react-dom": "^18.2.17",
     "axios-mock-adapter": "^2.1.0",
     "react-scripts": "5.0.1",
-    "yaml": "^2.8.2",
-    "@playwright/test": "^1.52.0"
+    "yaml": "^2.8.2"
   },
   "eslintConfig": {
     "extends": [

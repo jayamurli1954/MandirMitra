@@ -21,6 +21,7 @@ import TempleHinduIcon from '@mui/icons-material/TempleHindu';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import AddBusinessIcon from '@mui/icons-material/AddBusiness';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
@@ -45,6 +46,7 @@ const getRequestId = (request) => getRequestIdCandidates(request)[0] || '';
 
 function TempleDirectory() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { showError, showSuccess } = useNotification();
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -68,13 +70,13 @@ function TempleDirectory() {
       setTemples(Array.isArray(templesResponse.data) ? templesResponse.data : []);
       setRequests(Array.isArray(requestsResponse.data) ? requestsResponse.data : []);
     } catch (err) {
-      const message = err.userMessage || err?.response?.data?.detail || 'Failed to load temple directory';
+      const message = err.userMessage || err?.response?.data?.detail || t('templeDirectory.messages.loadFailed');
       setLoadError(message);
       showError(message);
     } finally {
       setLoading(false);
     }
-  }, [showError]);
+  }, [showError, t]);
 
   useEffect(() => {
     fetchData();
@@ -82,7 +84,7 @@ function TempleDirectory() {
 
   const handleDeactivateTemple = async (temple) => {
     const label = getDisplayName(temple);
-    const confirmed = window.confirm(`Deactivate ${label}?\n\nYou can reactivate it later.`);
+    const confirmed = window.confirm(t('templeDirectory.deactivateConfirm', { label }));
     if (!confirmed) {
       return;
     }
@@ -91,10 +93,10 @@ function TempleDirectory() {
     try {
       setTenantActionKey(actionKey);
       await api.post(`/api/v1/temples/${temple.id}/deactivate`);
-      showSuccess(`${label} deactivated`);
+      showSuccess(t('templeDirectory.messages.deactivated', { label }));
       await fetchData();
     } catch (err) {
-      showError(err.userMessage || err?.response?.data?.detail || 'Failed to deactivate temple');
+      showError(err.userMessage || err?.response?.data?.detail || t('templeDirectory.messages.deactivateFailed'));
     } finally {
       setTenantActionKey('');
     }
@@ -102,7 +104,7 @@ function TempleDirectory() {
 
   const handleActivateTemple = async (temple) => {
     const label = getDisplayName(temple);
-    const confirmed = window.confirm(`Activate ${label}?`);
+    const confirmed = window.confirm(t('templeDirectory.activateConfirm', { label }));
     if (!confirmed) {
       return;
     }
@@ -111,10 +113,10 @@ function TempleDirectory() {
     try {
       setTenantActionKey(actionKey);
       await api.post(`/api/v1/temples/${temple.id}/activate`);
-      showSuccess(`${label} activated`);
+      showSuccess(t('templeDirectory.messages.activated', { label }));
       await fetchData();
     } catch (err) {
-      showError(err.userMessage || err?.response?.data?.detail || 'Failed to activate temple');
+      showError(err.userMessage || err?.response?.data?.detail || t('templeDirectory.messages.activateFailed'));
     } finally {
       setTenantActionKey('');
     }
@@ -123,14 +125,14 @@ function TempleDirectory() {
   const handleRemoveTemple = async (temple) => {
     const label = getDisplayName(temple);
     const expectedConfirmation = `DELETE ${temple.id}`;
-    const confirmation = window.prompt(`Type ${expectedConfirmation} to permanently remove ${label} and all related data.`);
+    const confirmation = window.prompt(t('templeDirectory.removePrompt', { expected: expectedConfirmation, label }));
     if (confirmation === null) {
       return;
     }
 
     const normalizedConfirmation = String(confirmation || '').trim().replace(/\s+/g, ' ').toUpperCase();
     if (normalizedConfirmation !== expectedConfirmation) {
-      showError(`Confirmation text mismatch. Expected: ${expectedConfirmation}`);
+      showError(t('templeDirectory.confirmationMismatch', { expected: expectedConfirmation }));
       return;
     }
 
@@ -140,10 +142,10 @@ function TempleDirectory() {
       await api.delete(`/api/v1/temples/${temple.id}/remove`, {
         data: { confirm_text: expectedConfirmation },
       });
-      showSuccess(`${label} removed completely`);
+      showSuccess(t('templeDirectory.messages.removed', { label }));
       await fetchData();
     } catch (err) {
-      showError(err.userMessage || err?.response?.data?.detail || 'Failed to remove temple completely');
+      showError(err.userMessage || err?.response?.data?.detail || t('templeDirectory.messages.removeFailed'));
     } finally {
       setTenantActionKey('');
     }
@@ -154,17 +156,17 @@ function TempleDirectory() {
       setActionLoadingId(requestId);
       const response = await api.post(`/api/v1/onboarding-requests/${requestId}/approve`, {});
       setApprovalSummary({ ...(response.data || {}), _action: 'approved' });
-      showSuccess(`Approved onboarding request for ${response.data.admin_email}`);
+      showSuccess(t('templeDirectory.messages.approved', { email: response.data.admin_email }));
       await fetchData();
     } catch (err) {
-      showError(err.userMessage || 'Failed to approve onboarding request');
+      showError(err.userMessage || t('templeDirectory.messages.approveFailed'));
     } finally {
       setActionLoadingId(null);
     }
   };
 
   const handleReject = async (requestId) => {
-    const reviewNotes = window.prompt('Enter the rejection reason for this onboarding request:');
+    const reviewNotes = window.prompt(t('templeDirectory.rejectPrompt'));
     if (!reviewNotes || reviewNotes.trim().length < 3) {
       return;
     }
@@ -172,10 +174,10 @@ function TempleDirectory() {
     try {
       setActionLoadingId(requestId);
       await api.post(`/api/v1/onboarding-requests/${requestId}/reject`, { review_notes: reviewNotes.trim() });
-      showSuccess('Onboarding request rejected');
+      showSuccess(t('templeDirectory.messages.rejected'));
       await fetchData();
     } catch (err) {
-      showError(err.userMessage || 'Failed to reject onboarding request');
+      showError(err.userMessage || t('templeDirectory.messages.rejectFailed'));
     } finally {
       setActionLoadingId(null);
     }
@@ -184,12 +186,12 @@ function TempleDirectory() {
   const handleResendCredentials = async (request, temple) => {
     const requestIds = getRequestIdCandidates(request);
     if (requestIds.length === 0) {
-      showError('No approved onboarding request found for this temple.');
+      showError(t('templeDirectory.noApprovedRequest'));
       return;
     }
 
     const templeLabel = getDisplayName(temple);
-    const confirmed = window.confirm(`Resend onboarding email for ${templeLabel}?\n\nA new temporary password will be generated.`);
+    const confirmed = window.confirm(t('templeDirectory.resendConfirm', { label: templeLabel }));
     if (!confirmed) {
       return;
     }
@@ -210,17 +212,17 @@ function TempleDirectory() {
         }
       }
       if (!response) {
-        throw lastError || new Error('Failed to resend onboarding email');
+        throw lastError || new Error(t('templeDirectory.messages.resendFailed'));
       }
       setApprovalSummary({ ...(response.data || {}), _action: 'resent' });
       if (response.data?.email_sent) {
-        showSuccess(`Onboarding email re-sent to ${response.data.admin_email}`);
+        showSuccess(t('templeDirectory.messages.resendSuccess', { email: response.data.admin_email }));
       } else {
-        showError(response.data?.email_error || 'Email could not be sent. Share temporary password manually.');
+        showError(response.data?.email_error || t('templeDirectory.sharePasswordManually'));
       }
       await fetchData();
     } catch (err) {
-      showError(err.userMessage || err?.response?.data?.detail || 'Failed to resend onboarding email');
+      showError(err.userMessage || err?.response?.data?.detail || t('templeDirectory.messages.resendFailed'));
     } finally {
       setResendLoadingRequestId(null);
     }
@@ -229,7 +231,7 @@ function TempleDirectory() {
   const handleOpenDashboard = (temple) => {
     const resolvedTempleId = Number.parseInt(String(temple?.id || temple?.temple_id || ''), 10);
     if (!Number.isInteger(resolvedTempleId) || resolvedTempleId <= 0) {
-      showError('Temple ID is invalid for this row. Please refresh and try again.');
+      showError(t('templeDirectory.invalidTempleId'));
       return;
     }
     setActiveTempleId(resolvedTempleId);
@@ -265,47 +267,65 @@ function TempleDirectory() {
         <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2} sx={{ mb: 3 }}>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>
             <TempleHinduIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Temples / Trusts
+            {t('templeDirectory.title')}
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <Button variant="outlined" onClick={() => navigate('/settings')} startIcon={<AddBusinessIcon />}>
-              Create Demo Tenant
+              {t('templeDirectory.createDemoTenant')}
             </Button>
             <Button variant="outlined" onClick={() => { setActiveTempleId(null); emitActiveTempleChanged(null); navigate('/settings'); }}>
-              Open Platform Console
+              {t('templeDirectory.openPlatformConsole')}
             </Button>
           </Stack>
         </Stack>
 
         {approvalSummary && (
           <Alert severity="success" sx={{ mb: 3 }}>
-            {approvalSummary._action === 'resent' ? 'Re-sent credentials for' : 'Approved request for'} {approvalSummary.admin_email}. Temporary password: <strong>{approvalSummary.temporary_password}</strong>. {approvalSummary.email_sent ? 'Onboarding email sent.' : approvalSummary.email_error ? `Onboarding email could not be sent (${approvalSummary.email_error}). Share the password manually.` : 'Share the password manually.'}
+            {approvalSummary._action === 'resent'
+              ? t('templeDirectory.summaryResent', {
+                email: approvalSummary.admin_email,
+                password: approvalSummary.temporary_password,
+                status: approvalSummary.email_sent
+                  ? t('templeDirectory.emailSent')
+                  : approvalSummary.email_error
+                    ? t('templeDirectory.emailFailed', { error: approvalSummary.email_error })
+                    : t('templeDirectory.sharePasswordManually')
+              })
+              : t('templeDirectory.summaryApproved', {
+                email: approvalSummary.admin_email,
+                password: approvalSummary.temporary_password,
+                status: approvalSummary.email_sent
+                  ? t('templeDirectory.emailSent')
+                  : approvalSummary.email_error
+                    ? t('templeDirectory.emailFailed', { error: approvalSummary.email_error })
+                    : t('templeDirectory.sharePasswordManually')
+              })}
           </Alert>
         )}
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2, mb: 3 }}>
           <Card sx={{ borderLeft: '5px solid #FF9933' }}>
             <CardContent>
-              <Typography variant="overline" color="text.secondary">Total Onboarded</Typography>
+              <Typography variant="overline" color="text.secondary">{t('templeDirectory.totalOnboarded')}</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>{temples.length}</Typography>
             </CardContent>
           </Card>
           <Card sx={{ borderLeft: '5px solid #2E7D32' }}>
             <CardContent>
-              <Typography variant="overline" color="text.secondary">Active</Typography>
+              <Typography variant="overline" color="text.secondary">{t('templeDirectory.active')}</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>{activeTempleCount}</Typography>
             </CardContent>
           </Card>
           <Card sx={{ borderLeft: '5px solid #1565C0' }}>
             <CardContent>
-              <Typography variant="overline" color="text.secondary">Pending Approval</Typography>
+              <Typography variant="overline" color="text.secondary">{t('templeDirectory.pendingApproval')}</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>{pendingRequests.length}</Typography>
             </CardContent>
           </Card>
           <Card sx={{ borderLeft: '5px solid #6A1B9A' }}>
             <CardContent>
-              <Typography variant="overline" color="text.secondary">Access Model</Typography>
-              <Typography variant="body1" sx={{ mt: 1 }}>Platform admins inspect every tenant, but only platform demo tenants are editable.</Typography>
+              <Typography variant="overline" color="text.secondary">{t('templeDirectory.accessModel')}</Typography>
+              <Typography variant="body1" sx={{ mt: 1 }}>{t('templeDirectory.accessModelDescription')}</Typography>
             </CardContent>
           </Card>
         </Box>
@@ -322,21 +342,21 @@ function TempleDirectory() {
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
                   <PendingActionsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Pending Temple / Trust Approvals
+                  {t('templeDirectory.pendingSection')}
                 </Typography>
                 {pendingRequests.length === 0 ? (
-                  <Alert severity="info">No pending registration requests at the moment.</Alert>
+                  <Alert severity="info">{t('templeDirectory.noPending')}</Alert>
                 ) : (
                   <TableContainer component={Paper} variant="outlined">
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 700 }}>Requested Temple / Trust</TableCell>
-                          <TableCell sx={{ fontWeight: 700 }}>City</TableCell>
-                          <TableCell sx={{ fontWeight: 700 }}>Requested Admin</TableCell>
-                          <TableCell sx={{ fontWeight: 700 }}>Admin Email</TableCell>
-                          <TableCell sx={{ fontWeight: 700 }}>Created</TableCell>
-                          <TableCell sx={{ fontWeight: 700 }} align="right">Action</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.requestedTempleTrust')}</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.city')}</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.requestedAdmin')}</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.adminEmail')}</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.created')}</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }} align="right">{t('templeDirectory.table.action')}</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -345,17 +365,17 @@ function TempleDirectory() {
                           return (
                             <TableRow key={requestId} hover>
                               <TableCell sx={{ fontWeight: 600 }}>{getPendingDisplayName(request)}</TableCell>
-                              <TableCell>{request.city || '--'}</TableCell>
+                              <TableCell>{request.city || t('common.notAvailable')}</TableCell>
                               <TableCell>{request.admin_full_name}</TableCell>
                               <TableCell>{request.admin_email}</TableCell>
                               <TableCell>{request.created_at}</TableCell>
                               <TableCell align="right">
                                 <Stack direction="row" spacing={1} justifyContent="flex-end">
                                   <Button size="small" variant="contained" disabled={actionLoadingId === requestId} onClick={() => handleApprove(requestId)}>
-                                    {actionLoadingId === requestId ? 'Approving...' : 'Approve'}
+                                    {actionLoadingId === requestId ? t('templeDirectory.approving') : t('templeDirectory.approve')}
                                   </Button>
                                   <Button size="small" variant="outlined" color="error" disabled={actionLoadingId === requestId} onClick={() => handleReject(requestId)}>
-                                    Reject
+                                    {t('templeDirectory.reject')}
                                   </Button>
                                 </Stack>
                               </TableCell>
@@ -372,31 +392,31 @@ function TempleDirectory() {
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-                  Onboarded Temples / Trusts
+                  {t('templeDirectory.onboardedSection')}
                 </Typography>
                 <TableContainer component={Paper} variant="outlined">
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Temple / Trust</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Trust Name</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Primary Deity</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>City</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>State</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Phone</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Platform Access</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Verification</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }} align="right">Action</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.id')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.templeTrust')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.trustName')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.primaryDeity')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.city')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.state')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.phone')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.email')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.status')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.platformAccess')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{t('templeDirectory.table.verification')}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }} align="right">{t('templeDirectory.table.action')}</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {temples.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={12}>
-                            <Alert severity="info">No temples or trusts have been onboarded yet.</Alert>
+                            <Alert severity="info">{t('templeDirectory.noOnboarded')}</Alert>
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -413,29 +433,29 @@ function TempleDirectory() {
                           const onboardingStatus = normalizeName(temple?.onboarding_status);
                           const needsReview = !hasApprovedRequest || hasPlaceholderName || !hasContact || !hasLocation || onboardingStatus === 'completed';
                           const resendLabel = !linkedRequestId
-                            ? 'No Request'
-                            : (resendLoadingRequestId === linkedRequestId ? 'Resending...' : 'Resend Email');
+                            ? t('templeDirectory.noRequest')
+                            : (resendLoadingRequestId === linkedRequestId ? t('templeDirectory.resending') : t('templeDirectory.resendEmail'));
                           return (
                             <TableRow key={temple.id} hover>
                               <TableCell>{temple.id}</TableCell>
                               <TableCell sx={{ fontWeight: 600 }}>{getDisplayName(temple)}</TableCell>
-                              <TableCell>{temple.trust_name || '--'}</TableCell>
-                              <TableCell>{temple.primary_deity || '--'}</TableCell>
-                              <TableCell>{temple.city || '--'}</TableCell>
-                              <TableCell>{temple.state || '--'}</TableCell>
-                              <TableCell>{temple.phone || '--'}</TableCell>
-                              <TableCell>{temple.email || '--'}</TableCell>
+                              <TableCell>{temple.trust_name || t('common.notAvailable')}</TableCell>
+                              <TableCell>{temple.primary_deity || t('common.notAvailable')}</TableCell>
+                              <TableCell>{temple.city || t('common.notAvailable')}</TableCell>
+                              <TableCell>{temple.state || t('common.notAvailable')}</TableCell>
+                              <TableCell>{temple.phone || t('common.notAvailable')}</TableCell>
+                              <TableCell>{temple.email || t('common.notAvailable')}</TableCell>
                               <TableCell>
-                                <Chip size="small" color={temple.is_active === false ? 'default' : 'success'} label={temple.is_active === false ? 'Inactive' : 'Active'} variant={temple.is_active === false ? 'outlined' : 'filled'} />
+                                <Chip size="small" color={temple.is_active === false ? 'default' : 'success'} label={temple.is_active === false ? t('templeDirectory.inactive') : t('templeDirectory.active')} variant={temple.is_active === false ? 'outlined' : 'filled'} />
                               </TableCell>
                               <TableCell>
-                                <Chip size="small" color={temple.platform_can_write ? 'warning' : 'default'} label={temple.platform_can_write ? 'Demo Editable' : 'Read-only'} variant={temple.platform_can_write ? 'filled' : 'outlined'} />
+                                <Chip size="small" color={temple.platform_can_write ? 'warning' : 'default'} label={temple.platform_can_write ? t('templeDirectory.demoEditable') : t('templeDirectory.readOnly')} variant={temple.platform_can_write ? 'filled' : 'outlined'} />
                               </TableCell>
                               <TableCell>
                                 <Chip
                                   size="small"
                                   color={needsReview ? 'warning' : 'success'}
-                                  label={needsReview ? 'Needs Review' : 'Verified'}
+                                  label={needsReview ? t('templeDirectory.needsReview') : t('templeDirectory.verified')}
                                   variant={needsReview ? 'filled' : 'outlined'}
                                 />
                               </TableCell>
@@ -446,7 +466,7 @@ function TempleDirectory() {
                                     variant="contained"
                                     onClick={() => handleOpenDashboard(temple)}
                                   >
-                                    Open Dashboard
+                                    {t('templeDirectory.openDashboard')}
                                   </Button>
                                   <Button
                                     size="small"
@@ -464,7 +484,7 @@ function TempleDirectory() {
                                       disabled={tenantActionKey === `activate-${temple.id}`}
                                       onClick={() => handleActivateTemple(temple)}
                                     >
-                                      {tenantActionKey === `activate-${temple.id}` ? 'Activating...' : 'Activate'}
+                                      {tenantActionKey === `activate-${temple.id}` ? t('templeDirectory.activating') : t('templeDirectory.activate')}
                                     </Button>
                                   ) : (
                                     <Button
@@ -474,7 +494,7 @@ function TempleDirectory() {
                                       disabled={tenantActionKey === `deactivate-${temple.id}`}
                                       onClick={() => handleDeactivateTemple(temple)}
                                     >
-                                      {tenantActionKey === `deactivate-${temple.id}` ? 'Deactivating...' : 'Deactivate'}
+                                      {tenantActionKey === `deactivate-${temple.id}` ? t('templeDirectory.deactivating') : t('templeDirectory.deactivate')}
                                     </Button>
                                   )}
                                   <Button
@@ -484,7 +504,7 @@ function TempleDirectory() {
                                     disabled={tenantActionKey === `remove-${temple.id}`}
                                     onClick={() => handleRemoveTemple(temple)}
                                   >
-                                    {tenantActionKey === `remove-${temple.id}` ? 'Removing...' : 'Remove Completely'}
+                                    {tenantActionKey === `remove-${temple.id}` ? t('templeDirectory.removing') : t('templeDirectory.removeCompletely')}
                                   </Button>
                                 </Stack>
                               </TableCell>
@@ -505,6 +525,3 @@ function TempleDirectory() {
 }
 
 export default TempleDirectory;
-
-
-
