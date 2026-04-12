@@ -23,6 +23,7 @@ const PanchangSettings = lazy(() => import('./pages/PanchangSettings'));
 const Sevas = lazy(() => import('./pages/Sevas'));
 const SevaManagement = lazy(() => import('./pages/SevaManagement'));
 const Settings = lazy(() => import('./pages/Settings'));
+const ImplementationChecks = lazy(() => import('./pages/ImplementationChecks'));
 const SetupWizard = lazy(() => import('./pages/SetupWizard'));
 const Profile = lazy(() => import('./pages/Profile'));
 const TempleDirectory = lazy(() => import('./pages/TempleDirectory'));
@@ -287,6 +288,15 @@ function App() {
                     )}
                   />
                   <Route
+                    path="/implementation-checks"
+                    element={(
+                      <ProtectedRoute>
+                        <ImplementationChecks />
+                      </ProtectedRoute>
+                    )}
+                  />
+
+                  <Route
                     path="/profile"
                     element={(
                       <ProtectedRoute>
@@ -376,5 +386,4 @@ function App() {
 }
 
 export default App;
-
 

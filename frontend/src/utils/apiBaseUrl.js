@@ -170,12 +170,12 @@ export async function fetchWithApiFallback(path, init = {}, options = {}) {
         }
 
         lastError = new Error(
-          `Backend is temporarily unavailable (${response.status}). It may be waking up; retrying...`
+          `Backend is temporarily unavailable (${response.status}). Retrying...`
         );
       } catch (error) {
         if (isRetryableNetworkError(error)) {
           lastError = new Error(
-            'Cannot reach backend yet. The service may be cold-starting; retrying...'
+            'Cannot reach backend yet. Retrying...'
           );
         } else {
           lastError = error;
@@ -195,14 +195,13 @@ export async function fetchWithApiFallback(path, init = {}, options = {}) {
   if (
     retryExhaustedMessage.includes('temporarily unavailable') ||
     retryExhaustedMessage.includes('cannot reach backend yet') ||
-    retryExhaustedMessage.includes('cold-starting')
+    retryExhaustedMessage.includes('retrying')
   ) {
     throw new Error(
-      'Cannot connect to backend server right now. The Render service may be cold-starting. Please wait 30-60 seconds and try again.'
+      'Cannot connect to backend server right now. Please check backend status and retry.'
     );
   }
 
   throw lastError || new Error('Unable to reach backend after retries');
 }
-
 

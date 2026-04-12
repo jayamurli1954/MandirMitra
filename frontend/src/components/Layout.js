@@ -45,6 +45,7 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import SavingsIcon from '@mui/icons-material/Savings';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { useCurrentUser } from '../contexts/CurrentUserContext';
 import { clearAuthSession, getAccessToken, hasAccessToken } from '../utils/authStorage';
 import {
@@ -67,6 +68,7 @@ const menuItems = [
   { text: 'Reports', icon: <AssessmentIcon />, path: '/reports', moduleFlag: 'module_reports_enabled', permissionKey: 'reports' },
   { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', moduleFlag: 'module_panchang_enabled', permissionKey: 'panchang' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', permissionKey: 'settings' },
+  { text: 'Implementation Checks', icon: <FactCheckIcon />, path: '/implementation-checks', permissionKey: 'settings' },
   { text: 'Platform Operations', icon: <TempleHinduIcon />, path: '/platform/operations', superAdminOnly: true },
 ];
 
@@ -302,7 +304,7 @@ function Layout({ children }) {
     if (item.superAdminOnly && !isPlatformSuperAdmin) {
       return false;
     }
-    if (isPlatformConsole && item.text !== 'Dashboard' && item.text !== 'Platform Operations') {
+    if (isPlatformConsole && item.text !== 'Dashboard' && item.text !== 'Platform Operations' && item.text !== 'Implementation Checks') {
       return false;
     }
     return isFeatureEnabled(item.moduleFlag) && hasModuleAccess(item.permissionKey);

@@ -86,14 +86,14 @@ function Login() {
   useEffect(() => {
     clearTenantInactiveReason();
 
-    // Warm backend early so users are less likely to hit cold-start failures on first login attempt.
+    // Warm backend early so first login has better responsiveness.
     fetchWithApiFallback('/health', {
       method: 'GET',
       cache: 'no-store',
     }, {
-      timeoutMs: 12000,
-      maxAttemptsPerOrigin: 2,
-      retryDelayMs: 1000,
+      timeoutMs: 5000,
+      maxAttemptsPerOrigin: 1,
+      retryDelayMs: 800,
     }).catch(() => {
       // Ignore here; explicit login action handles user-facing errors.
     });
@@ -174,7 +174,7 @@ function Login() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ email, password }),
-    }, { timeoutMs: 60000 });
+    }, { timeoutMs: 20000, maxAttemptsPerOrigin: 2, retryDelayMs: 1000 });
 
     if (unifiedResponse.ok) {
       return unifiedResponse;
@@ -195,7 +195,7 @@ function Login() {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: formData.toString(),
-    }, { timeoutMs: 60000 });
+    }, { timeoutMs: 20000, maxAttemptsPerOrigin: 2, retryDelayMs: 1000 });
   }, [email, password]);
 
   const handleSubmit = async (e) => {
@@ -225,11 +225,11 @@ function Login() {
     } catch (err) {
       console.error('Login error:', err);
       if (err?.name === 'AbortError') {
-        setError('Login timed out after retry. Render cold starts can take up to 1-2 minutes. Please wait 30 seconds and try again.');
+        setError('Login request timed out after retry. Please check backend status and try again.');
       } else if (typeof err?.message === 'string' && err.message.trim()) {
         setError(err.message);
       } else {
-        setError('Cannot connect to backend server right now. Please wait 30-60 seconds and try again.');
+        setError('Cannot connect to backend server right now. Please check backend status and try again.');
       }
     } finally {
       setLoading(false);
@@ -256,7 +256,7 @@ function Login() {
           id_token: idToken,
           tenant_id: defaultGoogleTenantId,
         }),
-      }, { timeoutMs: 60000 });
+      }, { timeoutMs: 20000, maxAttemptsPerOrigin: 2, retryDelayMs: 1000 });
 
       if (!response.ok) {
         const message = await parseErrorMessage(response, 'Google login failed.');
@@ -446,6 +446,4 @@ function Login() {
 }
 
 export default Login;
-
-
 
