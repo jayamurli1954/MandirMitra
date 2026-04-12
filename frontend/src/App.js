@@ -43,6 +43,7 @@ const UpiPayments = lazy(() => import('./pages/accounting/UpiPayments'));
 const BankReconciliation = lazy(() => import('./pages/accounting/BankReconciliation'));
 const FinancialClosing = lazy(() => import('./pages/accounting/FinancialClosing'));
 const AccountingReports = lazy(() => import('./pages/accounting/AccountingReports'));
+const PublicPayments = lazy(() => import('./pages/accounting/PublicPayments'));
 const PublicSevaPayment = lazy(() => import('./pages/PublicSevaPayment'));
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -372,6 +373,14 @@ function App() {
                     element={(
                       <ProtectedRoute>
                         <AccountingReports />
+                      </ProtectedRoute>
+                    )}
+                  />
+                  <Route
+                    path="/accounting/public-payments"
+                    element={(
+                      <ProtectedRoute>
+                        <PublicPayments />
                       </ProtectedRoute>
                     )}
                   />

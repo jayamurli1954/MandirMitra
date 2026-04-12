@@ -85,6 +85,7 @@ const accountingMenuItems = [
   { id: 'bankReconciliation', labelKey: 'layout.nav.accounting.bankReconciliation', defaultLabel: 'Bank Reconciliation', icon: <AccountBalanceIcon />, path: '/accounting/bank-reconciliation' },
   { id: 'financialClosing', labelKey: 'layout.nav.accounting.financialClosing', defaultLabel: 'Financial Closing', icon: <LockIcon />, path: '/accounting/financial-closing' },
   { id: 'upiPayments', labelKey: 'layout.nav.accounting.upiPayments', defaultLabel: 'UPI Payments', icon: <PaymentIcon />, path: '/accounting/upi-payments' },
+  { id: 'publicPayments', labelKey: 'layout.nav.accounting.publicPayments', defaultLabel: 'Public Payments', icon: <AccountBalanceWalletIcon />, path: '/accounting/public-payments' },
   { id: 'accountingReports', labelKey: 'layout.nav.accounting.reports', defaultLabel: 'Accounting Reports', icon: <SummarizeIcon />, path: '/accounting/reports' },
 ];
 const DEFAULT_MODULE_CONFIG = {
