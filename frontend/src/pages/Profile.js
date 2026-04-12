@@ -172,7 +172,7 @@ function Profile() {
       window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: updatedUser }));
 
       showSuccess('Password changed successfully');
-      navigate(updatedUser.role === 'super_admin' || updatedUser.system_role === 'super_admin' || updatedUser.is_superuser ? '/platform/temples' : '/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       showError(err.userMessage || 'Failed to change password');
     } finally {

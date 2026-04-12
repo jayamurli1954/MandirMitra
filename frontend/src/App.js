@@ -44,7 +44,7 @@ const BankReconciliation = lazy(() => import('./pages/accounting/BankReconciliat
 const FinancialClosing = lazy(() => import('./pages/accounting/FinancialClosing'));
 const AccountingReports = lazy(() => import('./pages/accounting/AccountingReports'));
 
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const IDLE_CHECK_INTERVAL_MS = 15000;
 
 const theme = createTheme({

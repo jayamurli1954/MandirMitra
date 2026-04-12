@@ -163,8 +163,14 @@ function Login() {
     writeStoredUser(currentUser);
     window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: currentUser }));
 
+    if (currentUser.must_change_password) {
+      sessionStorage.removeItem('showBrandIntroAfterLogin');
+      navigate('/profile', { replace: true });
+      return;
+    }
+
     sessionStorage.setItem('showBrandIntroAfterLogin', '1');
-    navigate('/brand-intro');
+    navigate('/brand-intro', { replace: true });
   }, [navigate]);
 
   const performPasswordLogin = useCallback(async () => {

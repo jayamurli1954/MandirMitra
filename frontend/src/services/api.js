@@ -1,7 +1,13 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 import { getApiBaseUrl } from '../utils/apiBaseUrl';
 import { buildActiveTempleHeaders } from '../utils/activeTemple';
-import { clearAuthSession, getAccessToken } from '../utils/authStorage';
+import {
+  clearAuthSession,
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+} from '../utils/authStorage';
 import { handleTenantInactive, isTenantInactiveMessage, isTenantInactivePayload } from '../utils/tenantInactive';
 
 const api = axios.create({
@@ -11,6 +17,77 @@ const api = axios.create({
   },
   timeout: 20000,
 });
+
+const refreshClient = axios.create({
+  baseURL: getApiBaseUrl({ preferDirect: true }),
+  timeout: 20000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+let refreshPromise = null;
+
+const shouldSkipRefresh = (config) => {
+  const url = String(config?.url || '').toLowerCase();
+  return url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/logout');
+};
+
+const forceLogout = (reason = 'unauthorized') => {
+  clearAuthSession();
+  window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: { clear: true, reason } }));
+
+  if (window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
+};
+
+const requestTokenRefresh = async () => {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    throw new Error('Missing refresh token');
+  }
+
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    const headers = buildActiveTempleHeaders({
+      'Content-Type': 'application/json',
+    });
+
+    const refreshEndpoints = ['/api/v1/auth/refresh', '/api/auth/refresh'];
+    let lastError = null;
+
+    for (const endpoint of refreshEndpoints) {
+      try {
+        const response = await refreshClient.post(endpoint, { refresh_token: refreshToken }, { headers });
+        const payload = response?.data || {};
+
+        if (!payload?.access_token) {
+          throw new Error('Refresh response missing access token');
+        }
+
+        setAccessToken(payload.access_token);
+        setRefreshToken(payload.refresh_token || refreshToken);
+        return payload.access_token;
+      } catch (error) {
+        lastError = error;
+        const status = error?.response?.status;
+        if (![404, 405].includes(Number(status))) {
+          break;
+        }
+      }
+    }
+
+    throw lastError || new Error('Token refresh failed');
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
+};
 
 // Add token to requests
 api.interceptors.request.use(
@@ -22,21 +99,31 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Handle response errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const status = error.response?.status;
     const errorData = error.response?.data;
+    const originalRequest = error.config || {};
 
     if (status === 401) {
-      clearAuthSession();
-      window.location.href = '/login';
+      if (!originalRequest._retry && !shouldSkipRefresh(originalRequest)) {
+        originalRequest._retry = true;
+        try {
+          const newAccessToken = await requestTokenRefresh();
+          originalRequest.headers = buildActiveTempleHeaders(originalRequest.headers || {});
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return api(originalRequest);
+        } catch (_refreshError) {
+          forceLogout('unauthorized');
+        }
+      } else {
+        forceLogout('unauthorized');
+      }
     }
 
     if (status === 403 && (isTenantInactivePayload(errorData) || isTenantInactiveMessage(errorData?.detail))) {
