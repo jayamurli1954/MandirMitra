@@ -33,6 +33,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AddIcon from '@mui/icons-material/Add';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import EditIcon from '@mui/icons-material/Edit';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 import { getAccessToken } from '../../utils/authStorage';
 import { ACTIVE_TEMPLE_EVENT } from '../../utils/activeTemple';
@@ -386,6 +387,34 @@ function ChartOfAccounts() {
     }
   };
 
+  const downloadOpeningBalanceTemplate = async () => {
+    try {
+      const response = await fetch('/api/v1/opening-balances/template', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${getAccessToken()}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download template');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'Opening_Balance_Template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      setMessage({ type: 'error', text: 'Failed to download template' });
+    }
+  };
+
   const handleImportOpeningBalances = async () => {
     if (!openingBalanceFile) {
       setMessage({ type: 'error', text: 'Select an opening balance CSV/XLSX file first.' });
@@ -542,6 +571,13 @@ function ChartOfAccounts() {
               <Button variant="outlined" component="label">
                 {openingBalanceFile ? openingBalanceFile.name : 'Choose Opening Balance File'}
                 <input hidden type="file" accept=".csv,.xlsx" onChange={(e) => setOpeningBalanceFile(e.target.files?.[0] || null)} />
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<FileDownloadIcon />}
+                onClick={downloadOpeningBalanceTemplate}
+              >
+                Download Template
               </Button>
               <Button variant="contained" onClick={handleImportOpeningBalances} disabled={uploadingOpeningBalances}>
                 {uploadingOpeningBalances ? 'Uploading...' : 'Upload Opening Balances'}
