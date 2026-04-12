@@ -37,7 +37,7 @@ function formatDate(iso) {
   if (!iso) return '—';
   try {
     return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-  } catch (_) {
+  } catch (_e) {
     return iso;
   }
 }
@@ -61,7 +61,7 @@ export default function PublicPayments() {
       if (res.ok) {
         setPayments(await res.json());
       }
-    } catch (_) {}
+    } catch (_e) { /* ignore fetch errors */ }
     finally { setLoading(false); }
   }, [statusFilter]);
 
@@ -106,7 +106,7 @@ export default function PublicPayments() {
       });
       setApproveDialog({ open: false, payment: null });
       fetchPayments();
-    } catch (_) {
+    } catch (_e) {
       setSnackbar({ open: true, message: 'Network error. Please try again.', severity: 'error' });
     } finally {
       setApproving(false);

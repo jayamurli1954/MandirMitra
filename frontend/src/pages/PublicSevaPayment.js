@@ -131,7 +131,7 @@ export default function PublicSevaPayment() {
           setForm((f) => ({ ...f, ...data.devotee }));
         }
       }
-    } catch (_) {}
+    } catch (_e) { /* autofill is best-effort */ }
     finally { setMobileSearching(false); }
   }, [form.phone, templeId]);
 
@@ -146,7 +146,7 @@ export default function PublicSevaPayment() {
           setForm((f) => ({ ...f, city: data.city, state: data.state }));
         }
       }
-    } catch (_) {}
+    } catch (_e) { /* pincode lookup is best-effort */ }
     finally { setPincodeLoading(false); }
   }, [form.pincode]);
 
@@ -193,7 +193,7 @@ export default function PublicSevaPayment() {
       }
       setPaymentResult(data);
       setActiveStep(2);
-    } catch (_) {
+    } catch (_e) {
       setError('Network error. Please try again.');
     } finally {
       setSubmitting(false);
