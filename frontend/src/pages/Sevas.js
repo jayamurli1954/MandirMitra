@@ -28,6 +28,7 @@ import {
   Tooltip,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import PrintIcon from '@mui/icons-material/Print';
 import MinimizeIcon from '@mui/icons-material/Minimize';
@@ -722,7 +723,7 @@ function Sevas() {
     const colors = {
       abhisheka: '#2E7D32',
       alankara: '#1565C0',
-      pooja: '#7B1FA2',
+      pooja: '#0D47A1',
       archana: '#F57C00',
       vahana_seva: '#00796B',
       special: '#C62828',
@@ -780,6 +781,18 @@ function Sevas() {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="contained"
+              startIcon={<ArrowBackIcon />}
+              onClick={() => navigate('/dashboard')}
+              sx={{
+                bgcolor: '#fff',
+                color: '#FF6B35',
+                '&:hover': { bgcolor: '#f5f5f5' }
+              }}
+            >
+              Back to Dashboard
+            </Button>
             <Button
               variant="contained"
               onClick={() => navigate('/reports/sevas/detailed')}
@@ -964,8 +977,10 @@ function Sevas() {
                   disabled={!seva.is_active || tenantWriteBlocked || tenantAccessLoading}
                   sx={{
                     bgcolor: getCategoryColor(seva.category),
+                    color: '#fff',
                     '&:hover': {
                       bgcolor: getCategoryColor(seva.category),
+                      color: '#fff',
                       filter: 'brightness(0.9)'
                     }
                   }}
