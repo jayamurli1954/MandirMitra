@@ -8,7 +8,43 @@
     "platformAdminConsole": "ಪ್ಲ್ಯಾಟ್‌ಫಾರ್ಮ್ ಆಡ್ಮಿನ್ ಕನ್‌ಸೋಲ್",
     "defaultTenant": "ಮಂದಿರಮಿತ್ರ",
     "templeSubtitle": "ದೇವಸ್ಥಾನ / ಟ್ರಸ್ಟ್ ನಿರ್ವಹಣೆ ಮತ್ತು ಲೆಕ್ಕಪತ್ರ ವ್ಯವಸ್ಥೆ",
-    "platformSubtitle": "ಪ್ಲ್ಯಾಟ್‌ಫಾರ್ಮ್ ಟೆನಂಟ್ ಆನ್‌ಬೋರ್ಡಿಂಗ್, ಅನುಮೋದನೆ ಮತ್ತು ಮೇಲ್ವಿಚಾರಣೆ"
+    "platformSubtitle": "ಪ್ಲ್ಯಾಟ್‌ಫಾರ್ಮ್ ಟೆನಂಟ್ ಆನ್‌ಬೋರ್ಡಿಂಗ್, ಅನುಮೋದನೆ ಮತ್ತು ಮೇಲ್ವಿಚಾರಣೆ",
+    "languageOptions": {
+      "en": "English",
+      "kn": "ಕನ್ನಡ",
+      "hi": "हिन्दी"
+    },
+    "nav": {
+      "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+      "donations": "ದೇಣಿಗೆಗಳು",
+      "devotees": "ಭಕ್ತರು",
+      "inventory": "ಇನ್‌ವೆಂಟರಿ",
+      "templeAssets": "ದೇವಾಲಯ ಆಸ್ತಿಗಳು",
+      "hrSalary": "ಎಚ್‌ಆರ್ ಮತ್ತು ವೇತನ",
+      "hundi": "ಹುಂಡಿ",
+      "reports": "ವರದಿಗಳು",
+      "panchang": "ಪಂಚಾಂಗ",
+      "settings": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+      "implementationChecks": "ಅನುಷ್ಠಾನ ಪರಿಶೀಲನೆಗಳು",
+      "platformOperations": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಕಾರ್ಯಾಚರಣೆಗಳು",
+      "sevas": {
+        "section": "ಸೇವೆಗಳು",
+        "bookSevas": "ಸೇವೆ ಬುಕ್ಕಿಂಗ್",
+        "bookingsReschedule": "ಸೇವೆ ಬುಕ್ಕಿಂಗ್ / ಮರುನಿಗದಿ",
+        "management": "ಸೇವೆ ನಿರ್ವಹಣೆ",
+        "rescheduleApproval": "ಮರುನಿಗದಿ ಅನುಮೋದನೆ"
+      },
+      "accounting": {
+        "section": "ಲೆಕ್ಕಪತ್ರ",
+        "chartOfAccounts": "ಖಾತೆಗಳ ಪಟ್ಟಿ",
+        "quickExpense": "ತ್ವರಿತ ವೆಚ್ಚ",
+        "journalEntries": "ಜರ್ನಲ್ ಎಂಟ್ರಿಗಳು",
+        "bankReconciliation": "ಬ್ಯಾಂಕ್ ಹೊಂದಾಣಿಕೆ",
+        "financialClosing": "ಹಣಕಾಸು ಮುಚ್ಚುವಿಕೆ",
+        "upiPayments": "ಯುಪಿಐ ಪಾವತಿಗಳು",
+        "reports": "ಲೆಕ್ಕಪತ್ರ ವರದಿಗಳು"
+      }
+    }
   },
   "login": {
     "systemTagline": "ದೇವಸ್ಥಾನ ನಿರ್ವಹಣಾ ವ್ಯವಸ್ಥೆ",

@@ -8,7 +8,43 @@
     "platformAdminConsole": "Platform Admin Console",
     "defaultTenant": "MandirMitra",
     "templeSubtitle": "Temple / Trust Management & Accounting System",
-    "platformSubtitle": "Platform tenant onboarding, approval, and tenant oversight"
+    "platformSubtitle": "Platform tenant onboarding, approval, and tenant oversight",
+    "languageOptions": {
+      "en": "English",
+      "kn": "Kannada",
+      "hi": "Hindi"
+    },
+    "nav": {
+      "dashboard": "Dashboard",
+      "donations": "Donations",
+      "devotees": "Devotees",
+      "inventory": "Inventory",
+      "templeAssets": "Temple Assets",
+      "hrSalary": "HR & Salary",
+      "hundi": "Hundi",
+      "reports": "Reports",
+      "panchang": "Panchang",
+      "settings": "Settings",
+      "implementationChecks": "Implementation Checks",
+      "platformOperations": "Platform Operations",
+      "sevas": {
+        "section": "Sevas",
+        "bookSevas": "Book Sevas",
+        "bookingsReschedule": "Seva Bookings / Reschedule",
+        "management": "Seva Management",
+        "rescheduleApproval": "Reschedule Approval"
+      },
+      "accounting": {
+        "section": "Accounting",
+        "chartOfAccounts": "Chart of Accounts",
+        "quickExpense": "Quick Expense",
+        "journalEntries": "Journal Entries",
+        "bankReconciliation": "Bank Reconciliation",
+        "financialClosing": "Financial Closing",
+        "upiPayments": "UPI Payments",
+        "reports": "Accounting Reports"
+      }
+    }
   },
   "login": {
     "systemTagline": "Temple Management System",

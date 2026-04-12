@@ -59,37 +59,34 @@ import {
 const drawerWidth = 260;
 
 const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', permissionKey: 'dashboard' },
-  { text: 'Donations', icon: <AccountBalanceIcon />, path: '/donations', moduleFlag: 'module_donations_enabled', permissionKey: 'donations' },
-  { text: 'Devotees', icon: <PeopleIcon />, path: '/devotees', permissionKey: 'devotees' },
-  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory', moduleFlag: 'module_inventory_enabled', permissionKey: 'inventory' },
-  { text: 'Temple Assets', icon: <EngineeringIcon />, path: '/assets', moduleFlag: 'module_assets_enabled', permissionKey: 'assets' },
-  { text: 'HR & Salary', icon: <BadgeIcon />, path: '/hr', moduleFlag: 'module_hr_enabled', permissionKey: 'hr' },
-  { text: 'Hundi', icon: <SavingsIcon />, path: '/hundi', moduleFlag: 'module_hundi_enabled', permissionKey: 'hundi' },
-  { text: 'Reports', icon: <AssessmentIcon />, path: '/reports', moduleFlag: 'module_reports_enabled', permissionKey: 'reports' },
-  { text: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', moduleFlag: 'module_panchang_enabled', permissionKey: 'panchang' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/settings', permissionKey: 'settings' },
-  { text: 'Implementation Checks', icon: <FactCheckIcon />, path: '/implementation-checks', permissionKey: 'settings' },
-  { text: 'Platform Operations', icon: <TempleHinduIcon />, path: '/platform/operations', superAdminOnly: true },
+  { id: 'dashboard', labelKey: 'layout.nav.dashboard', defaultLabel: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', permissionKey: 'dashboard' },
+  { id: 'donations', labelKey: 'layout.nav.donations', defaultLabel: 'Donations', icon: <AccountBalanceIcon />, path: '/donations', moduleFlag: 'module_donations_enabled', permissionKey: 'donations' },
+  { id: 'devotees', labelKey: 'layout.nav.devotees', defaultLabel: 'Devotees', icon: <PeopleIcon />, path: '/devotees', permissionKey: 'devotees' },
+  { id: 'inventory', labelKey: 'layout.nav.inventory', defaultLabel: 'Inventory', icon: <InventoryIcon />, path: '/inventory', moduleFlag: 'module_inventory_enabled', permissionKey: 'inventory' },
+  { id: 'assets', labelKey: 'layout.nav.templeAssets', defaultLabel: 'Temple Assets', icon: <EngineeringIcon />, path: '/assets', moduleFlag: 'module_assets_enabled', permissionKey: 'assets' },
+  { id: 'hr', labelKey: 'layout.nav.hrSalary', defaultLabel: 'HR & Salary', icon: <BadgeIcon />, path: '/hr', moduleFlag: 'module_hr_enabled', permissionKey: 'hr' },
+  { id: 'hundi', labelKey: 'layout.nav.hundi', defaultLabel: 'Hundi', icon: <SavingsIcon />, path: '/hundi', moduleFlag: 'module_hundi_enabled', permissionKey: 'hundi' },
+  { id: 'reports', labelKey: 'layout.nav.reports', defaultLabel: 'Reports', icon: <AssessmentIcon />, path: '/reports', moduleFlag: 'module_reports_enabled', permissionKey: 'reports' },
+  { id: 'panchang', labelKey: 'layout.nav.panchang', defaultLabel: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', moduleFlag: 'module_panchang_enabled', permissionKey: 'panchang' },
+  { id: 'settings', labelKey: 'layout.nav.settings', defaultLabel: 'Settings', icon: <SettingsIcon />, path: '/settings', permissionKey: 'settings' },
+  { id: 'implementationChecks', labelKey: 'layout.nav.implementationChecks', defaultLabel: 'Implementation Checks', icon: <FactCheckIcon />, path: '/implementation-checks', permissionKey: 'settings' },
+  { id: 'platformOperations', labelKey: 'layout.nav.platformOperations', defaultLabel: 'Platform Operations', icon: <TempleHinduIcon />, path: '/platform/operations', superAdminOnly: true },
 ];
-
 const sevaMenuItems = [
-  { text: 'Book Sevas', icon: <TempleHinduIcon />, path: '/sevas' },
-  { text: 'Seva Bookings / Reschedule', icon: <AssignmentIcon />, path: '/reports/sevas/detailed' },
-  { text: 'Seva Management', icon: <AssignmentIcon />, path: '/sevas/manage', requires: 'manage_seva_master' },
-  { text: 'Reschedule Approval', icon: <AssignmentTurnedInIcon />, path: '/sevas/reschedule-approval', requires: 'approve_seva_reschedule' },
+  { id: 'bookSevas', labelKey: 'layout.nav.sevas.bookSevas', defaultLabel: 'Book Sevas', icon: <TempleHinduIcon />, path: '/sevas' },
+  { id: 'sevaBookingsReschedule', labelKey: 'layout.nav.sevas.bookingsReschedule', defaultLabel: 'Seva Bookings / Reschedule', icon: <AssignmentIcon />, path: '/reports/sevas/detailed' },
+  { id: 'sevaManagement', labelKey: 'layout.nav.sevas.management', defaultLabel: 'Seva Management', icon: <AssignmentIcon />, path: '/sevas/manage', requires: 'manage_seva_master' },
+  { id: 'rescheduleApproval', labelKey: 'layout.nav.sevas.rescheduleApproval', defaultLabel: 'Reschedule Approval', icon: <AssignmentTurnedInIcon />, path: '/sevas/reschedule-approval', requires: 'approve_seva_reschedule' },
 ];
-
 const accountingMenuItems = [
-  { text: 'Chart of Accounts', icon: <AccountTreeIcon />, path: '/accounting/chart-of-accounts' },
-  { text: 'Quick Expense', icon: <MoneyOffIcon />, path: '/accounting/quick-expense' },
-  { text: 'Journal Entries', icon: <ReceiptIcon />, path: '/accounting/journal-entries' },
-  { text: 'Bank Reconciliation', icon: <AccountBalanceIcon />, path: '/accounting/bank-reconciliation' },
-  { text: 'Financial Closing', icon: <LockIcon />, path: '/accounting/financial-closing' },
-  { text: 'UPI Payments', icon: <PaymentIcon />, path: '/accounting/upi-payments' },
-  { text: 'Accounting Reports', icon: <SummarizeIcon />, path: '/accounting/reports' },
+  { id: 'chartOfAccounts', labelKey: 'layout.nav.accounting.chartOfAccounts', defaultLabel: 'Chart of Accounts', icon: <AccountTreeIcon />, path: '/accounting/chart-of-accounts' },
+  { id: 'quickExpense', labelKey: 'layout.nav.accounting.quickExpense', defaultLabel: 'Quick Expense', icon: <MoneyOffIcon />, path: '/accounting/quick-expense' },
+  { id: 'journalEntries', labelKey: 'layout.nav.accounting.journalEntries', defaultLabel: 'Journal Entries', icon: <ReceiptIcon />, path: '/accounting/journal-entries' },
+  { id: 'bankReconciliation', labelKey: 'layout.nav.accounting.bankReconciliation', defaultLabel: 'Bank Reconciliation', icon: <AccountBalanceIcon />, path: '/accounting/bank-reconciliation' },
+  { id: 'financialClosing', labelKey: 'layout.nav.accounting.financialClosing', defaultLabel: 'Financial Closing', icon: <LockIcon />, path: '/accounting/financial-closing' },
+  { id: 'upiPayments', labelKey: 'layout.nav.accounting.upiPayments', defaultLabel: 'UPI Payments', icon: <PaymentIcon />, path: '/accounting/upi-payments' },
+  { id: 'accountingReports', labelKey: 'layout.nav.accounting.reports', defaultLabel: 'Accounting Reports', icon: <SummarizeIcon />, path: '/accounting/reports' },
 ];
-
 const DEFAULT_MODULE_CONFIG = {
   module_donations_enabled: true,
   module_sevas_enabled: true,
@@ -105,9 +102,9 @@ const DEFAULT_MODULE_CONFIG = {
 const LAYOUT_CACHE_TTL_MS = 2 * 60 * 1000;
 const MODULE_CONFIG_CACHE_KEY = 'layout_module_config_cache_v1';
 const LANGUAGE_OPTIONS = [
-  { code: 'en', label: 'EN' },
-  { code: 'kn', label: 'ಕನ್ನಡ' },
-  { code: 'hi', label: 'हिन्दी' },
+  { code: 'en', labelKey: 'layout.languageOptions.en', defaultLabel: 'English' },
+  { code: 'kn', labelKey: 'layout.languageOptions.kn', defaultLabel: 'Kannada' },
+  { code: 'hi', labelKey: 'layout.languageOptions.hi', defaultLabel: 'Hindi' },
 ];
 
 const readLayoutCache = (key) => {
@@ -330,7 +327,7 @@ function Layout({ children }) {
     if (item.superAdminOnly && !isPlatformSuperAdmin) {
       return false;
     }
-    if (isPlatformConsole && item.text !== 'Dashboard' && item.text !== 'Platform Operations' && item.text !== 'Implementation Checks') {
+    if (isPlatformConsole && item.id !== 'dashboard' && item.id !== 'platformOperations' && item.id !== 'implementationChecks') {
       return false;
     }
     return isFeatureEnabled(item.moduleFlag) && hasModuleAccess(item.permissionKey);
@@ -412,17 +409,17 @@ function Layout({ children }) {
         </>
       )}
       <List>
-        {visibleMenuItems.filter((item) => item.text === 'Dashboard').map((item) => {
+        {visibleMenuItems.filter((item) => item.id === 'dashboard').map((item) => {
           const isSelected = location.pathname === item.path || (!activeTempleId && isPlatformSuperAdmin && location.pathname === '/platform/operations');
           return (
-            <ListItem key={item.text} disablePadding>
+            <ListItem key={item.id} disablePadding>
               <ListItemButton
                 selected={isSelected}
                 onClick={() => navigateTo(item.path)}
                 sx={{ '&.Mui-selected': { bgcolor: '#FFF3E0', borderLeft: '4px solid #FF9933', '&:hover': { bgcolor: '#FFF3E0' } } }}
               >
                 <ListItemIcon sx={{ color: isSelected ? '#FF9933' : 'inherit' }}>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.text} />
+                <ListItemText primary={t(item.labelKey, { defaultValue: item.defaultLabel })} />
               </ListItemButton>
             </ListItem>
           );
@@ -433,21 +430,21 @@ function Layout({ children }) {
             <ListItem disablePadding>
               <ListItemButton onClick={() => setSevasOpen((prev) => !prev)}>
                 <ListItemIcon><TempleHinduIcon /></ListItemIcon>
-                <ListItemText primary="Sevas" />
+                <ListItemText primary={t('layout.nav.sevas.section', { defaultValue: 'Sevas' })} />
                 {sevasOpen ? <ExpandLess /> : <ExpandMore />}
               </ListItemButton>
             </ListItem>
             <Collapse in={sevasOpen} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 {visibleSevaMenuItems.map((item) => (
-                  <ListItem key={item.text} disablePadding>
+                  <ListItem key={item.id} disablePadding>
                     <ListItemButton
                       selected={location.pathname === item.path}
                       onClick={() => navigateTo(item.path)}
                       sx={{ pl: 4, '&.Mui-selected': { bgcolor: '#FFF3E0', borderLeft: '4px solid #FF9933', '&:hover': { bgcolor: '#FFF3E0' } } }}
                     >
                       <ListItemIcon sx={{ color: location.pathname === item.path ? '#FF9933' : 'inherit' }}>{item.icon}</ListItemIcon>
-                      <ListItemText primary={item.text} />
+                      <ListItemText primary={t(item.labelKey, { defaultValue: item.defaultLabel })} />
                     </ListItemButton>
                   </ListItem>
                 ))}
@@ -457,15 +454,15 @@ function Layout({ children }) {
           </>
         )}
 
-        {visibleMenuItems.filter((item) => item.text !== 'Dashboard').map((item) => (
-          <ListItem key={item.text} disablePadding>
+        {visibleMenuItems.filter((item) => item.id !== 'dashboard').map((item) => (
+          <ListItem key={item.id} disablePadding>
             <ListItemButton
               selected={location.pathname === item.path}
               onClick={() => navigateTo(item.path)}
               sx={{ '&.Mui-selected': { bgcolor: '#FFF3E0', borderLeft: '4px solid #FF9933', '&:hover': { bgcolor: '#FFF3E0' } } }}
             >
               <ListItemIcon sx={{ color: location.pathname === item.path ? '#FF9933' : 'inherit' }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
+              <ListItemText primary={t(item.labelKey, { defaultValue: item.defaultLabel })} />
             </ListItemButton>
           </ListItem>
         ))}
@@ -477,21 +474,21 @@ function Layout({ children }) {
             <ListItem disablePadding>
               <ListItemButton onClick={() => setAccountingOpen((prev) => !prev)}>
                 <ListItemIcon><AccountBalanceWalletIcon /></ListItemIcon>
-                <ListItemText primary="Accounting" />
+                <ListItemText primary={t('layout.nav.accounting.section', { defaultValue: 'Accounting' })} />
                 {accountingOpen ? <ExpandLess /> : <ExpandMore />}
               </ListItemButton>
             </ListItem>
             <Collapse in={accountingOpen} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 {accountingMenuItems.map((item) => (
-                  <ListItem key={item.text} disablePadding>
+                  <ListItem key={item.id} disablePadding>
                     <ListItemButton
                       selected={location.pathname === item.path}
                       onClick={() => navigateTo(item.path)}
                       sx={{ pl: 4, '&.Mui-selected': { bgcolor: '#FFF3E0', borderLeft: '4px solid #FF9933', '&:hover': { bgcolor: '#FFF3E0' } } }}
                     >
                       <ListItemIcon sx={{ color: location.pathname === item.path ? '#FF9933' : 'inherit' }}>{item.icon}</ListItemIcon>
-                      <ListItemText primary={item.text} />
+                      <ListItemText primary={t(item.labelKey, { defaultValue: item.defaultLabel })} />
                     </ListItemButton>
                   </ListItem>
                 ))}
@@ -575,7 +572,7 @@ function Layout({ children }) {
               >
                 {LANGUAGE_OPTIONS.map((language) => (
                   <MenuItem key={language.code} value={language.code}>
-                    {language.label}
+                    {t(language.labelKey, { defaultValue: language.defaultLabel })}
                   </MenuItem>
                 ))}
               </Select>
@@ -635,3 +632,4 @@ function Layout({ children }) {
 }
 
 export default Layout;
+

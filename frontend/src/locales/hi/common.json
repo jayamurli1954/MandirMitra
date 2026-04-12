@@ -8,7 +8,43 @@
     "platformAdminConsole": "प्लेटफ़ॉर्म एडमिन कंसोल",
     "defaultTenant": "मंदिरमित्र",
     "templeSubtitle": "मंदिर / ट्रस्ट प्रबंधन और अकाउंटिंग सिस्टम",
-    "platformSubtitle": "प्लेटफ़ॉर्म टेनेंट ऑनबोर्डिंग, अनुमोदन और निगरानी"
+    "platformSubtitle": "प्लेटफ़ॉर्म टेनेंट ऑनबोर्डिंग, अनुमोदन और निगरानी",
+    "languageOptions": {
+      "en": "English",
+      "kn": "ಕನ್ನಡ",
+      "hi": "हिन्दी"
+    },
+    "nav": {
+      "dashboard": "डैशबोर्ड",
+      "donations": "दान",
+      "devotees": "भक्त",
+      "inventory": "इन्वेंटरी",
+      "templeAssets": "मंदिर संपत्तियाँ",
+      "hrSalary": "एचआर और वेतन",
+      "hundi": "हुंडी",
+      "reports": "रिपोर्ट्स",
+      "panchang": "पंचांग",
+      "settings": "सेटिंग्स",
+      "implementationChecks": "कार्यान्वयन जांच",
+      "platformOperations": "प्लेटफ़ॉर्म संचालन",
+      "sevas": {
+        "section": "सेवाएँ",
+        "bookSevas": "सेवा बुकिंग",
+        "bookingsReschedule": "सेवा बुकिंग / पुनर्निर्धारण",
+        "management": "सेवा प्रबंधन",
+        "rescheduleApproval": "पुनर्निर्धारण स्वीकृति"
+      },
+      "accounting": {
+        "section": "लेखांकन",
+        "chartOfAccounts": "खातों की सूची",
+        "quickExpense": "त्वरित व्यय",
+        "journalEntries": "जर्नल प्रविष्टियाँ",
+        "bankReconciliation": "बैंक समायोजन",
+        "financialClosing": "वित्तीय समापन",
+        "upiPayments": "यूपीआई भुगतान",
+        "reports": "लेखांकन रिपोर्ट्स"
+      }
+    }
   },
   "login": {
     "systemTagline": "मंदिर प्रबंधन प्रणाली",
