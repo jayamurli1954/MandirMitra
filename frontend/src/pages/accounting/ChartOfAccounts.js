@@ -208,6 +208,37 @@ function ChartOfAccounts() {
   });
 
   const subtypeOptions = useMemo(() => ACCOUNT_SUBTYPES[newAccount.account_type] || [], [newAccount.account_type]);
+  const normalizeApiError = (error, fallbackMessage) => {
+    const detail = error?.response?.data?.detail;
+    if (typeof detail === 'string' && detail.trim()) {
+      return detail;
+    }
+    if (Array.isArray(detail)) {
+      const joined = detail
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          if (item && typeof item === 'object') {
+            const loc = Array.isArray(item.loc) ? item.loc.join('.') : '';
+            const msg = typeof item.msg === 'string' ? item.msg : JSON.stringify(item);
+            return loc ? `${loc}: ${msg}` : msg;
+          }
+          return String(item || '');
+        })
+        .filter(Boolean)
+        .join('; ');
+      if (joined) {
+        return joined;
+      }
+    }
+    if (detail && typeof detail === 'object') {
+      try {
+        return JSON.stringify(detail);
+      } catch (_e) {
+        return fallbackMessage;
+      }
+    }
+    return fallbackMessage;
+  };
 
   useEffect(() => {
     fetchAccounts();
@@ -377,7 +408,7 @@ function ChartOfAccounts() {
       await fetchAccounts();
     } catch (error) {
       console.error('Error importing opening balances:', error);
-      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to import opening balances' });
+      setMessage({ type: 'error', text: normalizeApiError(error, 'Failed to import opening balances') });
     } finally {
       setUploadingOpeningBalances(false);
     }
