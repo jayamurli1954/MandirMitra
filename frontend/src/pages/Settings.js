@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Typography,
   Box,
@@ -64,7 +64,7 @@ function Settings() {
     pincode: '',
     phone: '',
     email: '',
-    platform_demo_temple: true,
+    platform_demo_temple: false,
     admin_full_name: '',
     admin_email: '',
     admin_password: '',
@@ -207,12 +207,7 @@ function Settings() {
       setLoading(true);
       const response = await api.get('/api/v1/temples/');
       const rawTempleList = Array.isArray(response.data) ? response.data : [];
-      const demoEditableTemples = isPlatformSuperAdmin
-        ? rawTempleList.filter((temple) => Boolean(temple?.platform_can_write))
-        : [];
-      const templeList = isPlatformSuperAdmin && demoEditableTemples.length > 0
-        ? demoEditableTemples
-        : rawTempleList;
+      const templeList = rawTempleList;
 
       setTemples(templeList);
       if (templeList.length > 0) {
@@ -333,7 +328,7 @@ function Settings() {
         pincode: '',
         phone: '',
         email: '',
-        platform_demo_temple: true,
+        platform_demo_temple: false,
         admin_full_name: '',
         admin_email: '',
         admin_password: '',

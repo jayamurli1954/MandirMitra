@@ -28,6 +28,8 @@ import { readStoredUser } from '../utils/authStorage';
 import { setActiveTempleId, emitActiveTempleChanged } from '../utils/activeTemple';
 
 const getDisplayName = (temple) => temple?.name || temple?.trust_name || `Temple ${temple?.id || ''}`;
+const normalizeName = (value) => String(value || '').trim().toLowerCase();
+const getPendingDisplayName = (request) => request?.temple_name || request?.trust_name || request?.tenant_name || 'Unnamed request';
 const getRequestIdCandidates = (request) => {
   const candidates = [
     request?.request_id,
@@ -217,6 +219,17 @@ function TempleDirectory() {
     }
   };
 
+  const handleOpenDashboard = (temple) => {
+    const resolvedTempleId = Number.parseInt(String(temple?.id || temple?.temple_id || ''), 10);
+    if (!Number.isInteger(resolvedTempleId) || resolvedTempleId <= 0) {
+      showError('Temple ID is invalid for this row. Please refresh and try again.');
+      return;
+    }
+    setActiveTempleId(resolvedTempleId);
+    emitActiveTempleChanged(resolvedTempleId);
+    navigate('/dashboard');
+  };
+
   if (!isPlatformSuperAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -231,7 +244,13 @@ function TempleDirectory() {
     }
     return acc;
   }, {});
-  const demoTemples = temples.filter((temple) => Boolean(temple.platform_can_write));
+  const approvedRequestByName = approvedRequests.reduce((acc, request) => {
+    const key = normalizeName(request?.tenant_name || request?.temple_name || request?.trust_name || '');
+    if (key && !acc[key]) {
+      acc[key] = request;
+    }
+    return acc;
+  }, {});
 
   return (
     <Layout>
@@ -318,7 +337,7 @@ function TempleDirectory() {
                           const requestId = getRequestId(request);
                           return (
                             <TableRow key={requestId} hover>
-                              <TableCell sx={{ fontWeight: 600 }}>{request.temple_name || request.trust_name || 'Unnamed request'}</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>{getPendingDisplayName(request)}</TableCell>
                               <TableCell>{request.city || '--'}</TableCell>
                               <TableCell>{request.admin_full_name}</TableCell>
                               <TableCell>{request.admin_email}</TableCell>
@@ -362,21 +381,33 @@ function TempleDirectory() {
                         <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>Platform Access</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Verification</TableCell>
                         <TableCell sx={{ fontWeight: 700 }} align="right">Action</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {demoTemples.length === 0 ? (
+                      {temples.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={11}>
+                          <TableCell colSpan={12}>
                             <Alert severity="info">No temples or trusts have been onboarded yet.</Alert>
                           </TableCell>
                         </TableRow>
                       ) : (
-                        demoTemples.map((temple) => {
+                        temples.map((temple) => {
                           const tenantKey = String(temple?.tenant_id || '').trim();
-                          const linkedApprovedRequest = approvedRequestByTenant[tenantKey];
+                          const nameLookupKey = normalizeName(temple?.name || temple?.temple_name || temple?.trust_name || '');
+                          const linkedApprovedRequest = approvedRequestByTenant[tenantKey] || approvedRequestByName[nameLookupKey] || null;
                           const linkedRequestId = getRequestId(linkedApprovedRequest);
+                          const hasApprovedRequest = Boolean(linkedApprovedRequest);
+                          const resolvedTempleName = normalizeName(getDisplayName(temple));
+                          const hasPlaceholderName = resolvedTempleName === 'temple' || resolvedTempleName === 'temple trust';
+                          const hasContact = Boolean(temple?.phone || temple?.email);
+                          const hasLocation = Boolean(temple?.city || temple?.state);
+                          const onboardingStatus = normalizeName(temple?.onboarding_status);
+                          const needsReview = !hasApprovedRequest || hasPlaceholderName || !hasContact || !hasLocation || onboardingStatus === 'completed';
+                          const resendLabel = !linkedRequestId
+                            ? 'No Request'
+                            : (resendLoadingRequestId === linkedRequestId ? 'Resending...' : 'Resend Email');
                           return (
                             <TableRow key={temple.id} hover>
                               <TableCell>{temple.id}</TableCell>
@@ -393,15 +424,30 @@ function TempleDirectory() {
                               <TableCell>
                                 <Chip size="small" color={temple.platform_can_write ? 'warning' : 'default'} label={temple.platform_can_write ? 'Demo Editable' : 'Read-only'} variant={temple.platform_can_write ? 'filled' : 'outlined'} />
                               </TableCell>
+                              <TableCell>
+                                <Chip
+                                  size="small"
+                                  color={needsReview ? 'warning' : 'success'}
+                                  label={needsReview ? 'Needs Review' : 'Verified'}
+                                  variant={needsReview ? 'filled' : 'outlined'}
+                                />
+                              </TableCell>
                               <TableCell align="right">
                                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    onClick={() => handleOpenDashboard(temple)}
+                                  >
+                                    Open Dashboard
+                                  </Button>
                                   <Button
                                     size="small"
                                     variant="outlined"
                                     disabled={!linkedRequestId || resendLoadingRequestId === linkedRequestId}
                                     onClick={() => handleResendCredentials(linkedApprovedRequest, temple)}
                                   >
-                                    {resendLoadingRequestId === linkedRequestId ? 'Resending...' : 'Resend Email'}
+                                    {resendLabel}
                                   </Button>
                                   {temple.is_active === false ? (
                                     <Button

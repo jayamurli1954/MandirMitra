@@ -231,13 +231,25 @@ function Layout({ children }) {
         }
 
         if (isPlatformSuperAdmin) {
-          if (activeTempleId) {
+          if (!activeTempleId) {
+            setModuleConfig(DEFAULT_MODULE_CONFIG);
+            writeLayoutCache(MODULE_CONFIG_CACHE_KEY, DEFAULT_MODULE_CONFIG);
+            return;
+          }
+
+          const selectedTemple = templeList.find((temple) => Number(temple?.id) === Number(activeTempleId));
+          if (!selectedTemple) {
             setActiveTempleId(null);
             setActiveTempleState(null);
             emitActiveTempleChanged(null);
+            setModuleConfig(DEFAULT_MODULE_CONFIG);
+            writeLayoutCache(MODULE_CONFIG_CACHE_KEY, DEFAULT_MODULE_CONFIG);
+            return;
           }
-          setModuleConfig(DEFAULT_MODULE_CONFIG);
-          writeLayoutCache(MODULE_CONFIG_CACHE_KEY, DEFAULT_MODULE_CONFIG);
+
+          const normalizedSelectedTemple = { ...DEFAULT_MODULE_CONFIG, ...selectedTemple };
+          setModuleConfig(normalizedSelectedTemple);
+          writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalizedSelectedTemple);
           return;
         }
 
@@ -340,13 +352,7 @@ function Layout({ children }) {
     emitActiveTempleChanged(nextTempleId);
   };
 
-  const visibleTemples = useMemo(() => {
-    if (!isPlatformSuperAdmin) {
-      return temples;
-    }
-    const demoEditableTemples = temples.filter((temple) => Boolean(temple?.platform_can_write));
-    return demoEditableTemples.length > 0 ? demoEditableTemples : temples;
-  }, [isPlatformSuperAdmin, temples]);
+  const visibleTemples = useMemo(() => temples, [temples]);
 
   const selectedTemple = activeTempleId
     ? visibleTemples.find((temple) => Number(temple.id) === Number(activeTempleId))
@@ -586,4 +592,5 @@ function Layout({ children }) {
 }
 
 export default Layout;
+
 
