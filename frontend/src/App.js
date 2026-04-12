@@ -43,6 +43,7 @@ const UpiPayments = lazy(() => import('./pages/accounting/UpiPayments'));
 const BankReconciliation = lazy(() => import('./pages/accounting/BankReconciliation'));
 const FinancialClosing = lazy(() => import('./pages/accounting/FinancialClosing'));
 const AccountingReports = lazy(() => import('./pages/accounting/AccountingReports'));
+const PublicSevaPayment = lazy(() => import('./pages/PublicSevaPayment'));
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const IDLE_CHECK_INTERVAL_MS = 15000;
@@ -374,6 +375,7 @@ function App() {
                       </ProtectedRoute>
                     )}
                   />
+                  <Route path="/pay" element={<PublicSevaPayment />} />
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </Suspense>
