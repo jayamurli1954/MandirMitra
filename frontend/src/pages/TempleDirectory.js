@@ -122,8 +122,15 @@ function TempleDirectory() {
 
   const handleRemoveTemple = async (temple) => {
     const label = getDisplayName(temple);
-    const confirmation = window.prompt(`Type DELETE ${temple.id} to permanently remove ${label} and all related data.`);
-    if (!confirmation) {
+    const expectedConfirmation = `DELETE ${temple.id}`;
+    const confirmation = window.prompt(`Type ${expectedConfirmation} to permanently remove ${label} and all related data.`);
+    if (confirmation === null) {
+      return;
+    }
+
+    const normalizedConfirmation = String(confirmation || '').trim().replace(/\s+/g, ' ').toUpperCase();
+    if (normalizedConfirmation !== expectedConfirmation) {
+      showError(`Confirmation text mismatch. Expected: ${expectedConfirmation}`);
       return;
     }
 
@@ -131,7 +138,7 @@ function TempleDirectory() {
     try {
       setTenantActionKey(actionKey);
       await api.delete(`/api/v1/temples/${temple.id}/remove`, {
-        data: { confirm_text: confirmation },
+        data: { confirm_text: expectedConfirmation },
       });
       showSuccess(`${label} removed completely`);
       await fetchData();
