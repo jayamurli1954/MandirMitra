@@ -104,7 +104,7 @@ function RolePermissionMatrix({ currentUser }) {
 
   return (
     <Grid item xs={12}>
-      <Card sx={{ borderLeft: '5px solid #6A1B9A' }}>
+      <Card sx={{ borderLeft: '5px solid #1565C0' }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
             <SecurityIcon color="primary" />
@@ -201,7 +201,7 @@ function RolePermissionMatrix({ currentUser }) {
                             variant="contained"
                             onClick={() => handleSaveRole(role)}
                             disabled={savingRoleKey === role.role_key}
-                            sx={{ bgcolor: '#6A1B9A', '&:hover': { bgcolor: '#4A136C' } }}
+                            sx={{ bgcolor: '#1565C0', color: '#FFFFFF', fontWeight: 700, '&:hover': { bgcolor: '#0D47A1' } }}
                           >
                             {savingRoleKey === role.role_key ? 'Saving...' : `Save ${role.display_name}`}
                           </Button>
@@ -220,3 +220,4 @@ function RolePermissionMatrix({ currentUser }) {
 }
 
 export default RolePermissionMatrix;
+

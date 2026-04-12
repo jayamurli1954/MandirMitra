@@ -303,7 +303,7 @@ function SetupWizard() {
                   </CardContent>
                 </Card>
 
-                <Card sx={{ borderLeft: '5px solid #6A1B9A' }}>
+                <Card sx={{ borderLeft: '5px solid #1565C0' }}>
                   <CardContent>
                     <Typography variant="h6" gutterBottom>Invite Staff Users</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -358,3 +358,4 @@ function SetupWizard() {
 }
 
 export default SetupWizard;
+

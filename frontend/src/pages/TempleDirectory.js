@@ -322,7 +322,7 @@ function TempleDirectory() {
               <Typography variant="h4" sx={{ fontWeight: 700 }}>{pendingRequests.length}</Typography>
             </CardContent>
           </Card>
-          <Card sx={{ borderLeft: '5px solid #6A1B9A' }}>
+          <Card sx={{ borderLeft: '5px solid #1565C0' }}>
             <CardContent>
               <Typography variant="overline" color="text.secondary">{t('templeDirectory.accessModel')}</Typography>
               <Typography variant="body1" sx={{ mt: 1 }}>{t('templeDirectory.accessModelDescription')}</Typography>
@@ -525,3 +525,4 @@ function TempleDirectory() {
 }
 
 export default TempleDirectory;
+
