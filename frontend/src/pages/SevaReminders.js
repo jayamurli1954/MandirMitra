@@ -12,7 +12,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import SendIcon from '@mui/icons-material/Send';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import Layout from '../components/Layout';
-import { fetchWithApiFallback, authHeaders } from '../utils/api';
+import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 
 function TabPanel({ children, value, index }) {
   return value === index ? <Box sx={{ pt: 3 }}>{children}</Box> : null;
@@ -53,9 +53,7 @@ export default function SevaReminders() {
   const loadSevas = useCallback(async () => {
     setSevasLoading(true);
     try {
-      const res = await fetchWithApiFallback('/api/v1/sevas/reminder-config', {
-        headers: authHeaders(),
-      });
+      const res = await fetchWithApiFallback('/api/v1/sevas/reminder-config');
       if (res.ok) setSevas(await res.json());
       else showSnack('Failed to load seva configuration', 'error');
     } catch (_e) { /* best-effort */ }
@@ -66,9 +64,7 @@ export default function SevaReminders() {
   const loadUpcoming = useCallback(async () => {
     setUpcomingLoading(true);
     try {
-      const res = await fetchWithApiFallback(`/api/v1/sevas/reminders/upcoming?days=${daysFilter}`, {
-        headers: authHeaders(),
-      });
+      const res = await fetchWithApiFallback(`/api/v1/sevas/reminders/upcoming?days=${daysFilter}`);
       if (res.ok) setUpcoming(await res.json());
       else showSnack('Failed to load upcoming renewals', 'error');
     } catch (_e) { /* best-effort */ }
@@ -95,7 +91,7 @@ export default function SevaReminders() {
     try {
       const res = await fetchWithApiFallback(`/api/v1/sevas/${editSeva.seva_id}/reminder-config`, {
         method: 'PATCH',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reminder_enabled: editForm.reminder_enabled,
           reminder_days_before: Number(editForm.reminder_days_before),
@@ -121,7 +117,7 @@ export default function SevaReminders() {
     try {
       const res = await fetchWithApiFallback('/api/v1/sevas/reminders/trigger', {
         method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...(sevaId ? { seva_id: sevaId } : {}), force }),
       });
       if (res.ok) {
