@@ -3,8 +3,9 @@ import {
   Box, Container, Paper, Typography, TextField, MenuItem,
   Button, Stepper, Step, StepLabel, Divider, Alert,
   CircularProgress, Chip, Grid, InputAdornment, ToggleButton,
-  ToggleButtonGroup, Autocomplete,
+  ToggleButtonGroup,
 } from '@mui/material';
+import { QRCodeSVG } from 'qrcode.react';
 import SearchIcon from '@mui/icons-material/Search';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -447,11 +448,25 @@ export default function PublicSevaPayment() {
               {paymentResult.seva_name}{paymentResult.amount && ` — ₹${paymentResult.amount}`}
             </Alert>
 
-            {paymentResult.qr_code_image_url && (
+            {paymentResult.upi_id && (
               <Box textAlign="center" mb={2}>
-                <Typography variant="subtitle2" gutterBottom>Scan QR Code to Pay</Typography>
-                <img src={paymentResult.qr_code_image_url} alt="Temple UPI QR Code"
-                  style={{ maxWidth: 220, border: '1px solid #ddd', borderRadius: 8 }} />
+                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                  Scan QR Code to Pay
+                </Typography>
+                <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+                  Amount is pre-filled — just scan and confirm in your UPI app
+                </Typography>
+                <Box display="inline-block" p={1.5} border="1px solid #ddd" borderRadius={2} bgcolor="white">
+                  <QRCodeSVG
+                    value={`upi://pay?pa=${encodeURIComponent(paymentResult.upi_id)}&pn=${encodeURIComponent(paymentResult.upi_payee_name || 'Temple')}&am=${paymentResult.amount || ''}&cu=INR&tn=${encodeURIComponent((paymentResult.seva_name || '').slice(0, 50))}`}
+                    size={220}
+                    level="H"
+                    includeMargin={false}
+                  />
+                </Box>
+                <Typography variant="caption" color="text.secondary" display="block" mt={1}>
+                  Works with GPay, PhonePe, Paytm, BHIM &amp; all UPI apps
+                </Typography>
               </Box>
             )}
 
