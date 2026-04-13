@@ -68,6 +68,8 @@ export default function PublicSevaPayment() {
   const [mobileSearching, setMobileSearching] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState(emptyForm);
+  const [utr, setUtr] = useState('');
+  const [whatsappSent, setWhatsappSent] = useState(false);
 
   // Load temple list if no temple_id in URL
   useEffect(() => {
@@ -168,6 +170,10 @@ export default function PublicSevaPayment() {
       if (!res.ok) { setError(data.detail || 'Submission failed. Please try again.'); return; }
       setPaymentResult(data);
       setActiveStep(2);
+      // Auto-open WhatsApp so admin is notified immediately without devotee having to click
+      if (data.whatsapp_link) {
+        setTimeout(() => { window.open(data.whatsapp_link, '_blank'); }, 800);
+      }
     } catch (_e) {
       setError('Network error. Please try again.');
     } finally {
@@ -177,8 +183,22 @@ export default function PublicSevaPayment() {
 
   const handleCopy = (text) => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
+  // Build WhatsApp link with UTR substituted into the template
+  const buildWhatsappLink = (result, utrValue) => {
+    if (!result?.admin_whatsapp) return null;
+    const phone = result.admin_whatsapp.replace(/\D/g, '');
+    const template = result.whatsapp_message_template || '';
+    const msg = utrValue
+      ? template.replace('[PASTE UTR HERE]', utrValue.trim())
+      : template;
+    try {
+      return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+    } catch (_e) { /* best-effort */ return result.whatsapp_link; }
+  };
+
   const resetForm = () => {
     setActiveStep(0); setPaymentResult(null); setPaymentType('seva'); setForm(emptyForm);
+    setUtr(''); setWhatsappSent(false);
     if (!initialTempleId) { setTempleId(''); setTempleInfo(null); }
   };
 
@@ -487,19 +507,86 @@ export default function PublicSevaPayment() {
               </Alert>
             )}
 
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              <Typography variant="body2" fontWeight="bold" gutterBottom>After payment, send WhatsApp confirmation:</Typography>
-              <Typography variant="caption" component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
-                {paymentResult.whatsapp_message_template}
+            {/* ── 3-step admin notification card ── */}
+            <Box sx={{ border: '2px solid #FF9933', borderRadius: 2, p: 2, mb: 2, bgcolor: '#FFFDE7' }}>
+              <Typography variant="subtitle1" fontWeight="bold" color="#e65c00" gutterBottom>
+                📋 Important — 3 Steps to complete your booking
               </Typography>
-            </Alert>
 
-            {paymentResult.whatsapp_link && (
-              <Button variant="contained" fullWidth startIcon={<WhatsAppIcon />} href={paymentResult.whatsapp_link} target="_blank"
-                sx={{ bgcolor: '#25D366', '&:hover': { bgcolor: '#128C7E' }, mb: 2 }}>
-                Send WhatsApp Confirmation
-              </Button>
-            )}
+              {/* Step 1 */}
+              <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5 }}>
+                <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: '#FF9933', color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0, mt: 0.5 }}>1</Box>
+                <Box>
+                  <Typography variant="body2" fontWeight="bold">Make the UPI payment above</Typography>
+                  <Typography variant="caption" color="text.secondary">Scan the QR or use the UPI ID to complete payment</Typography>
+                </Box>
+              </Box>
+
+              {/* Step 2 — UTR */}
+              <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5 }}>
+                <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: '#FF9933', color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0, mt: 0.5 }}>2</Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" fontWeight="bold">Note your UTR / Transaction Reference</Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                    After payment, your UPI app shows a UTR or transaction ID. Enter it here:
+                  </Typography>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="e.g. 4125789632014"
+                    label="UTR / Transaction ID (optional but recommended)"
+                    value={utr}
+                    onChange={(e) => setUtr(e.target.value)}
+                    sx={{ bgcolor: '#fff' }}
+                  />
+                </Box>
+              </Box>
+
+              {/* Step 3 — WhatsApp */}
+              <Box sx={{ display: 'flex', gap: 1.5 }}>
+                <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: whatsappSent ? '#25D366' : '#FF9933', color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0, mt: 0.5 }}>
+                  {whatsappSent ? '✓' : '3'}
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" fontWeight="bold">
+                    Send WhatsApp confirmation to the temple admin
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                    {whatsappSent
+                      ? '✅ WhatsApp opened! The admin will verify and confirm your booking.'
+                      : 'Tap the button below — WhatsApp will open with a pre-filled message. Just press Send.'}
+                  </Typography>
+                  {paymentResult.admin_whatsapp && (
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      startIcon={<WhatsAppIcon />}
+                      href={buildWhatsappLink(paymentResult, utr)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setWhatsappSent(true)}
+                      sx={{
+                        bgcolor: whatsappSent ? '#128C7E' : '#25D366',
+                        '&:hover': { bgcolor: '#075E54' },
+                        fontWeight: 'bold',
+                        py: 1.2,
+                        fontSize: 15,
+                      }}
+                    >
+                      {whatsappSent ? 'Send Again / Resend' : '📲 Send WhatsApp to Temple Admin'}
+                    </Button>
+                  )}
+                  {!paymentResult.admin_whatsapp && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      Please call or visit the temple office to confirm your payment.
+                    </Alert>
+                  )}
+                </Box>
+              </Box>
+            </Box>
 
             <Button variant="outlined" fullWidth onClick={resetForm}>Make Another Payment</Button>
           </Paper>
