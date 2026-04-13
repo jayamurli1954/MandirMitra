@@ -5,6 +5,8 @@ import {
   Box,
   Paper,
   Grid,
+  Card,
+  CardContent,
   CircularProgress,
   Alert,
   Button,
