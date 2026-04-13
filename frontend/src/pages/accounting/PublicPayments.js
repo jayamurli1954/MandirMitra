@@ -55,7 +55,7 @@ export default function PublicPayments() {
     setLoading(true);
     try {
       const qs = statusFilter ? `?status=${statusFilter}` : '';
-      const res = await fetchWithApiFallback(`/api/v1/mandirmitra/public-payments${qs}`, {
+      const res = await fetchWithApiFallback(`/api/v1/public-payments${qs}`, {
         headers: authHeaders(),
       });
       if (res.ok) {
@@ -83,7 +83,7 @@ export default function PublicPayments() {
     setApproving(true);
     try {
       const res = await fetchWithApiFallback(
-        `/api/v1/mandirmitra/public-payments/${payment.id}/verify`,
+        `/api/v1/public-payments/${payment.id}/verify`,
         {
           method: 'PATCH',
           headers: authHeaders(),

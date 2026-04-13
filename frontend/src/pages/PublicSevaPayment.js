@@ -73,7 +73,7 @@ export default function PublicSevaPayment() {
   useEffect(() => {
     if (initialTempleId) return;
     setTempleListLoading(true);
-    fetch(buildApiUrl('/api/v1/mandirmitra/public/temples'))
+    fetch(buildApiUrl('/api/v1/public/temples'))
       .then((r) => r.ok ? r.json() : [])
       .then(setTempleList)
       .catch(() => {})
@@ -85,9 +85,9 @@ export default function PublicSevaPayment() {
     if (!templeId) return;
     setLoading(true);
     Promise.all([
-      fetch(buildApiUrl(`/api/v1/mandirmitra/public/temples/${templeId}/info`)),
-      fetch(buildApiUrl(`/api/v1/mandirmitra/public/temples/${templeId}/sevas`)),
-      fetch(buildApiUrl(`/api/v1/mandirmitra/public/temples/${templeId}/donation-categories`)),
+      fetch(buildApiUrl(`/api/v1/public/temples/${templeId}/info`)),
+      fetch(buildApiUrl(`/api/v1/public/temples/${templeId}/sevas`)),
+      fetch(buildApiUrl(`/api/v1/public/temples/${templeId}/donation-categories`)),
     ]).then(async ([infoRes, sevasRes, donRes]) => {
       if (infoRes.ok) setTempleInfo(await infoRes.json());
       if (sevasRes.ok) setSevas(await sevasRes.json());
@@ -126,7 +126,7 @@ export default function PublicSevaPayment() {
     if (form.phone.length < 10) return;
     setMobileSearching(true);
     try {
-      const res = await fetch(buildApiUrl(`/api/v1/mandirmitra/public/temples/${templeId}/devotee/autofill/${form.phone}`));
+      const res = await fetch(buildApiUrl(`/api/v1/public/temples/${templeId}/devotee/autofill/${form.phone}`));
       if (res.ok) {
         const data = await res.json();
         if (data.found && data.devotee) setForm((f) => ({ ...f, ...data.devotee }));
@@ -139,7 +139,7 @@ export default function PublicSevaPayment() {
     if (form.pincode.length !== 6) return;
     setPincodeLoading(true);
     try {
-      const res = await fetch(buildApiUrl(`/api/v1/mandirmitra/public/location/pincode/${form.pincode}`));
+      const res = await fetch(buildApiUrl(`/api/v1/public/location/pincode/${form.pincode}`));
       if (res.ok) {
         const data = await res.json();
         if (data.found) setForm((f) => ({ ...f, city: data.city, state: data.state }));
@@ -161,7 +161,7 @@ export default function PublicSevaPayment() {
           ? { seva_id: form.seva_id, seva_name: form.seva_name, gothra: form.gothra, nakshtra: form.nakshtra, rashi: form.rashi }
           : { category_id: form.category_id, category_name: form.category_name }),
       };
-      const res = await fetch(buildApiUrl(`/api/v1/mandirmitra/public/temples/${templeId}/seva-payments`), {
+      const res = await fetch(buildApiUrl(`/api/v1/public/temples/${templeId}/seva-payments`), {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       const data = await res.json();
