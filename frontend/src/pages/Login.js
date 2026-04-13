@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Container,
   Paper,
@@ -9,7 +9,7 @@ import {
   Alert,
   CircularProgress,
   Link,
-  Divider,
+  Divider,`r`n  FormControl,`r`n  MenuItem,`r`n  Select,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +22,7 @@ import { setAccessToken, setRefreshToken, writeStoredUser } from '../utils/authS
 import { clearTenantInactiveReason } from '../utils/tenantInactive';
 import { emitActiveTempleChanged, getActiveTempleId, setActiveTempleId } from '../utils/activeTemple';
 
-const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';`r`nconst LOGIN_LANGUAGE_OPTIONS = [`r`n  { code: 'en', label: 'EN' },`r`n  { code: 'kn', label: 'ಕನ್ನಡ' },`r`n  { code: 'hi', label: 'हिन्दी' },`r`n];
 
 const normalizeCurrentUser = (userData, email) => ({
   id: userData?.id || userData?.sub,
@@ -77,7 +77,7 @@ function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const googleButtonRef = useRef(null);
 
@@ -101,7 +101,7 @@ function Login() {
     });
   }, []);
 
-  const handleClickShowPassword = () => setShowPassword(!showPassword);
+  const handleClickShowPassword = () => setShowPassword(!showPassword);`r`n  const handleLoginLanguageChange = (event) => {`r`n    const nextLanguage = String(event.target.value || 'en').trim();`r`n    if (!nextLanguage) {`r`n      return;`r`n    }`r`n    i18n.changeLanguage(nextLanguage);`r`n  };
 
   const completeLoginSession = useCallback(async (tokenData, fallbackEmail = '') => {
     setAccessToken(tokenData.access_token);
@@ -360,6 +360,21 @@ function Login() {
         }}
       >
         <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+            <FormControl size="small" sx={{ minWidth: 110 }}>
+              <Select
+                value={i18n.resolvedLanguage || i18n.language || 'en'}
+                onChange={handleLoginLanguageChange}
+                inputProps={{ 'aria-label': t('layout.language') }}
+              >
+                {LOGIN_LANGUAGE_OPTIONS.map((language) => (
+                  <MenuItem key={language.code} value={language.code}>
+                    {language.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
             <LockOutlinedIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
             <Box
@@ -446,6 +461,29 @@ function Login() {
                 {t('login.forgotPassword')}
               </Link>
             </Box>
+
+            <Box
+              component="button"
+              type="button"
+              onClick={() => navigate('/pay')}
+              sx={{
+                width: '100%', py: 1.2, px: 2, mb: 1,
+                bgcolor: '#FFF3E0', border: '1.5px solid #FF9933', borderRadius: 2,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
+                '&:hover': { bgcolor: '#FFE0B2' },
+                transition: 'background-color 0.2s',
+              }}
+            >
+              <Box component="span" sx={{ fontSize: 18 }}>🙏</Box>
+              <Box>
+                <Typography variant="body2" fontWeight="bold" color="#e65c00" lineHeight={1.2}>
+                  Book a Seva / Make a Donation
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  No login required — pay directly to your temple
+                </Typography>
+              </Box>
+            </Box>
           </Box>
         </Paper>
       </Box>
@@ -454,3 +492,4 @@ function Login() {
 }
 
 export default Login;
+
