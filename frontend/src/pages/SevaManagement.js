@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -33,13 +33,22 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import MinimizeIcon from '@mui/icons-material/Minimize';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import DownloadIcon from '@mui/icons-material/Download';
 import api from '../services/api';
+import { readStoredUser } from '../utils/authStorage';
+import { getActiveTempleId } from '../utils/activeTemple';
+import Layout from '../components/Layout';
 
 function SevaManagement() {
   const [sevas, setSevas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const [formError, setFormError] = useState(null);
 
   // Dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -99,7 +108,44 @@ function SevaManagement() {
     { value: 5, label: 'Friday' },
     { value: 6, label: 'Saturday' }
   ];
+  const extractApiErrorMessage = (err, fallback = 'Failed to save seva') => {
+    const detail = err?.response?.data?.detail;
 
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((entry) => {
+          if (!entry) {
+            return null;
+          }
+          if (typeof entry === 'string') {
+            return entry;
+          }
+          if (typeof entry?.msg === 'string' && entry.msg) {
+            return entry.msg;
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (messages.length > 0) {
+        return messages.join(', ');
+      }
+    }
+
+    if (typeof detail === 'string' && detail) {
+      return detail;
+    }
+
+    if (typeof err?.response?.data?.message === 'string' && err.response.data.message) {
+      return err.response.data.message;
+    }
+
+    if (typeof err?.userMessage === 'string' && err.userMessage) {
+      return err.userMessage;
+    }
+
+    return fallback;
+  };
   useEffect(() => {
     fetchSevas();
   }, []);
@@ -117,7 +163,63 @@ function SevaManagement() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      setError(null);
+      const response = await api.get('/api/v1/sevas/import/template', { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'sevas_import_template.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Failed to download seva template'));
+    }
+  };
+
+  const handleBulkUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleBulkUploadFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+
+    try {
+      setImporting(true);
+      setError(null);
+      setFormError(null);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post('/api/v1/sevas/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const inserted = Number(response?.data?.inserted_count || 0);
+      const failed = Number(response?.data?.failed_count || 0);
+      const message = failed > 0
+        ? `Seva import completed: ${inserted} added, ${failed} skipped.`
+        : `Seva import completed: ${inserted} added.`;
+      setSuccess(message);
+      fetchSevas();
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Failed to import sevas'));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleAddNew = () => {
+    setFormError(null);
     setIsEditMode(false);
     setSevaForm({
       name_english: '',
@@ -145,6 +247,7 @@ function SevaManagement() {
   };
 
   const handleEdit = (seva) => {
+    setFormError(null);
     setIsEditMode(true);
     setSelectedSeva(seva);
     setSevaForm({
@@ -173,6 +276,7 @@ function SevaManagement() {
   };
 
   const handleCloseEditDialog = () => {
+    setFormError(null);
     setEditDialogOpen(false);
     setEditDialogMinimized(false);
   };
@@ -200,14 +304,25 @@ function SevaManagement() {
     setDeleteDialogOpen(true);
   };
 
-  const handleSaveSevaForm = async () => {
+    const handleSaveSevaForm = async () => {
     try {
       setError(null);
+      setFormError(null);
 
-      // Prepare data
+      const currentUser = readStoredUser();
+      const isPlatformSuperAdmin = Boolean(currentUser?.is_superuser)
+        || currentUser?.system_role === 'super_admin'
+        || currentUser?.role === 'super_admin';
+
+      if (isPlatformSuperAdmin && !getActiveTempleId()) {
+        const message = 'Select an active temple from the top tenant dropdown before creating sevas.';
+        setFormError(message);
+        setError(message);
+        return;
+      }
+
       const data = { ...sevaForm };
 
-      // Convert empty strings to null for optional numeric fields
       if (data.min_amount === '') data.min_amount = null;
       if (data.max_amount === '') data.max_amount = null;
       if (data.specific_day === '') data.specific_day = null;
@@ -226,10 +341,11 @@ function SevaManagement() {
       handleCloseEditDialog();
       fetchSevas();
 
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save seva');
+      const message = extractApiErrorMessage(err, 'Failed to save seva');
+      setFormError(message);
+      setError(message);
     }
   };
 
@@ -268,6 +384,7 @@ function SevaManagement() {
   }
 
   return (
+    <Layout>
     <Box sx={{ p: 3 }}>
       {/* Header */}
       <Paper sx={{ p: 2, mb: 3, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
@@ -280,18 +397,52 @@ function SevaManagement() {
               Add, edit, or delete temple sevas and services
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddNew}
-            sx={{
-              bgcolor: '#fff',
-              color: '#FF6B35',
-              '&:hover': { bgcolor: '#f5f5f5' }
-            }}
-          >
-            Add New Seva
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Button
+              variant="contained"
+              startIcon={<DownloadIcon />}
+              onClick={handleDownloadTemplate}
+              sx={{
+                bgcolor: '#fff',
+                color: '#FF6B35',
+                '&:hover': { bgcolor: '#f5f5f5' }
+              }}
+            >
+              Download Template
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<CloudUploadIcon />}
+              onClick={handleBulkUploadClick}
+              disabled={importing}
+              sx={{
+                bgcolor: '#fff',
+                color: '#FF6B35',
+                '&:hover': { bgcolor: '#f5f5f5' }
+              }}
+            >
+              {importing ? 'Uploading...' : 'Bulk Upload'}
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAddNew}
+              sx={{
+                bgcolor: '#fff',
+                color: '#FF6B35',
+                '&:hover': { bgcolor: '#f5f5f5' }
+              }}
+            >
+              Add New Seva
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: 'none' }}
+              onChange={handleBulkUploadFileChange}
+            />
+          </Box>
         </Box>
       </Paper>
 
@@ -691,7 +842,19 @@ function SevaManagement() {
         </DialogActions>
       </Dialog>
     </Box>
+    </Layout>
   );
 }
 
 export default SevaManagement;
+
+
+
+
+
+
+
+
+
+
+
