@@ -39,6 +39,7 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import MoneyOffIcon from '@mui/icons-material/MoneyOff';
 import LockIcon from '@mui/icons-material/Lock';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import BadgeIcon from '@mui/icons-material/Badge';
@@ -86,6 +87,7 @@ const accountingMenuItems = [
   { id: 'financialClosing', labelKey: 'layout.nav.accounting.financialClosing', defaultLabel: 'Financial Closing', icon: <LockIcon />, path: '/accounting/financial-closing' },
   { id: 'upiPayments', labelKey: 'layout.nav.accounting.upiPayments', defaultLabel: 'UPI Payments', icon: <PaymentIcon />, path: '/accounting/upi-payments' },
   { id: 'publicPayments', labelKey: 'layout.nav.accounting.publicPayments', defaultLabel: 'Public Payments', icon: <AccountBalanceWalletIcon />, path: '/accounting/public-payments' },
+  { id: 'sevaReminders', labelKey: 'layout.nav.accounting.sevaReminders', defaultLabel: 'Seva Reminders', icon: <NotificationsActiveIcon />, path: '/accounting/seva-reminders' },
   { id: 'accountingReports', labelKey: 'layout.nav.accounting.reports', defaultLabel: 'Accounting Reports', icon: <SummarizeIcon />, path: '/accounting/reports' },
 ];
 const DEFAULT_MODULE_CONFIG = {
