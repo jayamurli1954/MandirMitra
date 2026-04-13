@@ -5,8 +5,6 @@ import {
   Box,
   Paper,
   Grid,
-  Card,
-  CardContent,
   CircularProgress,
   Alert,
   Button,
@@ -52,6 +50,16 @@ function Panchang() {
       setSelectedNakshatra(panchangData.panchang.nakshatra.name);
     }
   }, [panchangData, selectedNakshatra]);
+
+  // Fetch panchang whenever selectedDate changes
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    if (selectedDate && selectedDate !== today) {
+      fetchPanchangForDate(selectedDate);
+    } else if (selectedDate === today) {
+      fetchPanchangData();
+    }
+  }, [selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchPanchangData = async () => {
     try {
@@ -106,6 +114,35 @@ function Panchang() {
       }
 
       setError(`Failed to load panchang data: ${errorMsg}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPanchangForDate = async (date) => {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await api.get('/api/v1/panchang/on-date-full', {
+        params: { target_date: date },
+      });
+      if (response.data) {
+        setPanchangData(response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching panchang for date:', err);
+      let errorMsg = 'Unknown error';
+
+      if (err?.response?.data?.detail) {
+        const detail = err.response.data.detail;
+        errorMsg = typeof detail === 'object' ? (detail.error || JSON.stringify(detail)) : detail;
+      } else if (err?.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      } else if (err?.message) {
+        errorMsg = err.message;
+      }
+
+      setError(`Failed to load panchang for selected date: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -166,9 +203,14 @@ function Panchang() {
   return (
     <Layout>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
-          Today's Panchang
-        </Typography>
+        <Box>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
+            Panchang Viewer
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {selectedDate === new Date().toISOString().split('T')[0] ? "Today's Panchang" : `Panchang for ${selectedDate}`}
+          </Typography>
+        </Box>
         <Button
           variant="outlined"
           startIcon={<SettingsIcon />}
@@ -312,6 +354,8 @@ function Panchang() {
         data={panchangData}
         settings={settings}
         compact={false}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
       />
     </Layout>
   );

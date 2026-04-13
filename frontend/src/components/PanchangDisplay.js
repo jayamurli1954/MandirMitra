@@ -29,7 +29,7 @@ import InfoIcon from '@mui/icons-material/InfoOutlined';
  * Enhanced Panchang Display Component
  * Features: Verification badges, live countdown, quality indicators, 8-period breakdown, print support
  */
-function PanchangDisplay({ data, settings, compact = false }) {
+function PanchangDisplay({ data, settings, compact = false, selectedDate, onDateChange }) {
   const [timeLeft, setTimeLeft] = useState({});
 
   // Default settings
@@ -55,9 +55,9 @@ function PanchangDisplay({ data, settings, compact = false }) {
   const monthPaksha = [hinduDate.month, hinduDate.paksha && `${hinduDate.paksha} Paksha`]
     .filter(Boolean)
     .join(' ');
-  // Panchang calculation module is frozen; hide Amrita/Varjyam display in UI.
-  const showAmrita = false;
-  const showVarjyam = false;
+  // Panchang calculation module is now active; show Amrita/Varjyam display in UI.
+  const showAmrita = true;
+  const showVarjyam = true;
   const amritaPreviewOnly =
     data?.calculation_metadata?.amrita_kalam_verified !== true
     && data?.calculation_metadata?.amrita_kalam_preview === true;
@@ -374,7 +374,8 @@ function PanchangDisplay({ data, settings, compact = false }) {
       {/* DATE HEADER */}
       <Paper sx={{ p: 2, mb: 2, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
         <Grid container alignItems="center" spacing={2}>
-          <Grid item xs={12}>
+          {/* Date text — left */}
+          <Grid item xs={12} sm={8}>
             <Typography variant="h5" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
               📅 {formatDate(data.date?.gregorian?.date)}
             </Typography>
@@ -411,6 +412,47 @@ function PanchangDisplay({ data, settings, compact = false }) {
               </Stack>
             )}
           </Grid>
+
+          {/* Date picker — right, shown only when onDateChange is provided */}
+          {onDateChange && (
+            <Grid item xs={12} sm={4}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' }, gap: 0.5 }}>
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>
+                  View Panchang for:
+                </Typography>
+                <input
+                  type="date"
+                  value={selectedDate || new Date().toISOString().split('T')[0]}
+                  onChange={(e) => onDateChange(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '2px solid rgba(255,255,255,0.7)',
+                    background: 'rgba(255,255,255,0.15)',
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    outline: 'none',
+                    colorScheme: 'dark',
+                  }}
+                />
+                {selectedDate !== new Date().toISOString().split('T')[0] && (
+                  <Box
+                    component="button"
+                    onClick={() => onDateChange(new Date().toISOString().split('T')[0])}
+                    sx={{
+                      background: 'rgba(255,255,255,0.25)', border: '1px solid rgba(255,255,255,0.6)',
+                      borderRadius: 1, color: '#fff', fontSize: 11, fontWeight: 600,
+                      px: 1, py: 0.3, cursor: 'pointer', '&:hover': { background: 'rgba(255,255,255,0.4)' },
+                    }}
+                  >
+                    ↩ Today
+                  </Box>
+                )}
+              </Box>
+            </Grid>
+          )}
         </Grid>
       </Paper>
 
