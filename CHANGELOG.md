@@ -30,6 +30,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.0] - 2026-04-14
+
+### STABLE RELEASE — Ready for Production
+
+### Added
+- **Quick Ticket Counter Mode** — Fast one-click seva booking without login (for temple counters)
+- **Seva Renewal Reminders** — Automated email/SMS 1 month before seva subscription expiry
+- **Public Payment Idempotency** — Prevents duplicate payments on network retry/double-tap
+- **Formal Audit Logging** — All public payments logged with IP, timestamp, devotee details
+- **Rate Limiting (slowapi)** — Public endpoints protected (10/min payments, 30/min sevas, 20/min autofill)
+- **Indic Font Bundling** — Noto Sans fonts for Kannada, Devanagari, Tamil, Telugu, Malayalam (PDF rendering)
+- **Multilingual Public Portal** — Complete i18n for PublicSevaPayment in English, Kannada, Hindi
+- **Version Endpoint** — GET `/api/v1/mandir/version` returns deployed version + feature list
+
+### Changed
+- Backend version bumped from `0.1.0` → `1.2.0`
+- Frontend version bumped from `1.0.1` → `1.2.0`
+- Receipt PDF language override via `?lang=kannada|hindi|english` query param
+
+### Fixed
+- Corrected `/api/v1/public/` route prefix (was incorrectly `/api/v1/mandirmitra/public/`)
+- Panchang date picker now respects "Today" button on manual date selection
+- `Card` import error in Panchang page (Nakshatra Wizard now renders correctly)
+
+### Security
+- Added idempotency key validation to prevent replay attacks
+- Public endpoints now rate-limited to prevent abuse
+- All public payments now formally audited for compliance
+
+---
+
 ## [1.0.0] - 2026-02-17
 
 ### Added

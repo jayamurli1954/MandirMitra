@@ -70,6 +70,7 @@ const menuItems = [
   { id: 'reports', labelKey: 'layout.nav.reports', defaultLabel: 'Reports', icon: <AssessmentIcon />, path: '/reports', moduleFlag: 'module_reports_enabled', permissionKey: 'reports' },
   { id: 'panchang', labelKey: 'layout.nav.panchang', defaultLabel: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', moduleFlag: 'module_panchang_enabled', permissionKey: 'panchang' },
   { id: 'settings', labelKey: 'layout.nav.settings', defaultLabel: 'Settings', icon: <SettingsIcon />, path: '/settings', permissionKey: 'settings' },
+  { id: 'releaseNotes', defaultLabel: 'Release Notes', icon: <NotificationsActiveIcon />, path: '/settings/release-notes', permissionKey: 'settings' },
   { id: 'implementationChecks', labelKey: 'layout.nav.implementationChecks', defaultLabel: 'Implementation Checks', icon: <FactCheckIcon />, path: '/implementation-checks', permissionKey: 'settings' },
   { id: 'platformOperations', labelKey: 'layout.nav.platformOperations', defaultLabel: 'Platform Operations', icon: <TempleHinduIcon />, path: '/platform/operations', superAdminOnly: true },
 ];
@@ -502,6 +503,15 @@ function Layout({ children }) {
           <Divider />
         </>
       )}
+      {/* Version Footer */}
+      <Box sx={{ mt: 'auto', pt: 2, px: 2, borderTop: '1px solid #eee' }}>
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ textAlign: 'center', fontWeight: 500 }}>
+          MandirMitra v1.2.0
+        </Typography>
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ textAlign: 'center', fontSize: '0.7rem' }}>
+          Stable Release · April 2026
+        </Typography>
+      </Box>
     </Box>
   );
 

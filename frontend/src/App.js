@@ -46,6 +46,7 @@ const AccountingReports = lazy(() => import('./pages/accounting/AccountingReport
 const PublicPayments = lazy(() => import('./pages/accounting/PublicPayments'));
 const SevaReminders = lazy(() => import('./pages/SevaReminders'));
 const QuickTicket = lazy(() => import('./pages/QuickTicket'));
+const ReleaseNotes = lazy(() => import('./pages/ReleaseNotes'));
 const PublicSevaPayment = lazy(() => import('./pages/PublicSevaPayment'));
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -288,6 +289,14 @@ function App() {
                     element={(
                       <ProtectedRoute>
                         <Settings />
+                      </ProtectedRoute>
+                    )}
+                  />
+                  <Route
+                    path="/settings/release-notes"
+                    element={(
+                      <ProtectedRoute>
+                        <ReleaseNotes />
                       </ProtectedRoute>
                     )}
                   />
