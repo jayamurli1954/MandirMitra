@@ -77,7 +77,9 @@ function SevaManagement() {
     is_active: true,
     benefits: '',
     instructions: '',
-    duration_minutes: ''
+    duration_minutes: '',
+    quick_ticket_enabled: false,
+    requires_devotee_details: true,
   });
 
   const categories = [
@@ -240,7 +242,9 @@ function SevaManagement() {
       is_active: true,
       benefits: '',
       instructions: '',
-      duration_minutes: ''
+      duration_minutes: '',
+      quick_ticket_enabled: false,
+      requires_devotee_details: true,
     });
     setEditDialogMinimized(false);
     setEditDialogOpen(true);
@@ -269,7 +273,9 @@ function SevaManagement() {
       is_active: seva.is_active !== undefined ? seva.is_active : true,
       benefits: seva.benefits || '',
       instructions: seva.instructions || '',
-      duration_minutes: seva.duration_minutes || ''
+      duration_minutes: seva.duration_minutes || '',
+      quick_ticket_enabled: seva.quick_ticket_enabled || false,
+      requires_devotee_details: seva.requires_devotee_details !== undefined ? seva.requires_devotee_details : true,
     });
     setEditDialogMinimized(false);
     setEditDialogOpen(true);
@@ -522,6 +528,9 @@ function SevaManagement() {
                     size="small"
                     color={seva.is_active ? 'success' : 'default'}
                   />
+                  {seva.quick_ticket_enabled && (
+                    <Chip label="Quick" size="small" color="primary" sx={{ ml: 0.5 }} />
+                  )}
                 </TableCell>
                 <TableCell align="right">
                   <IconButton
@@ -792,6 +801,34 @@ function SevaManagement() {
                 }
                 label="Active"
               />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={sevaForm.quick_ticket_enabled}
+                    onChange={(e) => setSevaForm({...sevaForm, quick_ticket_enabled: e.target.checked})}
+                  />
+                }
+                label="Quick Ticket Mode"
+              />
+              <Typography variant="caption" color="text.secondary" display="block">
+                Show on quick-ticket counter without login
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={sevaForm.requires_devotee_details}
+                    onChange={(e) => setSevaForm({...sevaForm, requires_devotee_details: e.target.checked})}
+                  />
+                }
+                label="Requires Devotee Details"
+              />
+              <Typography variant="caption" color="text.secondary" display="block">
+                Collect name/phone at time of booking
+              </Typography>
             </Grid>
           </Grid>
         </DialogContent>

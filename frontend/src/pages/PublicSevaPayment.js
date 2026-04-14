@@ -14,6 +14,7 @@ import VolunteerActivismIcon from '@mui/icons-material/VolunteerActivism';
 import TempleHinduIcon from '@mui/icons-material/TempleHindu';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import { buildApiUrl } from '../utils/apiBaseUrl';
+import { useTranslation } from 'react-i18next';
 
 const GOTHRA_OPTIONS = [
   'Kashyapa', 'Bharadvaja', 'Vasishtha', 'Vishvamitra', 'Jamadagni',
@@ -37,7 +38,7 @@ const RASHI_OPTIONS = [
   'Makara (Capricorn)', 'Kumbha (Aquarius)', 'Meena (Pisces)',
 ];
 
-const STEPS = ['Select', 'Devotee Details', 'Make Payment'];
+// STEPS is built dynamically inside the component using t() — see below
 
 const emptyForm = {
   seva_id: '', seva_name: '', amount: '',
@@ -48,6 +49,9 @@ const emptyForm = {
 };
 
 export default function PublicSevaPayment() {
+  const { t } = useTranslation();
+  const STEPS = [t('publicPayment.steps.select'), t('publicPayment.steps.devoteeDetails'), t('publicPayment.steps.makePayment')];
+
   const params = new URLSearchParams(window.location.search);
   const initialTempleId = params.get('temple_id') || '';
 
@@ -70,6 +74,12 @@ export default function PublicSevaPayment() {
   const [form, setForm] = useState(emptyForm);
   const [utr, setUtr] = useState('');
   const [whatsappSent, setWhatsappSent] = useState(false);
+  const [idempotencyKey] = useState(() => {
+    // Generate once per page load — prevents duplicate submissions on retry/double-tap
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    return Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join('');
+  });
 
   // Load temple list if no temple_id in URL
   useEffect(() => {
@@ -159,6 +169,7 @@ export default function PublicSevaPayment() {
         phone: form.phone, name: form.name, email: form.email,
         address: form.address, pincode: form.pincode, city: form.city, state: form.state,
         amount: form.amount,
+        idempotency_key: idempotencyKey,
         ...(paymentType === 'seva'
           ? { seva_id: form.seva_id, seva_name: form.seva_name, gothra: form.gothra, nakshtra: form.nakshtra, rashi: form.rashi }
           : { category_id: form.category_id, category_name: form.category_name }),
@@ -167,7 +178,7 @@ export default function PublicSevaPayment() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.detail || 'Submission failed. Please try again.'); return; }
+      if (!res.ok) { setError(data.detail || t('publicPayment.submissionFailed')); return; }
       setPaymentResult(data);
       setActiveStep(2);
       // Auto-open WhatsApp so admin is notified immediately without devotee having to click
@@ -175,7 +186,7 @@ export default function PublicSevaPayment() {
         setTimeout(() => { window.open(data.whatsapp_link, '_blank'); }, 800);
       }
     } catch (_e) {
-      setError('Network error. Please try again.');
+      setError(t('publicPayment.networkError'));
     } finally {
       setSubmitting(false);
     }
@@ -248,14 +259,14 @@ export default function PublicSevaPayment() {
         <Container maxWidth="sm">
           <HeaderBar />
           <Paper elevation={1} sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom fontWeight="bold">Select Your Temple</Typography>
+            <Typography variant="h6" gutterBottom fontWeight="bold">{t('publicPayment.selectTemple')}</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Choose your temple to book a seva or make a donation.
+              {t('publicPayment.selectTempleDesc')}
             </Typography>
             {templeListLoading ? (
               <Box display="flex" justifyContent="center" py={3}><CircularProgress /></Box>
             ) : templeList.length === 0 ? (
-              <Alert severity="info">No temples are currently accepting online payments. Please contact your temple directly.</Alert>
+              <Alert severity="info">{t('publicPayment.noTemples')}</Alert>
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 {templeList.map((t) => (
@@ -277,7 +288,7 @@ export default function PublicSevaPayment() {
             )}
           </Paper>
           <Typography variant="caption" color="text.secondary" display="block" textAlign="center" mt={3}>
-            Powered by <strong>MandirMitra</strong>
+            {t('publicPayment.poweredBy')} <strong>MandirMitra</strong>
           </Typography>
         </Container>
       </Box>
@@ -312,10 +323,10 @@ export default function PublicSevaPayment() {
             <Box display="flex" justifyContent="center" mb={3}>
               <ToggleButtonGroup value={paymentType} exclusive onChange={handlePaymentTypeChange} color="primary" size="small">
                 <ToggleButton value="seva" sx={{ px: 3, gap: 0.5 }}>
-                  <TempleHinduIcon fontSize="small" /> Book a Seva
+                  <TempleHinduIcon fontSize="small" /> {t('publicPayment.bookASeva')}
                 </ToggleButton>
                 <ToggleButton value="donation" sx={{ px: 3, gap: 0.5 }}>
-                  <VolunteerActivismIcon fontSize="small" /> Make a Donation
+                  <VolunteerActivismIcon fontSize="small" /> {t('publicPayment.makeADonation')}
                 </ToggleButton>
               </ToggleButtonGroup>
             </Box>
@@ -324,9 +335,9 @@ export default function PublicSevaPayment() {
             {/* SEVA list */}
             {paymentType === 'seva' && (
               <>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Select Seva</Typography>
+                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>{t('publicPayment.selectSeva')}</Typography>
                 {sevas.length === 0 ? (
-                  <Alert severity="info">No sevas are currently available for online booking at this temple. Please contact the temple directly or switch to Donation.</Alert>
+                  <Alert severity="info">{t('publicPayment.noSevas')}</Alert>
                 ) : (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                     {sevas.map((seva) => (
@@ -343,8 +354,8 @@ export default function PublicSevaPayment() {
                   </Box>
                 )}
                 {form.seva_name && (
-                  <TextField label="Amount (₹)" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                    fullWidth sx={{ mt: 2 }} type="number" helperText="You can edit the amount if needed" />
+                  <TextField label={t('publicPayment.amount')} value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                    fullWidth sx={{ mt: 2 }} type="number" helperText={t('publicPayment.amountHelp')} />
                 )}
               </>
             )}
@@ -352,7 +363,7 @@ export default function PublicSevaPayment() {
             {/* DONATION list */}
             {paymentType === 'donation' && (
               <>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Select Donation Category</Typography>
+                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>{t('publicPayment.selectDonation')}</Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   {donationCategories.map((cat) => (
                     <Paper key={cat.id} variant="outlined" onClick={() => handleDonationSelect(cat)}
@@ -363,7 +374,7 @@ export default function PublicSevaPayment() {
                   ))}
                 </Box>
                 {form.category_name && (
-                  <TextField label="Donation Amount (₹) *" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  <TextField label={t('publicPayment.donationAmount')} value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
                     fullWidth sx={{ mt: 2 }} type="number" required />
                 )}
               </>
@@ -372,13 +383,13 @@ export default function PublicSevaPayment() {
             <Button variant="contained" fullWidth sx={{ mt: 3, bgcolor: '#FF9933', '&:hover': { bgcolor: '#e68900' } }}
               disabled={!step0Valid || (paymentType === 'donation' && !form.amount)}
               onClick={() => setActiveStep(1)}>
-              Continue
+              {t('publicPayment.continue')}
             </Button>
 
             {!initialTempleId && (
               <Button variant="text" fullWidth size="small" sx={{ mt: 1, color: 'text.secondary' }}
                 onClick={() => { setTempleId(''); setTempleInfo(null); }}>
-                ← Choose a different temple
+                {t('publicPayment.chooseDifferentTemple')}
               </Button>
             )}
           </Paper>
@@ -387,7 +398,7 @@ export default function PublicSevaPayment() {
         {/* ── STEP 1 — Devotee Details ──────────────────────────────────── */}
         {activeStep === 1 && (
           <Paper elevation={1} sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom fontWeight="bold">Devotee Details</Typography>
+            <Typography variant="h6" gutterBottom fontWeight="bold">{t('publicPayment.devoteeDetailsTitle')}</Typography>
             {paymentType === 'seva'
               ? <Alert severity="info" sx={{ mb: 2 }} icon={<TempleHinduIcon />}><strong>Seva:</strong> {form.seva_name}{form.amount && ` — ₹${form.amount}`}</Alert>
               : <Alert severity="success" sx={{ mb: 2 }} icon={<VolunteerActivismIcon />}><strong>Donation:</strong> {form.category_name} — ₹{form.amount}</Alert>}
@@ -395,47 +406,47 @@ export default function PublicSevaPayment() {
 
             <Grid container spacing={2}>
               <Grid item xs={12}>
-                <TextField label="Mobile Number *" value={form.phone}
+                <TextField label={t('publicPayment.mobile')} value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   onBlur={handleMobileBlur} fullWidth inputProps={{ maxLength: 10 }}
                   InputProps={{ endAdornment: <InputAdornment position="end">{mobileSearching ? <CircularProgress size={18} /> : <SearchIcon color="action" />}</InputAdornment> }}
-                  helperText="Enter mobile to auto-fill if already registered" />
+                  helperText={t('publicPayment.mobileHelp')} />
               </Grid>
               <Grid item xs={12}>
-                <TextField label="Full Name *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} fullWidth />
+                <TextField label={t('publicPayment.fullName')} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} fullWidth />
               </Grid>
               <Grid item xs={12}>
-                <TextField label="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} fullWidth type="email" />
+                <TextField label={t('publicPayment.email')} value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} fullWidth type="email" />
               </Grid>
               <Grid item xs={12}>
-                <TextField label="Address" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} fullWidth multiline rows={2} />
+                <TextField label={t('publicPayment.address')} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} fullWidth multiline rows={2} />
               </Grid>
               <Grid item xs={4}>
-                <TextField label="Pincode" value={form.pincode} onChange={(e) => setForm((f) => ({ ...f, pincode: e.target.value }))}
+                <TextField label={t('publicPayment.pincode')} value={form.pincode} onChange={(e) => setForm((f) => ({ ...f, pincode: e.target.value }))}
                   onBlur={handlePincodeBlur} fullWidth inputProps={{ maxLength: 6 }}
                   InputProps={{ endAdornment: pincodeLoading ? <InputAdornment position="end"><CircularProgress size={16} /></InputAdornment> : null }} />
               </Grid>
-              <Grid item xs={4}><TextField label="City" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} fullWidth /></Grid>
-              <Grid item xs={4}><TextField label="State" value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={4}><TextField label={t('publicPayment.city')} value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={4}><TextField label={t('publicPayment.state')} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} fullWidth /></Grid>
 
               {paymentType === 'seva' && (
                 <>
-                  <Grid item xs={12}><Divider><Typography variant="caption" color="text.secondary">Astrological Details (Optional)</Typography></Divider></Grid>
+                  <Grid item xs={12}><Divider><Typography variant="caption" color="text.secondary">{t('publicPayment.astroSection')}</Typography></Divider></Grid>
                   <Grid item xs={12} sm={4}>
-                    <TextField select label="Gothra" value={form.gothra} onChange={(e) => setForm((f) => ({ ...f, gothra: e.target.value }))} fullWidth>
-                      <MenuItem value="">Select</MenuItem>
+                    <TextField select label={t('publicPayment.gothra')} value={form.gothra} onChange={(e) => setForm((f) => ({ ...f, gothra: e.target.value }))} fullWidth>
+                      <MenuItem value="">{t('publicPayment.select')}</MenuItem>
                       {GOTHRA_OPTIONS.map((g) => <MenuItem key={g} value={g}>{g}</MenuItem>)}
                     </TextField>
                   </Grid>
                   <Grid item xs={12} sm={4}>
-                    <TextField select label="Nakshtra" value={form.nakshtra} onChange={(e) => setForm((f) => ({ ...f, nakshtra: e.target.value }))} fullWidth>
-                      <MenuItem value="">Select</MenuItem>
+                    <TextField select label={t('publicPayment.nakshtra')} value={form.nakshtra} onChange={(e) => setForm((f) => ({ ...f, nakshtra: e.target.value }))} fullWidth>
+                      <MenuItem value="">{t('publicPayment.select')}</MenuItem>
                       {NAKSHTRA_OPTIONS.map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
                     </TextField>
                   </Grid>
                   <Grid item xs={12} sm={4}>
-                    <TextField select label="Rashi" value={form.rashi} onChange={(e) => setForm((f) => ({ ...f, rashi: e.target.value }))} fullWidth>
-                      <MenuItem value="">Select</MenuItem>
+                    <TextField select label={t('publicPayment.rashi')} value={form.rashi} onChange={(e) => setForm((f) => ({ ...f, rashi: e.target.value }))} fullWidth>
+                      <MenuItem value="">{t('publicPayment.select')}</MenuItem>
                       {RASHI_OPTIONS.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
                     </TextField>
                   </Grid>
@@ -444,10 +455,10 @@ export default function PublicSevaPayment() {
             </Grid>
 
             <Box display="flex" gap={2} mt={3}>
-              <Button variant="outlined" onClick={() => setActiveStep(0)} sx={{ flex: 1 }}>Back</Button>
+              <Button variant="outlined" onClick={() => setActiveStep(0)} sx={{ flex: 1 }}>{t('publicPayment.back')}</Button>
               <Button variant="contained" sx={{ flex: 2, bgcolor: '#FF9933', '&:hover': { bgcolor: '#e68900' } }}
                 disabled={!form.phone || !form.name || submitting} onClick={handleSubmit}>
-                {submitting ? <CircularProgress size={22} color="inherit" /> : 'Proceed to Payment'}
+                {submitting ? <CircularProgress size={22} color="inherit" /> : t('publicPayment.proceedToPayment')}
               </Button>
             </Box>
           </Paper>
@@ -458,8 +469,8 @@ export default function PublicSevaPayment() {
           <Paper elevation={1} sx={{ p: 3 }}>
             <Box textAlign="center" mb={2}>
               <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main' }} />
-              <Typography variant="h6" fontWeight="bold" mt={1}>Details Saved! Complete Your Payment</Typography>
-              <Chip label={`Payment ID: ${paymentResult.payment_id}`} color="primary" sx={{ mt: 1 }} />
+              <Typography variant="h6" fontWeight="bold" mt={1}>{t('publicPayment.detailsSaved')}</Typography>
+              <Chip label={t('publicPayment.paymentId', { id: paymentResult.payment_id })} color="primary" sx={{ mt: 1 }} />
             </Box>
             <Divider sx={{ mb: 2 }} />
 
@@ -471,10 +482,10 @@ export default function PublicSevaPayment() {
             {paymentResult.upi_id && (
               <Box textAlign="center" mb={2}>
                 <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-                  Scan QR Code to Pay
+                  {t('publicPayment.scanQR')}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
-                  Amount is pre-filled — just scan and confirm in your UPI app
+                  {t('publicPayment.scanQRDesc')}
                 </Typography>
                 <Box display="inline-block" p={1.5} border="1px solid #ddd" borderRadius={2} bgcolor="white">
                   <QRCodeSVG
@@ -485,14 +496,14 @@ export default function PublicSevaPayment() {
                   />
                 </Box>
                 <Typography variant="caption" color="text.secondary" display="block" mt={1}>
-                  Works with GPay, PhonePe, Paytm, BHIM &amp; all UPI apps
+                  {t('publicPayment.upiApps')}
                 </Typography>
               </Box>
             )}
 
             {paymentResult.upi_id && (
               <Paper variant="outlined" sx={{ p: 2, mb: 2, textAlign: 'center', bgcolor: '#F9F9F9' }}>
-                <Typography variant="body2" color="text.secondary">UPI ID</Typography>
+                <Typography variant="body2" color="text.secondary">{t('publicPayment.upiId')}</Typography>
                 <Typography variant="h6" fontWeight="bold" letterSpacing={0.5}>{paymentResult.upi_id}</Typography>
                 <Button size="small" startIcon={copied ? <CheckCircleIcon /> : <ContentCopyIcon />}
                   onClick={() => handleCopy(paymentResult.upi_id)} sx={{ mt: 0.5 }}>
@@ -536,7 +547,7 @@ export default function PublicSevaPayment() {
                     size="small"
                     fullWidth
                     placeholder="e.g. 4125789632014"
-                    label="UTR / Transaction ID (optional but recommended)"
+                    label={t('publicPayment.enterUtr')}
                     value={utr}
                     onChange={(e) => setUtr(e.target.value)}
                     sx={{ bgcolor: '#fff' }}
@@ -588,12 +599,12 @@ export default function PublicSevaPayment() {
               </Box>
             </Box>
 
-            <Button variant="outlined" fullWidth onClick={resetForm}>Make Another Payment</Button>
+            <Button variant="outlined" fullWidth onClick={resetForm}>{t('publicPayment.bookAnother')}</Button>
           </Paper>
         )}
 
         <Typography variant="caption" color="text.secondary" display="block" textAlign="center" mt={3}>
-          Powered by <strong>MandirMitra</strong> · Temple Management System
+          {t('publicPayment.poweredBy')} <strong>MandirMitra</strong> · Temple Management System
         </Typography>
       </Container>
     </Box>

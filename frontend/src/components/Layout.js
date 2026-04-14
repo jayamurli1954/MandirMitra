@@ -78,6 +78,7 @@ const sevaMenuItems = [
   { id: 'sevaBookingsReschedule', labelKey: 'layout.nav.sevas.bookingsReschedule', defaultLabel: 'Seva Bookings / Reschedule', icon: <AssignmentIcon />, path: '/reports/sevas/detailed' },
   { id: 'sevaManagement', labelKey: 'layout.nav.sevas.management', defaultLabel: 'Seva Management', icon: <AssignmentIcon />, path: '/sevas/manage', requires: 'manage_seva_master' },
   { id: 'rescheduleApproval', labelKey: 'layout.nav.sevas.rescheduleApproval', defaultLabel: 'Reschedule Approval', icon: <AssignmentTurnedInIcon />, path: '/sevas/reschedule-approval', requires: 'approve_seva_reschedule' },
+  { id: 'quickTicket', defaultLabel: 'Quick Ticket Counter', icon: <ReceiptIcon />, path: '/sevas/quick-ticket' },
 ];
 const accountingMenuItems = [
   { id: 'chartOfAccounts', labelKey: 'layout.nav.accounting.chartOfAccounts', defaultLabel: 'Chart of Accounts', icon: <AccountTreeIcon />, path: '/accounting/chart-of-accounts' },
