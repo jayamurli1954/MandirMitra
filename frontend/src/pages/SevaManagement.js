@@ -37,7 +37,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DownloadIcon from '@mui/icons-material/Download';
 import api from '../services/api';
 import { readStoredUser } from '../utils/authStorage';
-import { getActiveTempleId } from '../utils/activeTemple';
+import { ACTIVE_TEMPLE_EVENT, getActiveTempleId } from '../utils/activeTemple';
 import Layout from '../components/Layout';
 
 function SevaManagement() {
@@ -46,6 +46,9 @@ function SevaManagement() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [tenantAccessLoading, setTenantAccessLoading] = useState(true);
+  const [tenantWriteBlocked, setTenantWriteBlocked] = useState(false);
+  const [tenantReadOnlyMessage, setTenantReadOnlyMessage] = useState('');
   const fileInputRef = useRef(null);
 
   const [formError, setFormError] = useState(null);
@@ -151,6 +154,57 @@ function SevaManagement() {
   useEffect(() => {
     fetchSevas();
   }, []);
+
+  useEffect(() => {
+    const refreshForActiveTemple = () => {
+      fetchSevas();
+      evaluateTenantWriteAccess();
+    };
+
+    evaluateTenantWriteAccess();
+    window.addEventListener(ACTIVE_TEMPLE_EVENT, refreshForActiveTemple);
+    return () => window.removeEventListener(ACTIVE_TEMPLE_EVENT, refreshForActiveTemple);
+  }, []);
+
+  const evaluateTenantWriteAccess = async () => {
+    const currentUser = readStoredUser();
+    const isPlatformSuperAdmin = Boolean(currentUser?.is_superuser)
+      || currentUser?.system_role === 'super_admin'
+      || currentUser?.role === 'super_admin';
+
+    if (!isPlatformSuperAdmin) {
+      setTenantWriteBlocked(false);
+      setTenantReadOnlyMessage('');
+      setTenantAccessLoading(false);
+      return;
+    }
+
+    const activeTempleId = getActiveTempleId();
+    if (!activeTempleId) {
+      setTenantWriteBlocked(true);
+      setTenantReadOnlyMessage('Select an onboarded tenant before managing sevas.');
+      setTenantAccessLoading(false);
+      return;
+    }
+
+    try {
+      setTenantAccessLoading(true);
+      const response = await api.get('/api/v1/temples/', { params: { temple_id: activeTempleId } });
+      const temple = Array.isArray(response?.data) ? response.data[0] : response?.data;
+      const canWrite = Boolean(temple?.platform_can_write);
+      setTenantWriteBlocked(!canWrite);
+      setTenantReadOnlyMessage(
+        canWrite
+          ? ''
+          : `${temple?.name || temple?.trust_name || 'Selected tenant'} is read-only for your platform account.`
+      );
+    } catch (err) {
+      setTenantWriteBlocked(true);
+      setTenantReadOnlyMessage('Unable to verify tenant write access. Seva changes are blocked.');
+    } finally {
+      setTenantAccessLoading(false);
+    }
+  };
 
   const fetchSevas = async () => {
     try {
@@ -327,6 +381,13 @@ function SevaManagement() {
         return;
       }
 
+      if (tenantWriteBlocked) {
+        const message = tenantReadOnlyMessage || 'This tenant is read-only for your platform account.';
+        setFormError(message);
+        setError(message);
+        return;
+      }
+
       const data = { ...sevaForm };
 
       if (data.min_amount === '') data.min_amount = null;
@@ -357,6 +418,11 @@ function SevaManagement() {
 
   const handleConfirmDelete = async () => {
     try {
+      if (tenantWriteBlocked) {
+        setError(tenantReadOnlyMessage || 'This tenant is read-only for your platform account.');
+        setDeleteDialogOpen(false);
+        return;
+      }
       await api.delete(`/api/v1/sevas/${selectedSeva.id}`);
       setSuccess('Seva deleted successfully!');
       setDeleteDialogOpen(false);
@@ -392,6 +458,11 @@ function SevaManagement() {
   return (
     <Layout>
     <Box sx={{ p: 3 }}>
+      {tenantWriteBlocked && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {tenantReadOnlyMessage}
+        </Alert>
+      )}
       {/* Header */}
       <Paper sx={{ p: 2, mb: 3, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
         <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -420,7 +491,7 @@ function SevaManagement() {
               variant="contained"
               startIcon={<CloudUploadIcon />}
               onClick={handleBulkUploadClick}
-              disabled={importing}
+              disabled={importing || tenantAccessLoading || tenantWriteBlocked}
               sx={{
                 bgcolor: '#fff',
                 color: '#FF6B35',
@@ -433,6 +504,7 @@ function SevaManagement() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleAddNew}
+              disabled={tenantAccessLoading || tenantWriteBlocked}
               sx={{
                 bgcolor: '#fff',
                 color: '#FF6B35',
@@ -537,6 +609,7 @@ function SevaManagement() {
                     color="primary"
                     onClick={() => handleEdit(seva)}
                     size="small"
+                    disabled={tenantAccessLoading || tenantWriteBlocked}
                   >
                     <EditIcon />
                   </IconButton>
@@ -544,6 +617,7 @@ function SevaManagement() {
                     color="error"
                     onClick={() => handleDelete(seva)}
                     size="small"
+                    disabled={tenantAccessLoading || tenantWriteBlocked}
                   >
                     <DeleteIcon />
                   </IconButton>
@@ -576,6 +650,11 @@ function SevaManagement() {
         </DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            {formError && (
+              <Grid item xs={12}>
+                <Alert severity="error">{formError}</Alert>
+              </Grid>
+            )}
             {/* Basic Info */}
             <Grid item xs={12} sm={6}>
               <TextField
@@ -884,8 +963,6 @@ function SevaManagement() {
 }
 
 export default SevaManagement;
-
-
 
 
 
