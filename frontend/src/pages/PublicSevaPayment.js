@@ -308,7 +308,7 @@ export default function PublicSevaPayment() {
   // ── MAIN PAGE ────────────────────────────────────────────────────────────
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#FFF8F0', py: 3 }}>
-      <Container maxWidth="sm">
+      <Container maxWidth={activeStep === 2 ? "md" : "sm"}>
         <HeaderBar />
 
         <Stepper activeStep={activeStep} sx={{ mb: 3 }}>
@@ -480,17 +480,39 @@ export default function PublicSevaPayment() {
             </Alert>
 
             {paymentResult.upi_id && (
-              <Box textAlign="center" mb={2}>
+              <Box
+                textAlign="center"
+                sx={{
+                  mb: 2,
+                  width: { xs: '100%', md: '42%' },
+                  float: { xs: 'none', md: 'left' },
+                  pr: { xs: 0, md: 2 },
+                }}
+              >
                 <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
                   {t('publicPayment.scanQR')}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
                   {t('publicPayment.scanQRDesc')}
                 </Typography>
-                <Box display="inline-block" p={1.5} border="1px solid #ddd" borderRadius={2} bgcolor="white">
+                <Box
+                  display="inline-block"
+                  p={1.25}
+                  border="1px solid #ddd"
+                  borderRadius={2}
+                  bgcolor="white"
+                  sx={{
+                    maxWidth: '100%',
+                    '& svg': {
+                      width: { xs: 176, sm: 196, md: 206 },
+                      height: { xs: 176, sm: 196, md: 206 },
+                      display: 'block',
+                    },
+                  }}
+                >
                   <QRCodeSVG
                     value={`upi://pay?pa=${encodeURIComponent(paymentResult.upi_id)}&pn=${encodeURIComponent(paymentResult.upi_payee_name || 'Temple')}&am=${paymentResult.amount || ''}&cu=INR&tn=${encodeURIComponent((paymentResult.seva_name || '').slice(0, 50))}`}
-                    size={220}
+                    size={206}
                     level="H"
                     includeMargin={false}
                   />
@@ -502,7 +524,19 @@ export default function PublicSevaPayment() {
             )}
 
             {paymentResult.upi_id && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 2, textAlign: 'center', bgcolor: '#F9F9F9' }}>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  mb: 2,
+                  textAlign: 'center',
+                  bgcolor: '#F9F9F9',
+                  width: { xs: '100%', md: '42%' },
+                  float: { xs: 'none', md: 'left' },
+                  clear: { xs: 'none', md: 'left' },
+                  overflowWrap: 'anywhere',
+                }}
+              >
                 <Typography variant="body2" color="text.secondary">{t('publicPayment.upiId')}</Typography>
                 <Typography variant="h6" fontWeight="bold" letterSpacing={0.5}>{paymentResult.upi_id}</Typography>
                 <Button size="small" startIcon={copied ? <CheckCircleIcon /> : <ContentCopyIcon />}
@@ -519,7 +553,17 @@ export default function PublicSevaPayment() {
             )}
 
             {/* ── 3-step admin notification card ── */}
-            <Box sx={{ border: '2px solid #FF9933', borderRadius: 2, p: 2, mb: 2, bgcolor: '#FFFDE7' }}>
+            <Box
+              sx={{
+                border: '2px solid #FF9933',
+                borderRadius: 2,
+                p: 2,
+                mb: 2,
+                bgcolor: '#FFFDE7',
+                width: { xs: '100%', md: '56%' },
+                float: { xs: 'none', md: 'right' },
+              }}
+            >
               <Typography variant="subtitle1" fontWeight="bold" color="#e65c00" gutterBottom>
                 📋 Important — 3 Steps to complete your booking
               </Typography>
@@ -529,7 +573,7 @@ export default function PublicSevaPayment() {
                 <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: '#FF9933', color: '#fff',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0, mt: 0.5 }}>1</Box>
                 <Box>
-                  <Typography variant="body2" fontWeight="bold">Make the UPI payment above</Typography>
+                  <Typography variant="body2" fontWeight="bold">Make the UPI payment</Typography>
                   <Typography variant="caption" color="text.secondary">Scan the QR or use the UPI ID to complete payment</Typography>
                 </Box>
               </Box>
@@ -584,7 +628,9 @@ export default function PublicSevaPayment() {
                         '&:hover': { bgcolor: '#075E54' },
                         fontWeight: 'bold',
                         py: 1.2,
-                        fontSize: 15,
+                        fontSize: { xs: 13, sm: 14 },
+                        whiteSpace: 'normal',
+                        lineHeight: 1.2,
                       }}
                     >
                       {whatsappSent ? 'Send Again / Resend' : '📲 Send WhatsApp to Temple Admin'}
@@ -599,7 +645,7 @@ export default function PublicSevaPayment() {
               </Box>
             </Box>
 
-            <Button variant="outlined" fullWidth onClick={resetForm}>{t('publicPayment.bookAnother')}</Button>
+            <Button variant="outlined" fullWidth onClick={resetForm} sx={{ clear: 'both' }}>{t('publicPayment.bookAnother')}</Button>
           </Paper>
         )}
 
