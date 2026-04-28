@@ -189,8 +189,8 @@ function SevaManagement() {
 
     try {
       setTenantAccessLoading(true);
-      const response = await api.get('/api/v1/temples/', { params: { temple_id: activeTempleId } });
-      const temple = Array.isArray(response?.data) ? response.data[0] : response?.data;
+      const response = await api.get('/api/v1/temples/current', { params: { temple_id: activeTempleId } });
+      const temple = response?.data || {};
       const canWrite = Boolean(temple?.platform_can_write);
       setTenantWriteBlocked(!canWrite);
       setTenantReadOnlyMessage(
@@ -963,7 +963,6 @@ function SevaManagement() {
 }
 
 export default SevaManagement;
-
 
 
 

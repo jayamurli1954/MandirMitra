@@ -464,7 +464,7 @@ function Login() {
                   Book a Seva / Make a Donation
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  No login required â€” pay directly to your temple
+                  No login required - pay directly to your temple
                 </Typography>
               </Box>
             </Box>
