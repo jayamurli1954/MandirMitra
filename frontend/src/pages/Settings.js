@@ -41,6 +41,26 @@ const writeActiveTempleId = (templeId) => {
   localStorage.setItem(ACTIVE_TEMPLE_STORAGE_KEY, String(templeId));
 };
 
+const DEFAULT_DONATION_CATEGORIES = [
+  { id: 'general', name: 'General Donation', description: '' },
+];
+
+const normalizeDonationCategories = (categories) => {
+  const rows = Array.isArray(categories) ? categories : DEFAULT_DONATION_CATEGORIES;
+  const normalized = rows
+    .map((category, index) => {
+      const name = String(category?.name || '').trim();
+      const id = String(category?.id || name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `category_${index + 1}`).trim();
+      return {
+        id,
+        name,
+        description: String(category?.description || '').trim(),
+      };
+    })
+    .filter((category) => category.name);
+  return normalized.length ? normalized : DEFAULT_DONATION_CATEGORIES;
+};
+
 function Settings() {
   const _navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
@@ -111,6 +131,7 @@ function Settings() {
     module_panchang_enabled: true,
     logo_url: '',
     banner_url: '',
+    donation_categories: DEFAULT_DONATION_CATEGORIES,
   });
 
   const isPlatformSuperAdmin = Boolean(currentUser.is_superuser) || currentUser.role === 'super_admin';
@@ -199,6 +220,7 @@ function Settings() {
       module_panchang_enabled: temple?.module_panchang_enabled !== undefined ? temple.module_panchang_enabled : true,
       logo_url: temple?.logo_url || '',
       banner_url: temple?.banner_url || '',
+      donation_categories: normalizeDonationCategories(temple?.donation_categories),
     });
   };
 
@@ -452,6 +474,7 @@ function Settings() {
         fcra_valid_to: settings.fcra_valid_to,
         logo_url: settings.logo_url,
         banner_url: settings.banner_url,
+        donation_categories: normalizeDonationCategories(settings.donation_categories),
       };
 
       try {
@@ -1123,6 +1146,80 @@ function Settings() {
                     />
                   </>
                 )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Public Donation Categories */}
+          <Grid item xs={12}>
+            <Card sx={{ borderLeft: '5px solid #4CAF50' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom color="success.main">
+                  Public Donation Categories
+                </Typography>
+                <Grid container spacing={2}>
+                  {normalizeDonationCategories(settings.donation_categories).map((category, index) => (
+                    <React.Fragment key={`${category.id}-${index}`}>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          fullWidth
+                          label="Category Name"
+                          value={category.name}
+                          onChange={(e) => {
+                            const next = normalizeDonationCategories(settings.donation_categories);
+                            next[index] = {
+                              ...next[index],
+                              name: e.target.value,
+                              id: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''),
+                            };
+                            setSettings({ ...settings, donation_categories: next });
+                          }}
+                          margin="normal"
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Description"
+                          value={category.description}
+                          onChange={(e) => {
+                            const next = normalizeDonationCategories(settings.donation_categories);
+                            next[index] = { ...next[index], description: e.target.value };
+                            setSettings({ ...settings, donation_categories: next });
+                          }}
+                          margin="normal"
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={2} sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          disabled={normalizeDonationCategories(settings.donation_categories).length <= 1}
+                          onClick={() => {
+                            const next = normalizeDonationCategories(settings.donation_categories).filter((_, rowIndex) => rowIndex !== index);
+                            setSettings({ ...settings, donation_categories: next });
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </Grid>
+                    </React.Fragment>
+                  ))}
+                  <Grid item xs={12}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setSettings({
+                        ...settings,
+                        donation_categories: [
+                          ...normalizeDonationCategories(settings.donation_categories),
+                          { id: '', name: '', description: '' },
+                        ],
+                      })}
+                    >
+                      Add Category
+                    </Button>
+                  </Grid>
+                </Grid>
               </CardContent>
             </Card>
           </Grid>
