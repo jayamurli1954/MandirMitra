@@ -559,6 +559,7 @@ export default function PublicSevaPayment() {
                 borderRadius: 2,
                 p: 2,
                 mb: 2,
+                mt: { xs: 0, md: -18 },
                 bgcolor: '#FFFDE7',
                 width: { xs: '100%', md: '56%' },
                 float: { xs: 'none', md: 'right' },
