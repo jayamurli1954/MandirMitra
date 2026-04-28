@@ -70,7 +70,7 @@ const menuItems = [
   { id: 'reports', labelKey: 'layout.nav.reports', defaultLabel: 'Reports', icon: <AssessmentIcon />, path: '/reports', moduleFlag: 'module_reports_enabled', permissionKey: 'reports' },
   { id: 'panchang', labelKey: 'layout.nav.panchang', defaultLabel: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', moduleFlag: 'module_panchang_enabled', permissionKey: 'panchang' },
   { id: 'settings', labelKey: 'layout.nav.settings', defaultLabel: 'Settings', icon: <SettingsIcon />, path: '/settings', permissionKey: 'settings' },
-  { id: 'implementationChecks', labelKey: 'layout.nav.implementationChecks', defaultLabel: 'Implementation Checks', icon: <FactCheckIcon />, path: '/implementation-checks', permissionKey: 'settings' },
+  { id: 'implementationChecks', labelKey: 'layout.nav.implementationChecks', defaultLabel: 'Implementation Checks', icon: <FactCheckIcon />, path: '/implementation-checks', permissionKey: 'settings', superAdminOnly: true },
   { id: 'platformOperations', labelKey: 'layout.nav.platformOperations', defaultLabel: 'Platform Owners', icon: <TempleHinduIcon />, path: '/platform/operations', superAdminOnly: true },
 ];
 const sevaMenuItems = [
