@@ -1,6 +1,7 @@
 /**
  * Export utility functions
  */
+import { buildReportHeaderHtml, reportBaseStyles, formatReportPeriod } from './reportBranding';
 
 /**
  * Export data to CSV
@@ -106,6 +107,137 @@ export const exportToJSON = (data, filename = 'export.json') => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+};
+
+/**
+ * Export data to PDF via print dialog (browser Save as PDF).
+ */
+export const exportToPDF = (data, title = 'Report', options = {}) => {
+  if (!Array.isArray(data) || data.length === 0) {
+    return;
+  }
+  const headers = Object.keys(data[0]);
+  const safeTitle = String(title || 'Report').replace(/[<>]/g, '').trim();
+  const period = formatReportPeriod(options.period);
+  const pageSize = Number(options.pageSize) > 0 ? Number(options.pageSize) : 28;
+  const numericHeaders = headers.filter((header) => data.some((row) => {
+    const value = row?.[header];
+    if (value === null || value === undefined || value === '') return false;
+    const num = Number(String(value).replace(/,/g, ''));
+    return Number.isFinite(num);
+  }));
+  const parseNumeric = (value) => {
+    const num = Number(String(value ?? '').replace(/,/g, ''));
+    return Number.isFinite(num) ? num : 0;
+  };
+  const escapeHtml = (value = '') =>
+    String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  const formatNumber = (num) => {
+    try {
+      return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(num || 0);
+    } catch (err) {
+      return String(num || 0);
+    }
+  };
+
+  const pageChunks = [];
+  for (let index = 0; index < data.length; index += pageSize) {
+    pageChunks.push(data.slice(index, index + pageSize));
+  }
+
+  const runningTotals = Object.fromEntries(numericHeaders.map((header) => [header, 0]));
+  const pageTablesHtml = pageChunks
+    .map((chunk, pageIndex) => {
+      const headerHtml = headers
+        .map((header) => {
+          const className = numericHeaders.includes(header) ? 'num' : '';
+          return `<th class="${className}">${escapeHtml(header)}</th>`;
+        })
+        .join('');
+
+      const bfFromRow = pageIndex > 0
+        ? `<tr>${headers.map((header, idx) => {
+          if (idx === 0) return `<td><strong>B/F from Previous Page</strong></td>`;
+          if (numericHeaders.includes(header)) return `<td class="num"><strong>${formatNumber(runningTotals[header])}</strong></td>`;
+          return '<td></td>';
+        }).join('')}</tr>`
+        : '';
+
+      const rowHtml = chunk
+        .map((row) => {
+          numericHeaders.forEach((header) => {
+            runningTotals[header] += parseNumeric(row?.[header]);
+          });
+          const cells = headers
+            .map((header) => {
+              const value = row?.[header] ?? '';
+              const className = numericHeaders.includes(header) ? 'num' : '';
+              return `<td class="${className}">${escapeHtml(value)}</td>`;
+            })
+            .join('');
+          return `<tr>${cells}</tr>`;
+        })
+        .join('');
+
+      const bfToRow = pageIndex < pageChunks.length - 1
+        ? `<tr>${headers.map((header, idx) => {
+          if (idx === 0) return `<td><strong>B/F to Next Page</strong></td>`;
+          if (numericHeaders.includes(header)) return `<td class="num"><strong>${formatNumber(runningTotals[header])}</strong></td>`;
+          return '<td></td>';
+        }).join('')}</tr>`
+        : '';
+
+      const totalRow = pageIndex === pageChunks.length - 1 && numericHeaders.length > 0
+        ? `<tr>${headers.map((header, idx) => {
+          if (idx === 0) return `<td><strong>Grand Total</strong></td>`;
+          if (numericHeaders.includes(header)) return `<td class="num"><strong>${formatNumber(runningTotals[header])}</strong></td>`;
+          return '<td></td>';
+        }).join('')}</tr>`
+        : '';
+
+      return `
+        <div class="${pageIndex < pageChunks.length - 1 ? 'page-break' : ''}">
+          ${buildReportHeaderHtml({ title: safeTitle, period })}
+          <table>
+            <thead><tr>${headerHtml}</tr></thead>
+            <tbody>
+              ${bfFromRow}
+              ${rowHtml}
+              ${bfToRow}
+              ${totalRow}
+            </tbody>
+          </table>
+          <div class="page-footer">Page ${pageIndex + 1} of ${pageChunks.length}</div>
+        </div>
+      `;
+    })
+    .join('');
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${safeTitle}</title>
+        <style>
+          ${reportBaseStyles}
+        </style>
+      </head>
+      <body>
+        ${pageTablesHtml}
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 250);
 };
 
 

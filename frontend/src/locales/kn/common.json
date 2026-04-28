@@ -226,5 +226,28 @@
     "networkError": "ನೆಟ್‌ವರ್ಕ್ ದೋಷ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
     "submissionFailed": "ಸಲ್ಲಿಕೆ ವಿಫಲವಾಗಿದೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
     "select": "ಆಯ್ಕೆ ಮಾಡಿ"
+  },
+  "dashboard": {
+    "title": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+    "quickDonationEntry": "ತ್ವರಿತ ದೇಣಿಗೆ ನಮೂದಣೆ",
+    "searchMobile": "ಮೊಬೈಲ್ ಹುಡುಕಿ",
+    "phoneNumber": "ಫೋನ್ ಸಂಖ್ಯೆ",
+    "devoteeDetails": "ಭಕ್ತರ ವಿವರಗಳು",
+    "donationAmount": "ದೇಣಿಗೆ ಮೊತ್ತ (₹) *",
+    "paymentMode": "ಪಾವತಿ ವಿಧಾನ",
+    "category": "ವರ್ಗ",
+    "recordDonation": "ದೇಣಿಗೆ ರೆಕಾರ್ಡ್ ಮಾಡಿ",
+    "donationRecordedSuccess": "ದೇಣಿಗೆ ಯಶಸ್ವಿಯಾಗಿ ರೆಕಾರ್ಡ್ ಮಾಡಲಾಗಿದೆ! ರಸೀದಿ: {{receiptNumber}}",
+    "donationReceiptDetails": "ದೇಣಿಗೆ ರಸೀದಿ",
+    "receiptNumber": "ರಸೀದಿ ಸಂಖ್ಯೆ: {{number}}",
+    "amount": "ಮೊತ್ತ: ₹{{amount}}",
+    "date": "ದಿನಾಂಕ: {{date}}",
+    "name": "ಹೆಸರು: {{name}}",
+    "category": "ವರ್ಗ: {{category}}",
+    "paymentMethod": "ಪಾವತಿ ವಿಧಾನ: {{method}}",
+    "donationThankYou": "ನಿಮ್ಮ ಉದಾರ ದೇಣಿಗೆಗೆ ಧನ್ಯವಾದಗಳು!",
+    "devoteeName": "ಭಕ್ತರ ಹೆಸರು",
+    "devoteeMobile": "ಭಕ್ತರ ಮೊಬೈಲ್",
+    "donationCategory": "ದೇಣಿಗೆ ವರ್ಗ"
   }
 }

@@ -26,6 +26,7 @@ import {
   Alert,
   Snackbar,
   Tooltip,
+  Autocomplete,
 } from '@mui/material';
 import Layout from '../../components/Layout';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -37,6 +38,7 @@ import MinimizeIcon from '@mui/icons-material/Minimize';
 import { useCurrentUser } from '../../contexts/CurrentUserContext';
 import { fetchWithApiFallback } from '../../utils/apiBaseUrl';
 import { getAccessToken } from '../../utils/authStorage';
+import { ACTIVE_TEMPLE_EVENT } from '../../utils/activeTemple';
 
 function JournalEntryRow({
   entry,
@@ -73,7 +75,7 @@ function JournalEntryRow({
         <TableCell>{entry.entry_number}</TableCell>
         <TableCell>{new Date(entry.entry_date).toLocaleDateString()}</TableCell>
         <TableCell>{entry.narration}</TableCell>
-        <TableCell align="right">â‚¹{entry.total_amount.toFixed(2)}</TableCell>
+        <TableCell align="right">Rs {entry.total_amount.toFixed(2)}</TableCell>
         <TableCell>
           <Chip label={entry.status} color={getStatusColor(entry.status)} size="small" />
         </TableCell>
@@ -121,8 +123,8 @@ function JournalEntryRow({
                   <TableRow>
                     <TableCell><strong>Account</strong></TableCell>
                     <TableCell><strong>Description</strong></TableCell>
-                    <TableCell align="right"><strong>Debit (â‚¹)</strong></TableCell>
-                    <TableCell align="right"><strong>Credit (â‚¹)</strong></TableCell>
+                    <TableCell align="right"><strong>Debit (Rs)</strong></TableCell>
+                    <TableCell align="right"><strong>Credit (Rs)</strong></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -144,12 +146,12 @@ function JournalEntryRow({
                     <TableCell colSpan={2}><strong>TOTAL</strong></TableCell>
                     <TableCell align="right">
                       <strong>
-                        â‚¹{entry.journal_lines.reduce((sum, line) => sum + line.debit_amount, 0).toFixed(2)}
+                        Rs {entry.journal_lines.reduce((sum, line) => sum + line.debit_amount, 0).toFixed(2)}
                       </strong>
                     </TableCell>
                     <TableCell align="right">
                       <strong>
-                        â‚¹{entry.journal_lines.reduce((sum, line) => sum + line.credit_amount, 0).toFixed(2)}
+                        Rs {entry.journal_lines.reduce((sum, line) => sum + line.credit_amount, 0).toFixed(2)}
                       </strong>
                     </TableCell>
                   </TableRow>
@@ -192,10 +194,80 @@ function JournalEntries() {
     { account_id: '', debit_amount: '', credit_amount: '', description: '' },
   ]);
 
+  const getAccountId = (account) => String(account?.account_id ?? account?.id ?? '');
+
+  const getAccountLabel = (account) => {
+    if (!account) return '';
+
+    const code = String(account.account_code ?? account.code ?? account.accountCode ?? getAccountId(account)).trim();
+    const name = String(account.account_name ?? account.name ?? '').trim();
+    const type = String(account.account_type ?? account.type ?? '').trim();
+
+    return `${code}${name ? ` - ${name}` : ''}${type ? ` (${type})` : ''}`;
+  };
+
+  const findAccountById = (accountId) => (
+    accounts.find((account) => getAccountId(account) === String(accountId || '')) || null
+  );
+
+  const normalizeAccounts = (raw) => {
+    const accountRows = Array.isArray(raw)
+      ? raw
+      : (Array.isArray(raw?.accounts) ? raw.accounts : (Array.isArray(raw?.data) ? raw.data : []));
+
+    const flattenAccounts = (items, result = []) => {
+      items.forEach((account) => {
+        const id = account?.account_id ?? account?.id ?? null;
+        result.push({
+          ...account,
+          id,
+          account_id: id,
+          account_code: account?.account_code ?? account?.code ?? account?.accountCode ?? '',
+          account_name: account?.account_name ?? account?.name ?? account?.accountName ?? '',
+          account_type: account?.account_type ?? account?.type ?? '',
+          account_subtype: account?.account_subtype ?? account?.subtype ?? '',
+        });
+
+        if (Array.isArray(account?.sub_accounts) && account.sub_accounts.length > 0) {
+          flattenAccounts(account.sub_accounts, result);
+        }
+      });
+      return result;
+    };
+
+    return flattenAccounts(accountRows)
+      .filter((account) => account.id !== null && account.id !== undefined && String(account.id).trim() !== '');
+  };
+
+  const isNumericAccountId = (value) => /^[0-9]+$/.test(String(value ?? '').trim());
+
+  const fetchAccountsFromTrialBalance = async (token) => {
+    const asOfDate = toDate.toISOString().split('T')[0];
+    const response = await fetchWithApiFallback(
+      `/api/v1/journal-entries/reports/trial-balance?as_of=${asOfDate}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      }
+    );
+    const data = await response.json();
+    return normalizeAccounts(Array.isArray(data?.accounts) ? data.accounts : []);
+  };
+
   // Initial data load happens once on mount; later refreshes are explicit from filters/actions.
   useEffect(() => {
     fetchEntries();
     fetchAccounts();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handleActiveTempleChange = () => {
+      fetchAccounts();
+    };
+
+    window.addEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
+    return () => window.removeEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchEntries = async () => {
@@ -229,19 +301,24 @@ function JournalEntries() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await response.json();
-      // Flatten the hierarchical accounts for the dropdown
-      const flattenAccounts = (accs, result = []) => {
-        accs.forEach(acc => {
-          result.push(acc);
-          if (acc.sub_accounts && acc.sub_accounts.length > 0) {
-            flattenAccounts(acc.sub_accounts, result);
+      let normalized = normalizeAccounts(data);
+
+      // Journal entries must post against numeric SQL ledger IDs.
+      if (normalized.length === 0 || !normalized.some((account) => isNumericAccountId(account.id))) {
+        try {
+          const trialBalanceAccounts = await fetchAccountsFromTrialBalance(token);
+          if (trialBalanceAccounts.length > 0) {
+            normalized = trialBalanceAccounts;
           }
-        });
-        return result;
-      };
-      setAccounts(flattenAccounts(data));
+        } catch (trialBalanceError) {
+          console.warn('Trial balance fallback for journal account list failed:', trialBalanceError);
+        }
+      }
+
+      setAccounts(normalized);
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setAccounts([]);
     }
   };
 
@@ -637,20 +714,27 @@ function JournalEntries() {
                   <Paper key={index} sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5' }}>
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
-                        <FormControl fullWidth size="small">
-                          <InputLabel>Account</InputLabel>
-                          <Select
-                            value={line.account_id}
-                            onChange={(e) => handleLineChange(index, 'account_id', e.target.value)}
-                            label="Account"
-                          >
-                            {accounts.map((acc) => (
-                              <MenuItem key={acc.id} value={acc.id}>
-                                {acc.account_code} - {acc.account_name}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                        <Autocomplete
+                          fullWidth
+                          size="small"
+                          options={accounts}
+                          openOnFocus
+                          value={findAccountById(line.account_id)}
+                          onChange={(_event, account) => (
+                            handleLineChange(index, 'account_id', account ? getAccountId(account) : '')
+                          )}
+                          getOptionLabel={getAccountLabel}
+                          isOptionEqualToValue={(option, value) => getAccountId(option) === getAccountId(value)}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Account"
+                              placeholder="Search account code or name"
+                              required
+                            />
+                          )}
+                          noOptionsText={accounts.length ? 'No matching account' : 'No accounts loaded'}
+                        />
                       </Grid>
                       <Grid item xs={12} md={4}>
                         <TextField
@@ -708,10 +792,10 @@ function JournalEntries() {
                 <Box sx={{ bgcolor: '#fff3e0', p: 2, borderRadius: 1 }}>
                   <Grid container spacing={2}>
                     <Grid item xs={6}>
-                      <Typography variant="body2">Total Debit: â‚¹{totalDebit.toFixed(2)}</Typography>
+                      <Typography variant="body2">Total Debit: Rs {totalDebit.toFixed(2)}</Typography>
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography variant="body2">Total Credit: â‚¹{totalCredit.toFixed(2)}</Typography>
+                      <Typography variant="body2">Total Credit: Rs {totalCredit.toFixed(2)}</Typography>
                     </Grid>
                     <Grid item xs={12}>
                       <Typography
@@ -719,8 +803,8 @@ function JournalEntries() {
                         color={totalDebit === totalCredit && totalDebit > 0 ? 'success.main' : 'error.main'}
                       >
                         {totalDebit === totalCredit && totalDebit > 0
-                          ? 'âœ“ Entry is balanced'
-                          : 'âœ— Entry must be balanced (debits = credits)'}
+                          ? 'Entry is balanced'
+                          : 'Entry must be balanced (debits = credits)'}
                       </Typography>
                     </Grid>
                   </Grid>

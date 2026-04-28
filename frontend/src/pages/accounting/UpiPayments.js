@@ -81,9 +81,17 @@ function UpiPayments() {
         }
       );
       const data = await response.json();
-      setPayments(data);
+      const normalizedPayments = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data?.payments)
+            ? data.payments
+            : [];
+      setPayments(normalizedPayments);
     } catch (error) {
       console.error('Error fetching payments:', error);
+      setPayments([]);
     }
   };
 

@@ -12,6 +12,7 @@ import {
   Button,
   TextField,
   MenuItem,
+  Autocomplete,
   List,
   ListItem,
   ListItemText,
@@ -42,10 +43,13 @@ function Panchang() {
   const [wizardError, setWizardError] = useState('');
   const [nakshatraLoading, setNakshatraLoading] = useState(false);
   const [dateLookupLoading, setDateLookupLoading] = useState(false);
+  const [cityOptions, setCityOptions] = useState([]);
+  const [selectedCity, setSelectedCity] = useState(null);
 
   useEffect(() => {
+    fetchPanchangCities();
     fetchPanchangData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!selectedNakshatra && panchangData?.panchang?.nakshatra?.name) {
@@ -63,7 +67,27 @@ function Panchang() {
     }
   }, [selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchPanchangData = async () => {
+  const selectedLocationParams = (city = selectedCity) => {
+    if (!city) return {};
+    return {
+      city_name: city.name,
+      latitude: city.lat,
+      longitude: city.lon,
+    };
+  };
+
+  const fetchPanchangCities = async () => {
+    try {
+      const response = await api.get('/api/v1/panchang/display-settings/cities');
+      const payload = response.data;
+      const options = Array.isArray(payload) ? payload : (payload?.data || []);
+      setCityOptions(options);
+    } catch (err) {
+      console.error('Failed to load Panchang cities:', err);
+    }
+  };
+
+  const fetchPanchangData = async (city = selectedCity) => {
     try {
       setLoading(true);
       setError('');
@@ -71,7 +95,7 @@ function Panchang() {
       // Fetch panchang display settings and data
       const [settingsRes, panchangRes] = await Promise.allSettled([
         api.get('/api/v1/panchang/display-settings/'),
-        api.get('/api/v1/panchang/today'),
+        api.get('/api/v1/panchang/today', { params: selectedLocationParams(city) }),
       ]);
 
       if (settingsRes.status === 'fulfilled' && settingsRes.value.data) {
@@ -121,12 +145,12 @@ function Panchang() {
     }
   };
 
-  const fetchPanchangForDate = async (date) => {
+  const fetchPanchangForDate = async (date, city = selectedCity) => {
     try {
       setLoading(true);
       setError('');
       const response = await api.get('/api/v1/panchang/on-date-full', {
-        params: { target_date: date },
+        params: { target_date: date, ...selectedLocationParams(city) },
       });
       if (response.data) {
         setPanchangData(response.data);
@@ -147,6 +171,16 @@ function Panchang() {
       setError(`Failed to load panchang for selected date: ${errorMsg}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCityChange = (_event, city) => {
+    setSelectedCity(city);
+    const today = new Date().toISOString().split('T')[0];
+    if (selectedDate && selectedDate !== today) {
+      fetchPanchangForDate(selectedDate, city);
+    } else {
+      fetchPanchangData(city);
     }
   };
 
@@ -180,7 +214,7 @@ function Panchang() {
       setWizardError('');
       setDateLookupLoading(true);
       const response = await api.get('/api/v1/panchang/on-date', {
-        params: { target_date: selectedDate },
+        params: { target_date: selectedDate, ...selectedLocationParams() },
       });
       setDateLookup(response.data || null);
     } catch (err) {
@@ -237,6 +271,36 @@ function Panchang() {
           </Typography>
         </Paper>
       )}
+
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Autocomplete
+            options={cityOptions}
+            value={selectedCity}
+            onChange={handleCityChange}
+            getOptionLabel={(option) => option?.display || `${option?.name || ''}${option?.state ? `, ${option.state}` : ''}`}
+            isOptionEqualToValue={(option, value) => option?.name === value?.name && option?.state === value?.state}
+            sx={{ minWidth: 280, maxWidth: 420, flex: '1 1 280px' }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Panchang Location"
+                size="small"
+                helperText="Select a city to recalculate without changing temple default settings"
+              />
+            )}
+          />
+          <Typography variant="body2" color="text.secondary">
+            Current calculation:{' '}
+            <strong>
+              {panchangData?.location?.city || settings?.city_name || 'Bengaluru'}
+            </strong>
+            {panchangData?.location?.latitude && panchangData?.location?.longitude
+              ? ` (${Number(panchangData.location.latitude).toFixed(2)}°, ${Number(panchangData.location.longitude).toFixed(2)}°)`
+              : ''}
+          </Typography>
+        </Box>
+      </Paper>
 
       <Card sx={{ mb: 3, boxShadow: 2 }}>
         <CardContent>

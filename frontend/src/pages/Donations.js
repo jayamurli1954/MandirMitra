@@ -32,6 +32,7 @@ const createEmptyDonationEntry = () => ({
   devotee_name: '',
   devotee_phone: '',
   email: '',
+  pan_number: '',
   donation_nature: 'monetary', // monetary | sponsorship | material | precious
   amount: '',
   category: '',
@@ -205,6 +206,7 @@ function Donations() {
       updated[index].searching = false;
       updated[index].devotee_name = '';
       updated[index].email = '';
+      updated[index].pan_number = '';
       updated[index].name_prefix = 'Sri';
     } else {
       updated[index][field] = value;
@@ -242,6 +244,8 @@ function Donations() {
     return { first: parts[0], last: parts.slice(1).join(' ') };
   };
 
+  const isValidPan = (value) => /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(String(value || '').trim().toUpperCase());
+
   const handleSearchByMobile = async (index) => {
     const row = donations[index];
     const phone = (row.devotee_phone || '').trim();
@@ -276,6 +280,7 @@ function Donations() {
             name_prefix: devotee.name_prefix || next[index].name_prefix || 'Sri',
             devotee_name: displayName,
             email: devotee.email || '',
+            pan_number: devotee.pan_number || devotee.pan || '',
             mobile_verified: true,
             lookup_status: 'found',
             searching: false,
@@ -290,6 +295,7 @@ function Donations() {
             devotee_phone: phone,
             devotee_name: '',
             email: '',
+            pan_number: '',
             mobile_verified: true,
             lookup_status: 'not_found',
             searching: false,
@@ -306,6 +312,7 @@ function Donations() {
             devotee_phone: phone,
             devotee_name: '',
             email: '',
+            pan_number: '',
             mobile_verified: true,
             lookup_status: 'not_found',
             searching: false,
@@ -365,6 +372,11 @@ function Donations() {
         }
         if (!entry.devotee_name || !entry.category) {
           setError(`Entry ${entryNo}: Please complete devotee name and category`);
+          setSaving(false);
+          return;
+        }
+        if (entry.pan_number && !isValidPan(entry.pan_number)) {
+          setError(`Entry ${entryNo}: PAN format must be AAAAA9999A`);
           setSaving(false);
           return;
         }
@@ -474,6 +486,7 @@ function Donations() {
           devotee_name: donation.devotee_name,
           devotee_phone: donation.devotee_phone,
           email: donation.email?.trim() || null,
+          pan_number: donation.pan_number?.trim() || null,
           category: donation.category,
           donation_type: isMonetary ? 'cash' : 'in_kind',
           amount: parseFloat(donation.amount),
@@ -573,6 +586,7 @@ function Donations() {
       setLoading(true);
       const response = await api.get(`/api/v1/donations/${donationId}/receipt/pdf`, {
         responseType: 'blob',
+        params: { lang: 'kannada' },
       });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -597,6 +611,7 @@ function Donations() {
       setLoading(true);
       const response = await api.get(`/api/v1/donations/${donationId}/receipt/pdf`, {
         responseType: 'blob',
+        params: { lang: 'kannada' },
       });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -707,6 +722,18 @@ function Donations() {
                     value={donation.email}
                     onChange={(e) => handleChange(index, 'email', e.target.value)}
                     size="small"
+                    disabled={!donation.mobile_verified || donation.searching}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={2.5} sx={{ order: 5 }}>
+                  <TextField
+                    fullWidth
+                    label="PAN"
+                    placeholder="PAN details (optional)"
+                    value={donation.pan_number}
+                    onChange={(e) => handleChange(index, 'pan_number', e.target.value.toUpperCase())}
+                    size="small"
+                    inputProps={{ maxLength: 10 }}
                     disabled={!donation.mobile_verified || donation.searching}
                   />
                 </Grid>

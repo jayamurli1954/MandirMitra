@@ -8,6 +8,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import SecurityIcon from '@mui/icons-material/Security';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import Layout from '../components/Layout';
+import { buildApiUrl } from '../utils/apiBaseUrl';
 
 export default function ReleaseNotes() {
   const [version, setVersion] = useState(null);
@@ -22,8 +23,8 @@ export default function ReleaseNotes() {
   const fetchVersion = async () => {
     try {
       setLoading(true);
-      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'https://sanmitra-backend-staging-sg.onrender.com';
-      const response = await fetch(`${baseUrl}/api/v1/mandir/version`);
+      const url = buildApiUrl('/api/v1/mandir/version');
+      const response = await fetch(url);
       const data = await response.json();
       setVersion(data);
     } catch (err) {
@@ -112,7 +113,7 @@ export default function ReleaseNotes() {
                       <Card>
                         <CardContent>
                           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main', mb: 1 }}>
-                            🎯 Quick Ticket Counter Mode
+                            🎯 Quick Token Counter Mode
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Fast one-click seva booking without login. Perfect for temple counters to process instant bookings.

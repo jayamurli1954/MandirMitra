@@ -234,8 +234,8 @@ function TempleDirectory() {
       showError(t('templeDirectory.invalidTempleId'));
       return;
     }
-    setActiveTempleId(resolvedTempleId);
-    emitActiveTempleChanged(resolvedTempleId);
+    setActiveTempleId(resolvedTempleId, temple?.tenant_id);
+    emitActiveTempleChanged(resolvedTempleId, temple?.tenant_id);
     navigate('/dashboard');
   };
 

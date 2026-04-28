@@ -1,11 +1,12 @@
 /**
  * Print utility functions
  */
+import { buildReportHeaderHtml, reportBaseStyles, formatReportPeriod, tryExtractPeriodFromText } from './reportBranding';
 
 /**
  * Print a specific element by ID
  */
-export const printElement = (elementId, title = 'Print') => {
+export const printElement = (elementId, title = 'Print', options = {}) => {
   const element = document.getElementById(elementId);
   if (!element) {
     console.error(`Element with id "${elementId}" not found`);
@@ -13,7 +14,10 @@ export const printElement = (elementId, title = 'Print') => {
   }
 
   const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
   const printContent = element.innerHTML;
+  const derivedPeriod = options.period || tryExtractPeriodFromText(element.innerText || '');
+  const headerHtml = buildReportHeaderHtml({ title, period: formatReportPeriod(derivedPeriod) });
   
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -21,6 +25,7 @@ export const printElement = (elementId, title = 'Print') => {
       <head>
         <title>${title}</title>
         <style>
+          ${reportBaseStyles}
           @media print {
             @page {
               margin: 1cm;
@@ -49,6 +54,7 @@ export const printElement = (elementId, title = 'Print') => {
         </style>
       </head>
       <body>
+        ${headerHtml}
         ${printContent}
       </body>
     </html>
@@ -72,8 +78,10 @@ export const printPage = () => {
 /**
  * Print table data
  */
-export const printTable = (data, columns, title = 'Report') => {
+export const printTable = (data, columns, title = 'Report', options = {}) => {
   const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+  const headerHtml = buildReportHeaderHtml({ title, period: formatReportPeriod(options.period) });
   
   let tableHTML = `
     <table>
@@ -98,6 +106,7 @@ export const printTable = (data, columns, title = 'Report') => {
       <head>
         <title>${title}</title>
         <style>
+          ${reportBaseStyles}
           @media print {
             @page { margin: 1cm; }
             body { font-family: Arial, sans-serif; font-size: 12px; }
@@ -108,8 +117,7 @@ export const printTable = (data, columns, title = 'Report') => {
         </style>
       </head>
       <body>
-        <h2>${title}</h2>
-        <p>Printed on: ${new Date().toLocaleString()}</p>
+        ${headerHtml}
         ${tableHTML}
       </body>
     </html>

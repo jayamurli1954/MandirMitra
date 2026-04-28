@@ -23,7 +23,7 @@ import Layout from '../components/Layout';
 import api from '../services/api';
 import ExportButton from '../components/ExportButton';
 import PrintButton from '../components/PrintButton';
-import { exportToCSV, exportToExcel } from '../utils/export';
+import { exportToCSV, exportToExcel, exportToPDF } from '../utils/export';
 
 const getCategoryRows = (data) => {
   if (Array.isArray(data)) return data;
@@ -83,6 +83,13 @@ function CategoryWiseDonationReport() {
       exportToCSV(exportData, `category-wise-donation-${fromDate.toISOString().split('T')[0]}`);
     } else if (format === 'excel') {
       exportToExcel(exportData, `Category-Wise Donation Report`);
+    } else if (format === 'pdf') {
+      exportToPDF(exportData, 'Category-Wise Donation Report', {
+        period: {
+          from: fromDate.toLocaleDateString('en-GB'),
+          to: toDate.toLocaleDateString('en-GB'),
+        },
+      });
     }
   };
 
@@ -143,14 +150,23 @@ function CategoryWiseDonationReport() {
 
         {/* Report Table */}
         {reportData && (
-          <Paper sx={{ p: 3 }}>
+          <Paper id="category-wise-donation-report-content" sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
                 Report Period: {new Date(reportData.from_date).toLocaleDateString()} to {new Date(reportData.to_date).toLocaleDateString()}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <ExportButton onExport={handleExport} />
-                <PrintButton />
+                <PrintButton
+                  elementId="category-wise-donation-report-content"
+                  title="Category-Wise Donation Report"
+                  reportContext={{
+                    period: {
+                      from: fromDate.toLocaleDateString('en-GB'),
+                      to: toDate.toLocaleDateString('en-GB'),
+                    },
+                  }}
+                />
               </Box>
             </Box>
 
@@ -207,6 +223,4 @@ function CategoryWiseDonationReport() {
 }
 
 export default CategoryWiseDonationReport;
-
-
 

@@ -26,6 +26,7 @@ import {
   Tabs,
   IconButton,
   Tooltip,
+  Divider,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -105,6 +106,9 @@ function Sevas() {
   const [bookingForm, setBookingForm] = useState(getInitialBookingForm());
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState(null);
+  const [bookingDateError, setBookingDateError] = useState('');
+  const [bookingDateStatus, setBookingDateStatus] = useState(null);
+  const [checkingBookingDate, setCheckingBookingDate] = useState(false);
   const [downloadingReceipt, setDownloadingReceipt] = useState(false);
   const [paymentAccounts, setPaymentAccounts] = useState({ cash_accounts: [], bank_accounts: [] });
 
@@ -331,10 +335,13 @@ function Sevas() {
   };
 
   const filterSevas = () => {
+    // Exclude quick token sevas from the regular sevas display
+    const regularSevas = sevas.filter(s => !s.quick_ticket_enabled);
+
     if (selectedCategory === 'all') {
-      setFilteredSevas(sevas);
+      setFilteredSevas(regularSevas);
     } else {
-      setFilteredSevas(sevas.filter(s => s.category === selectedCategory));
+      setFilteredSevas(regularSevas.filter(s => s.category === selectedCategory));
     }
   };
 
@@ -365,9 +372,102 @@ function Sevas() {
     return formatCategory(seva.availability || 'daily');
   };
 
+  const normalizeBookingDate = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+      return `${raw.slice(6, 10)}-${raw.slice(3, 5)}-${raw.slice(0, 2)}`;
+    }
+    return raw;
+  };
+
+  const validateSevaDateLocally = (seva, dateValue) => {
+    const normalizedDate = normalizeBookingDate(dateValue);
+    if (!seva || !normalizedDate) return '';
+
+    const selectedDate = new Date(`${normalizedDate}T00:00:00`);
+    if (Number.isNaN(selectedDate.getTime())) {
+      return 'Please enter a valid booking date.';
+    }
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const selectedDay = selectedDate.getDay();
+    if (seva.specific_day !== null && seva.specific_day !== undefined && selectedDay !== Number(seva.specific_day)) {
+      return `This seva is available only on ${days[Number(seva.specific_day)]}. Please select a ${days[Number(seva.specific_day)]} date.`;
+    }
+    if (seva.except_day !== null && seva.except_day !== undefined && selectedDay === Number(seva.except_day)) {
+      return `This seva is not available on ${days[Number(seva.except_day)]}. Please select another date.`;
+    }
+    if (seva.availability === 'weekday' && (selectedDay === 0 || selectedDay === 6)) {
+      return 'This seva is available only on weekdays.';
+    }
+    if (seva.availability === 'weekend' && selectedDay !== 0 && selectedDay !== 6) {
+      return 'This seva is available only on weekends.';
+    }
+    if (seva.availability === 'festival_only') {
+      return 'This seva is available only on configured festival dates.';
+    }
+
+    const advanceDays = Number(seva.advance_booking_days || 0);
+    if (advanceDays > 0) {
+      const maxDate = new Date();
+      maxDate.setHours(0, 0, 0, 0);
+      maxDate.setDate(maxDate.getDate() + advanceDays);
+      if (selectedDate > maxDate) {
+        return `This seva can be booked only up to ${advanceDays} day(s) in advance.`;
+      }
+    }
+    return '';
+  };
+
+  const checkBookingDateAvailability = async (seva, dateValue) => {
+    const normalizedDate = normalizeBookingDate(dateValue);
+    const localError = validateSevaDateLocally(seva, normalizedDate);
+    setBookingDateStatus(null);
+    if (localError) {
+      setBookingDateError(localError);
+      return;
+    }
+    if (!seva?.id || !normalizedDate) {
+      setBookingDateError('');
+      return;
+    }
+
+    try {
+      setCheckingBookingDate(true);
+      const response = await api.get(`/api/v1/sevas/${seva.id}/availability`, {
+        params: { booking_date: normalizedDate },
+      });
+      const availability = response?.data || {};
+      setBookingDateStatus(availability);
+      if (availability.available === false || Number(availability.slots_left) <= 0) {
+        setBookingDateError(`This seva is fully booked for ${normalizedDate}. Please select another date.`);
+      } else {
+        setBookingDateError('');
+      }
+    } catch (err) {
+      setBookingDateStatus(null);
+      setBookingDateError(err.response?.data?.detail || 'Could not check seva availability for this date.');
+    } finally {
+      setCheckingBookingDate(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!bookingDialogOpen || !selectedSeva) return undefined;
+
+    const timeoutId = setTimeout(() => {
+      checkBookingDateAvailability(selectedSeva, bookingForm.booking_date);
+    }, 250);
+    return () => clearTimeout(timeoutId);
+  }, [bookingDialogOpen, selectedSeva, bookingForm.booking_date]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const resetBookingWorkflow = (seva = null) => {
     setBookingSuccess(false);
     setBookingError(null);
+    setBookingDateError('');
+    setBookingDateStatus(null);
+    setCheckingBookingDate(false);
     setLastBooking(null);
     setDownloadingReceipt(false);
     setMobileNumber('');
@@ -516,6 +616,17 @@ function Sevas() {
         return;
       }
 
+      const currentDateError = validateSevaDateLocally(selectedSeva, bookingForm.booking_date) || bookingDateError;
+      if (currentDateError) {
+        setBookingDateError(currentDateError);
+        setBookingError(currentDateError);
+        return;
+      }
+      if (checkingBookingDate) {
+        setBookingError('Please wait while we check seva availability for this date.');
+        return;
+      }
+
       // Frontend validation for advance booking limit to provide immediate feedback
       const advanceDays = Number(selectedSeva?.advance_booking_days || 0);
       if (advanceDays > 0 && bookingForm.booking_date) {
@@ -588,9 +699,7 @@ function Sevas() {
       }
 
       const rawBookingDate = (bookingForm.booking_date || '').trim();
-      const normalizedBookingDate = /^\d{2}-\d{2}-\d{4}$/.test(rawBookingDate)
-        ? `${rawBookingDate.slice(6, 10)}-${rawBookingDate.slice(3, 5)}-${rawBookingDate.slice(0, 2)}`
-        : rawBookingDate;
+      const normalizedBookingDate = normalizeBookingDate(rawBookingDate);
       if (!normalizedBookingDate || Number.isNaN(Date.parse(normalizedBookingDate))) {
         setBookingError('Please enter a valid booking date.');
         return;
@@ -674,6 +783,7 @@ function Sevas() {
       setDownloadingReceipt(true);
       const response = await api.get(`/api/v1/sevas/bookings/${bookingId}/receipt/pdf`, {
         responseType: 'blob',
+        params: { lang: 'kannada' },
       });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -698,6 +808,7 @@ function Sevas() {
       setDownloadingReceipt(true);
       const response = await api.get(`/api/v1/sevas/bookings/${bookingId}/receipt/pdf`, {
         responseType: 'blob',
+        params: { lang: 'kannada' },
       });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -826,6 +937,109 @@ function Sevas() {
         <Alert severity="warning" sx={{ mb: 2 }}>
           {bookingBlockedReason}. You can review this tenant, but booking and create actions are disabled.
         </Alert>
+      )}
+
+      {/* Quick Token Counter Section */}
+      {sevas.filter(s => s.quick_ticket_enabled).length > 0 && (
+        <>
+          <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, #FF9933 0%, #FF6B35 100%)' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
+              ⚡ Quick Token Counter
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
+              One-click booking for counter sevas — No login required
+            </Typography>
+          </Paper>
+
+          <Grid container spacing={2} sx={{ mb: 4 }}>
+            {sevas.filter(s => s.quick_ticket_enabled).map((seva) => (
+              <Grid item xs={12} sm={6} md={4} lg={3} key={`quick-${seva.id}`}>
+                <Card
+                  sx={{
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    border: '2px solid #FF9933',
+                    borderLeft: `4px solid ${getCategoryColor(seva.category)}`,
+                    '&:hover': {
+                      boxShadow: 6,
+                      transform: 'translateY(-2px)',
+                      transition: 'all 0.3s'
+                    }
+                  }}
+                >
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Chip
+                      label={`${getCategoryIcon(seva.category)} ${formatCategory(seva.category)}`}
+                      size="small"
+                      sx={{
+                        mb: 1,
+                        bgcolor: getCategoryColor(seva.category),
+                        color: '#fff',
+                        fontWeight: 600
+                      }}
+                    />
+
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5, color: getCategoryColor(seva.category) }}>
+                      {seva.name_english}
+                    </Typography>
+                    {seva.name_kannada && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        {seva.name_kannada}
+                      </Typography>
+                    )}
+
+                    {seva.description && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        {seva.description}
+                      </Typography>
+                    )}
+
+                    {seva.time_slot && (
+                      <Chip
+                        label={`🕐 ${seva.time_slot}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ mb: 1, mr: 1 }}
+                      />
+                    )}
+
+                    <Box sx={{ mt: 'auto', pt: 2 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: getCategoryColor(seva.category) }}>
+                        ₹{seva.amount}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+
+                  <Box sx={{ p: 2, pt: 0 }}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      onClick={() => handleBookNow(seva)}
+                      disabled={!seva.is_active || tenantWriteBlocked || tenantAccessLoading}
+                      sx={{
+                        bgcolor: getCategoryColor(seva.category),
+                        color: '#fff',
+                        '&:hover': {
+                          bgcolor: getCategoryColor(seva.category),
+                          color: '#fff',
+                          filter: 'brightness(0.9)'
+                        }
+                      }}
+                    >
+                      {tenantWriteBlocked ? 'Read-only Tenant' : 'Book Now'}
+                    </Button>
+                  </Box>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+
+          <Divider sx={{ my: 3 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#333' }}>
+            All Sevas & Services
+          </Typography>
+        </>
       )}
 
       {/* Category Filter */}
@@ -1098,6 +1312,16 @@ function Sevas() {
               {bookingError}
             </Alert>
           )}
+          {bookingDateError && !bookingError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {bookingDateError}
+            </Alert>
+          )}
+          {!bookingDateError && bookingDateStatus?.slots_left !== null && bookingDateStatus?.slots_left !== undefined && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {bookingDateStatus.slots_left} slot(s) available for the selected date.
+            </Alert>
+          )}
           {tenantWriteBlocked && !tenantAccessLoading && (
             <Alert severity="warning" sx={{ mb: 2 }}>
               {bookingBlockedReason}
@@ -1299,7 +1523,10 @@ function Sevas() {
                   label="Booking Date *"
                   type="date"
                   value={bookingForm.booking_date}
-                  onChange={(e) => setBookingForm({ ...bookingForm, booking_date: e.target.value })}
+                  onChange={(e) => {
+                    setBookingForm({ ...bookingForm, booking_date: e.target.value });
+                    setBookingError(null);
+                  }}
                   InputLabelProps={{ shrink: true }}
                   inputProps={{
                     min: new Date().toISOString().split('T')[0],
@@ -1312,10 +1539,14 @@ function Sevas() {
                           })()
                         : undefined,
                   }}
+                  error={Boolean(bookingDateError)}
                   helperText={
-                    Number(selectedSeva?.advance_booking_days || 0) > 0
-                      ? `Can be booked up to ${selectedSeva.advance_booking_days} day(s) in advance`
-                      : ''
+                    bookingDateError ||
+                    (checkingBookingDate
+                      ? 'Checking availability...'
+                      : Number(selectedSeva?.advance_booking_days || 0) > 0
+                        ? `Can be booked up to ${selectedSeva.advance_booking_days} day(s) in advance`
+                        : '')
                   }
                   fullWidth
                 />
@@ -1639,7 +1870,7 @@ function Sevas() {
           <Button
             onClick={handleBookingSubmit}
             variant="contained"
-            disabled={!bookingForm.devotee_id || !bookingForm.amount_paid || bookingSuccess || tenantWriteBlocked}
+            disabled={!bookingForm.devotee_id || !bookingForm.amount_paid || bookingSuccess || tenantWriteBlocked || checkingBookingDate || Boolean(bookingDateError)}
           >
             Confirm Booking
           </Button>

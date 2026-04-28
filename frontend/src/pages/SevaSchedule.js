@@ -20,7 +20,7 @@ import Layout from '../components/Layout';
 import api from '../services/api';
 import ExportButton from '../components/ExportButton';
 import PrintButton from '../components/PrintButton';
-import { exportToCSV, exportToExcel } from '../utils/export';
+import { exportToCSV, exportToExcel, exportToPDF } from '../utils/export';
 
 function SevaSchedule() {
   const [loading, setLoading] = useState(false);
@@ -69,6 +69,15 @@ function SevaSchedule() {
       exportToCSV(exportData, `seva-schedule-${days}-days`);
     } else if (format === 'excel') {
       exportToExcel(exportData, `Seva Schedule - Next ${days} Days`);
+    } else if (format === 'pdf') {
+      exportToPDF(exportData, `Seva Schedule - Next ${days} Days`, {
+        period: scheduleData
+          ? {
+              from: new Date(scheduleData.from_date).toLocaleDateString('en-GB'),
+              to: new Date(scheduleData.to_date).toLocaleDateString('en-GB'),
+            }
+          : `Next ${days} Days`,
+      });
     }
   };
 
@@ -121,7 +130,7 @@ function SevaSchedule() {
 
         {/* Schedule Table */}
         {scheduleData && (
-          <Paper sx={{ p: 3 }}>
+          <Paper id="seva-schedule-report-content" sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
                 Period: {new Date(scheduleData.from_date).toLocaleDateString()} to {new Date(scheduleData.to_date).toLocaleDateString()} | 
@@ -129,7 +138,18 @@ function SevaSchedule() {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <ExportButton onExport={handleExport} />
-                <PrintButton />
+                <PrintButton
+                  elementId="seva-schedule-report-content"
+                  title="Seva Schedule Report"
+                  reportContext={{
+                    period: scheduleData
+                      ? {
+                          from: new Date(scheduleData.from_date).toLocaleDateString('en-GB'),
+                          to: new Date(scheduleData.to_date).toLocaleDateString('en-GB'),
+                        }
+                      : `Next ${days} Days`,
+                  }}
+                />
               </Box>
             </Box>
 

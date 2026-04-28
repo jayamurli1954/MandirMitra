@@ -134,7 +134,9 @@ function QuickExpense() {
         }
       );
       const data = await response.json();
-      setTodayExpenses(Array.isArray(data) ? data : []);
+      const rows = Array.isArray(data) ? data : [];
+      const expenseRows = rows.filter((row) => String(row?.reference_type || '').toLowerCase() === 'expense');
+      setTodayExpenses(expenseRows);
     } catch (error) {
       console.error('Error fetching today expenses:', error);
       setTodayExpenses([]);
@@ -209,7 +211,7 @@ function QuickExpense() {
       (acc) => String(acc.account_id) === String(paymentAccountId)
     );
 
-    const expenseAccountId = getAccountIdByCode(expenseType, { allowLegacyExpenseFormat: true });
+    const expenseAccountId = getAccountIdByCode(expenseType, { allowLegacyExpenseFormat: true }) || String(expenseType);
     const selectedPaymentAccountId = selectedPayment ? selectedPayment.account_id : null;
 
     if (!expenseAccountId || !selectedPaymentAccountId || !selectedExpense) {

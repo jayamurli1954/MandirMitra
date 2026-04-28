@@ -29,7 +29,7 @@ import Layout from '../components/Layout';
 import api from '../services/api';
 import ExportButton from '../components/ExportButton';
 import PrintButton from '../components/PrintButton';
-import { exportToCSV, exportToExcel } from '../utils/export';
+import { exportToCSV, exportToExcel, exportToPDF } from '../utils/export';
 
 const getDonationRows = (data) => {
   if (Array.isArray(data)) return data;
@@ -95,6 +95,7 @@ function DetailedDonationReport() {
       setLoading(true);
       const response = await api.get(`/api/v1/donations/${donationId}/receipt/pdf`, {
         responseType: 'blob',
+        params: { lang: 'kannada' },
       });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -121,7 +122,7 @@ function DetailedDonationReport() {
       'Date': new Date(d.date).toLocaleDateString(),
       'Receipt Number': d.receipt_number,
       'Devotee Name': d.devotee_name,
-      'Mobile': d.devotee_mobile || 'N/A',
+      'Mobile': d.phone || d.devotee_phone || d.mobile || 'N/A',
       'Category': d.category,
       'Payment Mode': d.payment_mode,
       'Amount (₹)': d.amount,
@@ -131,6 +132,13 @@ function DetailedDonationReport() {
       exportToCSV(exportData, `detailed-donation-${fromDate.toISOString().split('T')[0]}`);
     } else if (format === 'excel') {
       exportToExcel(exportData, `Detailed Donation Report`);
+    } else if (format === 'pdf') {
+      exportToPDF(exportData, 'Detailed Donation Report', {
+        period: {
+          from: fromDate.toLocaleDateString('en-GB'),
+          to: toDate.toLocaleDateString('en-GB'),
+        },
+      });
     }
   };
 
@@ -222,7 +230,7 @@ function DetailedDonationReport() {
 
         {/* Report Table */}
         {reportData && (
-          <Paper sx={{ p: 3 }}>
+          <Paper id="detailed-donation-report-content" sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
                 Total: {totalCount} donations |
@@ -230,7 +238,16 @@ function DetailedDonationReport() {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <ExportButton onExport={handleExport} />
-                <PrintButton />
+                <PrintButton
+                  elementId="detailed-donation-report-content"
+                  title="Detailed Donation Report"
+                  reportContext={{
+                    period: {
+                      from: fromDate.toLocaleDateString('en-GB'),
+                      to: toDate.toLocaleDateString('en-GB'),
+                    },
+                  }}
+                />
               </Box>
             </Box>
 
@@ -254,7 +271,7 @@ function DetailedDonationReport() {
                       <TableCell>{new Date(donation.date).toLocaleDateString()}</TableCell>
                       <TableCell>{donation.receipt_number}</TableCell>
                       <TableCell>{donation.devotee_name}</TableCell>
-                      <TableCell>{donation.devotee_mobile || 'N/A'}</TableCell>
+                      <TableCell>{donation.phone || donation.devotee_phone || donation.mobile || 'N/A'}</TableCell>
                       <TableCell>{donation.category}</TableCell>
                       <TableCell>{donation.payment_mode}</TableCell>
                       <TableCell align="right">
@@ -293,6 +310,3 @@ function DetailedDonationReport() {
 }
 
 export default DetailedDonationReport;
-
-
-

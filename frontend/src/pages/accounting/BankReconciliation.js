@@ -5,10 +5,6 @@ import {
     Paper,
     Grid,
     Button,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
     TextField,
     Table,
     TableBody,
@@ -21,12 +17,14 @@ import {
     Stepper,
     Step,
     StepLabel,
+    Autocomplete,
 } from '@mui/material';
 import Layout from '../../components/Layout';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import api from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import { ACTIVE_TEMPLE_EVENT } from '../../utils/activeTemple';
 
 const BankReconciliation = () => {
     const { showSuccess, showError } = useNotification();
@@ -42,17 +40,98 @@ const BankReconciliation = () => {
     const [bookEntries, setBookEntries] = useState([]);
     const [matchingItem, setMatchingItem] = useState(null); // Current statement entry being matched
 
+    const getAccountId = (account) => String(account?.account_id ?? account?.id ?? '');
+
+    const getAccountLabel = (account) => {
+        if (!account) return '';
+
+        const code = String(account.code ?? account.account_code ?? account.accountCode ?? getAccountId(account)).trim();
+        const name = String(account.name ?? account.account_name ?? '').trim();
+        const type = String(account.type ?? account.account_type ?? '').trim();
+
+        return `${code}${name ? ` - ${name}` : ''}${type ? ` (${type})` : ''}`;
+    };
+
+    const findBankAccountById = (accountId) => (
+        bankAccounts.find((account) => getAccountId(account) === String(accountId || '')) || null
+    );
+
+    const normalizeAccounts = (raw) => {
+        const rows = Array.isArray(raw)
+            ? raw
+            : (Array.isArray(raw?.accounts) ? raw.accounts : (Array.isArray(raw?.data) ? raw.data : []));
+
+        return rows
+            .map((account) => {
+                const id = account?.account_id ?? account?.id ?? null;
+                return {
+                    ...account,
+                    id,
+                    account_id: id,
+                    code: account?.code ?? account?.account_code ?? account?.accountCode ?? '',
+                    name: account?.name ?? account?.account_name ?? account?.accountName ?? '',
+                    type: account?.type ?? account?.account_type ?? '',
+                    account_code: account?.account_code ?? account?.code ?? account?.accountCode ?? '',
+                    account_name: account?.account_name ?? account?.name ?? account?.accountName ?? '',
+                    account_type: account?.account_type ?? account?.type ?? '',
+                    cash_bank_nature: account?.cash_bank_nature ?? account?.cashBankNature ?? '',
+                    is_cash_bank: Boolean(account?.is_cash_bank ?? account?.isCashBank),
+                };
+            })
+            .filter((account) => account.id !== null && account.id !== undefined && String(account.id).trim() !== '');
+    };
+
+    const isBankAccount = (account) => {
+        const nature = String(account?.cash_bank_nature || '').toLowerCase();
+        const name = String(account?.name || account?.account_name || '').toLowerCase();
+        const code = String(account?.code || account?.account_code || '').trim();
+        return nature === 'bank' || code === '12001' || (Boolean(account?.is_cash_bank) && name.includes('bank'));
+    };
+
+    const fetchAccountsFallback = async () => {
+        const accountsResponse = await api.get('/api/v1/accounts/');
+        let normalized = normalizeAccounts(accountsResponse.data).filter(isBankAccount);
+
+        if (normalized.length === 0) {
+            const trialBalanceResponse = await api.get(
+                `/api/v1/journal-entries/reports/trial-balance?as_of=${statementDate}`
+            );
+            normalized = normalizeAccounts(trialBalanceResponse.data?.accounts || []).filter(isBankAccount);
+        }
+
+        return normalized;
+    };
+
     // Bank accounts are loaded once on mount; other refreshes are explicit.
     useEffect(() => {
         fetchBankAccounts();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    useEffect(() => {
+        const handleActiveTempleChange = () => {
+            fetchBankAccounts();
+        };
+
+        window.addEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
+        return () => window.removeEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChange);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     const fetchBankAccounts = async () => {
         try {
             const response = await api.get('/api/v1/bank-reconciliation/accounts');
-            setBankAccounts(response.data);
+            let normalizedAccounts = normalizeAccounts(response.data);
+
+            if (normalizedAccounts.length === 0) {
+                normalizedAccounts = await fetchAccountsFallback();
+            }
+
+            setBankAccounts(normalizedAccounts);
         } catch (err) {
-            showError('Failed to fetch bank accounts');
+            try {
+                setBankAccounts(await fetchAccountsFallback());
+            } catch (fallbackErr) {
+                showError('Failed to fetch bank accounts');
+            }
         }
     };
 
@@ -145,18 +224,24 @@ const BankReconciliation = () => {
         <Paper sx={{ p: 4, maxWidth: 600, mx: 'auto', mt: 4 }}>
             <Typography variant="h6" gutterBottom>Import Bank Statement</Typography>
             <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <FormControl fullWidth>
-                    <InputLabel>Bank Account</InputLabel>
-                    <Select
-                        value={selectedAccount}
-                        onChange={(e) => setSelectedAccount(e.target.value)}
-                        label="Bank Account"
-                    >
-                        {bankAccounts.map((acc) => (
-                            <MenuItem key={acc.id} value={acc.id}>{acc.code} - {acc.name}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                <Autocomplete
+                    fullWidth
+                    options={bankAccounts}
+                    openOnFocus
+                    value={findBankAccountById(selectedAccount)}
+                    onChange={(_event, account) => setSelectedAccount(account ? getAccountId(account) : '')}
+                    getOptionLabel={getAccountLabel}
+                    isOptionEqualToValue={(option, value) => getAccountId(option) === getAccountId(value)}
+                    renderInput={(params) => (
+                        <TextField
+                            {...params}
+                            label="Bank Account"
+                            placeholder="Search bank account code or name"
+                            required
+                        />
+                    )}
+                    noOptionsText={bankAccounts.length ? 'No matching bank account' : 'No bank accounts loaded'}
+                />
 
                 <TextField
                     label="Statement Date"

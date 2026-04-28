@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   Typography,
   Box,
@@ -379,6 +379,29 @@ function Settings() {
     }
   };
 
+  const putWithRetry = async (url, payload, retries = 2) => {
+    let lastError;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        return await api.put(url, payload);
+      } catch (error) {
+        lastError = error;
+        const message = String(error?.message || '').toLowerCase();
+        const isTransientNetworkError = !error?.response && (
+          message.includes('network')
+          || message.includes('failed to fetch')
+          || error?.code === 'ECONNABORTED'
+        );
+
+        if (!isTransientNetworkError || attempt === retries) {
+          throw error;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+    }
+    throw lastError;
+  };
   const handleSave = async () => {
     try {
       setLoading(true);
@@ -400,7 +423,7 @@ function Settings() {
         showError('This tenant is read-only for the current platform administrator');
         return;
       }
-      await api.put(`/api/v1/temples/modules/config${templeQuery}`, moduleConfig);
+      await putWithRetry(`/api/v1/temples/modules/config${templeQuery}`, moduleConfig);
 
       // 2. Save general temple information
       const financialYearStartMonth = Number.parseInt(settings.financial_year_start, 10);
@@ -431,7 +454,18 @@ function Settings() {
         banner_url: settings.banner_url,
       };
 
-      await api.put(`/api/v1/temples/current${templeQuery}`, templeInfo);
+      try {
+        await putWithRetry(`/api/v1/temples/current${templeQuery}`, templeInfo);
+      } catch (templeSaveError) {
+        // Backward-compatible retry for older backends that still expect legacy language keys.
+        const templeInfoLegacy = {
+          ...templeInfo,
+          primary_language: settings.receipt_local_language,
+          local_language: settings.receipt_local_language,
+        };
+        delete templeInfoLegacy.receipt_local_language;
+        await putWithRetry(`/api/v1/temples/current${templeQuery}`, templeInfoLegacy);
+      }
 
       // 3. Refresh context
       await fetchSettings();
@@ -444,11 +478,14 @@ function Settings() {
     } catch (err) {
       console.error('Failed to save settings:', err);
       const detail = err?.response?.data?.detail;
+      const userMessage = typeof err?.userMessage === 'string' ? err.userMessage.trim() : '';
       if (Array.isArray(detail)) {
         const firstMsg = detail[0]?.msg;
         showError(firstMsg || 'Failed to save settings');
       } else if (typeof detail === 'string' && detail.trim()) {
         showError(detail);
+      } else if (userMessage) {
+        showError(userMessage);
       } else {
         showError('Failed to save settings');
       }
@@ -1216,4 +1253,8 @@ function Settings() {
 }
 
 export default Settings;
+
+
+
+
 

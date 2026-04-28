@@ -810,10 +810,10 @@ function SevaManagement() {
                     onChange={(e) => setSevaForm({...sevaForm, quick_ticket_enabled: e.target.checked})}
                   />
                 }
-                label="Quick Ticket Mode"
+                label="Quick Token Mode"
               />
               <Typography variant="caption" color="text.secondary" display="block">
-                Show on quick-ticket counter without login
+                Show on quick-token counter without login
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>

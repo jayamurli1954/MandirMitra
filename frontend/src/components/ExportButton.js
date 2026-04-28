@@ -3,10 +3,12 @@ import { Button, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/materia
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import DescriptionIcon from '@mui/icons-material/Description';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { exportToCSV, exportToExcel, exportToJSON } from '../utils/export';
 
 const ExportButton = ({ 
   data, 
+  onExport = null,
   filename = 'export', 
   headers = null,
   variant = 'outlined',
@@ -17,9 +19,9 @@ const ExportButton = ({
   const open = Boolean(anchorEl);
 
   const handleClick = (event) => {
-    if (showMenu && data) {
+    if (showMenu && (typeof onExport === 'function' || data)) {
       setAnchorEl(event.currentTarget);
-    } else {
+    } else if (data) {
       // Direct export to CSV if no menu
       exportToCSV(data, `${filename}.csv`, headers);
     }
@@ -30,6 +32,12 @@ const ExportButton = ({
   };
 
   const handleExport = (format) => {
+    if (typeof onExport === 'function') {
+      onExport(format);
+      handleClose();
+      return;
+    }
+
     if (!data || data.length === 0) {
       return;
     }
@@ -50,7 +58,7 @@ const ExportButton = ({
     handleClose();
   };
 
-  if (!data || data.length === 0) {
+  if (!onExport && (!data || data.length === 0)) {
     return null;
   }
 
@@ -101,6 +109,12 @@ const ExportButton = ({
             <TableChartIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>Export as Excel</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('pdf')}>
+          <ListItemIcon>
+            <PictureAsPdfIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Export as PDF</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => handleExport('json')}>
           <ListItemIcon>

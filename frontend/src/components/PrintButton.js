@@ -8,15 +8,16 @@ const PrintButton = ({
   data = null,
   columns = null,
   title = 'Print',
+  reportContext = null,
   variant = 'outlined',
   size = 'medium',
   fullWidth = false
 }) => {
   const handlePrint = () => {
     if (elementId) {
-      printElement(elementId, title);
+      printElement(elementId, title, reportContext || {});
     } else if (data && columns) {
-      printTable(data, columns, title);
+      printTable(data, columns, title, reportContext || {});
     } else {
       printPage();
     }

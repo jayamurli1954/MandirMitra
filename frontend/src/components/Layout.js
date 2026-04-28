@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 import {
@@ -70,16 +70,14 @@ const menuItems = [
   { id: 'reports', labelKey: 'layout.nav.reports', defaultLabel: 'Reports', icon: <AssessmentIcon />, path: '/reports', moduleFlag: 'module_reports_enabled', permissionKey: 'reports' },
   { id: 'panchang', labelKey: 'layout.nav.panchang', defaultLabel: 'Panchang', icon: <CalendarTodayIcon />, path: '/panchang', moduleFlag: 'module_panchang_enabled', permissionKey: 'panchang' },
   { id: 'settings', labelKey: 'layout.nav.settings', defaultLabel: 'Settings', icon: <SettingsIcon />, path: '/settings', permissionKey: 'settings' },
-  { id: 'releaseNotes', defaultLabel: 'Release Notes', icon: <NotificationsActiveIcon />, path: '/settings/release-notes', permissionKey: 'settings' },
   { id: 'implementationChecks', labelKey: 'layout.nav.implementationChecks', defaultLabel: 'Implementation Checks', icon: <FactCheckIcon />, path: '/implementation-checks', permissionKey: 'settings' },
-  { id: 'platformOperations', labelKey: 'layout.nav.platformOperations', defaultLabel: 'Platform Operations', icon: <TempleHinduIcon />, path: '/platform/operations', superAdminOnly: true },
+  { id: 'platformOperations', labelKey: 'layout.nav.platformOperations', defaultLabel: 'Platform Owners', icon: <TempleHinduIcon />, path: '/platform/operations', superAdminOnly: true },
 ];
 const sevaMenuItems = [
   { id: 'bookSevas', labelKey: 'layout.nav.sevas.bookSevas', defaultLabel: 'Book Sevas', icon: <TempleHinduIcon />, path: '/sevas' },
   { id: 'sevaBookingsReschedule', labelKey: 'layout.nav.sevas.bookingsReschedule', defaultLabel: 'Seva Bookings / Reschedule', icon: <AssignmentIcon />, path: '/reports/sevas/detailed' },
   { id: 'sevaManagement', labelKey: 'layout.nav.sevas.management', defaultLabel: 'Seva Management', icon: <AssignmentIcon />, path: '/sevas/manage', requires: 'manage_seva_master' },
   { id: 'rescheduleApproval', labelKey: 'layout.nav.sevas.rescheduleApproval', defaultLabel: 'Reschedule Approval', icon: <AssignmentTurnedInIcon />, path: '/sevas/reschedule-approval', requires: 'approve_seva_reschedule' },
-  { id: 'quickTicket', defaultLabel: 'Quick Ticket Counter', icon: <ReceiptIcon />, path: '/sevas/quick-ticket' },
 ];
 const accountingMenuItems = [
   { id: 'chartOfAccounts', labelKey: 'layout.nav.accounting.chartOfAccounts', defaultLabel: 'Chart of Accounts', icon: <AccountTreeIcon />, path: '/accounting/chart-of-accounts' },
@@ -103,6 +101,8 @@ const DEFAULT_MODULE_CONFIG = {
   module_reports_enabled: true,
   module_panchang_enabled: true,
 };
+
+const PLATFORM_ADMIN_ROLES = new Set(['super_admin', 'superadmin', 'platform_owner', 'platform_admin']);
 
 const LAYOUT_CACHE_TTL_MS = 2 * 60 * 1000;
 const MODULE_CONFIG_CACHE_KEY = 'layout_module_config_cache_v1';
@@ -159,7 +159,7 @@ function Layout({ children }) {
   const modulePermissions = userInfo.module_permissions || {};
   const actionPermissions = userInfo.action_permissions || {};
   const hasResolvedCurrentUser = Boolean(userInfo.id || userInfo.email || userInfo.role || userInfo.system_role || userInfo.is_superuser);
-  const isPlatformSuperAdmin = Boolean(userInfo.is_superuser) || systemRole === 'super_admin';
+  const isPlatformSuperAdmin = Boolean(userInfo.is_superuser) || PLATFORM_ADMIN_ROLES.has(String(systemRole || '').toLowerCase());
 
   const hasModuleAccess = (permissionKey) => {
     if ((currentUserLoading && hasAccessToken()) || (!hasResolvedCurrentUser && hasAccessToken())) {
@@ -241,6 +241,20 @@ function Layout({ children }) {
 
         if (isPlatformSuperAdmin) {
           if (!activeTempleId) {
+            const demoEditableTemples = templeList.filter((temple) => Boolean(temple?.platform_can_write));
+            const selectableTemples = demoEditableTemples.length > 0 ? demoEditableTemples : templeList;
+            const preferredTemple = selectableTemples[0];
+            if (preferredTemple?.id) {
+              const preferredTempleId = Number(preferredTemple.id);
+              setActiveTempleId(preferredTempleId, preferredTemple?.tenant_id);
+              setActiveTempleState(preferredTempleId);
+              emitActiveTempleChanged(preferredTempleId, preferredTemple?.tenant_id);
+              const normalizedPreferredTemple = { ...DEFAULT_MODULE_CONFIG, ...preferredTemple };
+              setModuleConfig(normalizedPreferredTemple);
+              writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalizedPreferredTemple);
+              return;
+            }
+
             setModuleConfig(DEFAULT_MODULE_CONFIG);
             writeLayoutCache(MODULE_CONFIG_CACHE_KEY, DEFAULT_MODULE_CONFIG);
             return;
@@ -256,6 +270,7 @@ function Layout({ children }) {
             return;
           }
 
+          setActiveTempleId(activeTempleId, selectedTemple?.tenant_id);
           const normalizedSelectedTemple = { ...DEFAULT_MODULE_CONFIG, ...selectedTemple };
           setModuleConfig(normalizedSelectedTemple);
           writeLayoutCache(MODULE_CONFIG_CACHE_KEY, normalizedSelectedTemple);
@@ -264,7 +279,7 @@ function Layout({ children }) {
 
         const preferredTemple = templeList.find((temple) => temple.id === activeTempleId) || templeList[0];
         if (preferredTemple?.id && preferredTemple.id !== activeTempleId) {
-          setActiveTempleId(preferredTemple.id);
+          setActiveTempleId(preferredTemple.id, preferredTemple?.tenant_id);
           setActiveTempleState(preferredTemple.id);
         }
         const normalized = { ...DEFAULT_MODULE_CONFIG, ...(preferredTemple || {}) };
@@ -297,7 +312,7 @@ function Layout({ children }) {
       const nextTempleId = Number.parseInt(String(event?.detail?.templeId || ''), 10);
       if (Number.isInteger(nextTempleId) && nextTempleId > 0) {
         setActiveTempleState(nextTempleId);
-        setActiveTempleId(nextTempleId);
+        setActiveTempleId(nextTempleId, event?.detail?.tenantId);
       } else {
         setActiveTempleState(null);
         setActiveTempleId(null);
@@ -364,8 +379,9 @@ function Layout({ children }) {
     }
 
     setActiveTempleState(nextTempleId);
-    setActiveTempleId(nextTempleId);
-    emitActiveTempleChanged(nextTempleId);
+    const selected = visibleTemples.find((temple) => Number(temple.id) === Number(nextTempleId));
+    setActiveTempleId(nextTempleId, selected?.tenant_id);
+    emitActiveTempleChanged(nextTempleId, selected?.tenant_id);
   };
 
   const visibleTemples = useMemo(() => temples, [temples]);
@@ -509,7 +525,7 @@ function Layout({ children }) {
           MandirMitra v1.2.0
         </Typography>
         <Typography variant="caption" color="text.secondary" display="block" sx={{ textAlign: 'center', fontSize: '0.7rem' }}>
-          Stable Release · April 2026
+          Stable Release Â· April 2026
         </Typography>
       </Box>
     </Box>
@@ -637,13 +653,36 @@ function Layout({ children }) {
           {drawer}
         </Drawer>
       </Box>
-      <Box component="main" sx={{ flexGrow: 1, p: { xs: 1.5, sm: 3 }, width: { sm: `calc(100% - ${drawerWidth}px)` }, bgcolor: '#f5f5f5', minHeight: '100vh' }}>
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 1.5, sm: 3 }, width: { sm: `calc(100% - ${drawerWidth}px)` }, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Toolbar />
-        {children}
+        <Box sx={{ flex: 1 }}>
+          {children}
+        </Box>
+        {/* Footer */}
+        <Box sx={{ mt: 4, pt: 2, borderTop: '1px solid #ddd', textAlign: 'center' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+            Powered by Sanmitra Tech Â· {' '}
+            <Button
+              size="small"
+              onClick={() => navigate('/settings/release-notes')}
+              sx={{
+                p: 0,
+                textTransform: 'none',
+                color: '#FF9933',
+                fontSize: '0.75rem',
+                '&:hover': { textDecoration: 'underline' }
+              }}
+            >
+              Release Notes & Version History
+            </Button>
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );
 }
 
 export default Layout;
+
+
 

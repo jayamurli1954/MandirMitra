@@ -1,4 +1,4 @@
-{
+﻿{
   "layout": {
     "dashboard": "Dashboard",
     "logout": "Logout",
@@ -26,7 +26,7 @@
       "panchang": "Panchang",
       "settings": "Settings",
       "implementationChecks": "Implementation Checks",
-      "platformOperations": "Platform Operations",
+      "platformOperations": "Platform Owners",
       "sevas": {
         "section": "Sevas",
         "bookSevas": "Book Sevas",
@@ -191,11 +191,11 @@
     "bookASeva": "Book a Seva",
     "makeADonation": "Make a Donation",
     "noSevas": "No sevas are currently available for online booking at this temple. Please contact the temple directly or switch to Donation.",
-    "amount": "Amount (₹)",
+    "amount": "Amount (â‚¹)",
     "amountHelp": "You can edit the amount if needed",
-    "donationAmount": "Donation Amount (₹) *",
+    "donationAmount": "Donation Amount (â‚¹) *",
     "continue": "Continue",
-    "chooseDifferentTemple": "← Choose a different temple",
+    "chooseDifferentTemple": "â† Choose a different temple",
     "devoteeDetailsTitle": "Devotee Details",
     "mobile": "Mobile Number *",
     "mobileHelp": "Enter mobile to auto-fill if already registered",
@@ -214,7 +214,7 @@
     "detailsSaved": "Details Saved! Complete Your Payment",
     "paymentId": "Payment ID: {{id}}",
     "scanQR": "Scan QR Code to Pay",
-    "scanQRDesc": "Amount is pre-filled — just scan and confirm in your UPI app",
+    "scanQRDesc": "Amount is pre-filled â€” just scan and confirm in your UPI app",
     "upiApps": "Works with GPay, PhonePe, Paytm, BHIM & all UPI apps",
     "upiId": "UPI ID",
     "enterUtr": "Enter UTR / Transaction Reference",
@@ -226,5 +226,29 @@
     "networkError": "Network error. Please try again.",
     "submissionFailed": "Submission failed. Please try again.",
     "select": "Select"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "quickDonationEntry": "Quick Donation Entry",
+    "searchMobile": "Search Mobile",
+    "phoneNumber": "Phone Number",
+    "devoteeDetails": "Devotee Details",
+    "donationAmount": "Donation Amount (â‚¹) *",
+    "paymentMode": "Payment Mode",
+    "category": "Category",
+    "recordDonation": "Record Donation",
+    "donationRecordedSuccess": "Donation recorded successfully! Receipt: {{receiptNumber}}",
+    "donationReceiptDetails": "Donation Receipt",
+    "receiptNumber": "Receipt Number: {{number}}",
+    "amount": "Amount: â‚¹{{amount}}",
+    "date": "Date: {{date}}",
+    "name": "Name: {{name}}",
+    "category": "Category: {{category}}",
+    "paymentMethod": "Payment Method: {{method}}",
+    "donationThankYou": "Thank you for your generous donation!",
+    "devoteeName": "Devotee Name",
+    "devoteeMobile": "Devotee Mobile",
+    "donationCategory": "Donation Category"
   }
 }
+

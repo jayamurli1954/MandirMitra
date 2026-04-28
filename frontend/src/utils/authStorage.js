@@ -1,4 +1,4 @@
-﻿const ACCESS_TOKEN_KEY = 'mm_access_token_v1';
+const ACCESS_TOKEN_KEY = 'mm_access_token_v1';
 const REFRESH_TOKEN_KEY = 'mm_refresh_token_v1';
 const USER_KEY = 'mm_current_user_v1';
 const LEGACY_TOKEN_KEY = 'token';
@@ -16,108 +16,85 @@ const safeStorage = (storage) => {
 const session = () => safeStorage(window.sessionStorage);
 const local = () => safeStorage(window.localStorage);
 
-const moveLegacyValue = (legacyKey, nextKey) => {
+const getValueFromStores = (...keys) => {
   const localStore = local();
   const sessionStore = session();
-  if (!localStore || !sessionStore) {
-    return null;
+  for (const key of keys) {
+    const localValue = localStore?.getItem(key);
+    if (localValue) {
+      return localValue;
+    }
+    const sessionValue = sessionStore?.getItem(key);
+    if (sessionValue) {
+      return sessionValue;
+    }
   }
+  return null;
+};
 
-  const legacyValue = localStore.getItem(legacyKey);
-  if (!legacyValue) {
-    return null;
+const writeValueToStores = (key, value) => {
+  const localStore = local();
+  const sessionStore = session();
+  if (value === null || value === undefined || value === '') {
+    localStore?.removeItem(key);
+    sessionStore?.removeItem(key);
+    return;
   }
+  localStore?.setItem(key, value);
+  sessionStore?.setItem(key, value);
+};
 
-  sessionStore.setItem(nextKey, legacyValue);
-  localStore.removeItem(legacyKey);
-  return legacyValue;
+const removeFromStores = (...keys) => {
+  const localStore = local();
+  const sessionStore = session();
+  keys.forEach((key) => {
+    localStore?.removeItem(key);
+    sessionStore?.removeItem(key);
+  });
 };
 
 export const getAccessToken = () => {
-  const sessionStore = session();
-  if (sessionStore) {
-    const current = sessionStore.getItem(ACCESS_TOKEN_KEY) || sessionStore.getItem(LEGACY_TOKEN_KEY);
-    if (current) {
-      if (!sessionStore.getItem(ACCESS_TOKEN_KEY)) {
-        sessionStore.setItem(ACCESS_TOKEN_KEY, current);
-        sessionStore.removeItem(LEGACY_TOKEN_KEY);
-      }
-      return current;
-    }
+  const current = getValueFromStores(ACCESS_TOKEN_KEY, LEGACY_TOKEN_KEY);
+  if (!current) {
+    return null;
   }
-
-  return moveLegacyValue(LEGACY_TOKEN_KEY, ACCESS_TOKEN_KEY);
+  writeValueToStores(ACCESS_TOKEN_KEY, current);
+  removeFromStores(LEGACY_TOKEN_KEY);
+  return current;
 };
 
 export const getRefreshToken = () => {
-  const sessionStore = session();
-  if (sessionStore) {
-    const current = sessionStore.getItem(REFRESH_TOKEN_KEY) || sessionStore.getItem(LEGACY_REFRESH_TOKEN_KEY);
-    if (current) {
-      if (!sessionStore.getItem(REFRESH_TOKEN_KEY)) {
-        sessionStore.setItem(REFRESH_TOKEN_KEY, current);
-        sessionStore.removeItem(LEGACY_REFRESH_TOKEN_KEY);
-      }
-      return current;
-    }
+  const current = getValueFromStores(REFRESH_TOKEN_KEY, LEGACY_REFRESH_TOKEN_KEY);
+  if (!current) {
+    return null;
   }
-
-  return moveLegacyValue(LEGACY_REFRESH_TOKEN_KEY, REFRESH_TOKEN_KEY);
+  writeValueToStores(REFRESH_TOKEN_KEY, current);
+  removeFromStores(LEGACY_REFRESH_TOKEN_KEY);
+  return current;
 };
 
 export const hasAccessToken = () => Boolean(getAccessToken());
 
 export const setAccessToken = (token) => {
-  const sessionStore = session();
-  const localStore = local();
-  if (sessionStore) {
-    sessionStore.setItem(ACCESS_TOKEN_KEY, token);
-    sessionStore.removeItem(LEGACY_TOKEN_KEY);
-  }
-  if (localStore) {
-    localStore.removeItem(LEGACY_TOKEN_KEY);
-  }
+  writeValueToStores(ACCESS_TOKEN_KEY, token);
+  removeFromStores(LEGACY_TOKEN_KEY);
 };
 
 export const setRefreshToken = (token) => {
-  const sessionStore = session();
-  const localStore = local();
-  if (sessionStore) {
-    if (token) {
-      sessionStore.setItem(REFRESH_TOKEN_KEY, token);
-    } else {
-      sessionStore.removeItem(REFRESH_TOKEN_KEY);
-    }
-    sessionStore.removeItem(LEGACY_REFRESH_TOKEN_KEY);
-  }
-  if (localStore) {
-    localStore.removeItem(LEGACY_REFRESH_TOKEN_KEY);
-  }
+  writeValueToStores(REFRESH_TOKEN_KEY, token || null);
+  removeFromStores(LEGACY_REFRESH_TOKEN_KEY);
 };
 
 export const readStoredUser = () => {
-  const sessionStore = session();
-  const sessionValue = sessionStore?.getItem(USER_KEY) || sessionStore?.getItem(LEGACY_USER_KEY);
-  if (sessionValue) {
+  const current = getValueFromStores(USER_KEY, LEGACY_USER_KEY);
+  if (current) {
     try {
-      const parsed = JSON.parse(sessionValue);
-      if (!sessionStore?.getItem(USER_KEY)) {
-        sessionStore?.setItem(USER_KEY, sessionValue);
-        sessionStore?.removeItem(LEGACY_USER_KEY);
-      }
-      return parsed || {};
+      const parsed = JSON.parse(current) || {};
+      writeValueToStores(USER_KEY, JSON.stringify(parsed));
+      removeFromStores(LEGACY_USER_KEY);
+      return parsed;
     } catch (error) {
-      sessionStore?.removeItem(USER_KEY);
-      sessionStore?.removeItem(LEGACY_USER_KEY);
-    }
-  }
-
-  const migrated = moveLegacyValue(LEGACY_USER_KEY, USER_KEY);
-  if (migrated) {
-    try {
-      return JSON.parse(migrated) || {};
-    } catch (error) {
-      sessionStore?.removeItem(USER_KEY);
+      removeFromStores(USER_KEY, LEGACY_USER_KEY);
     }
   }
 
@@ -126,31 +103,21 @@ export const readStoredUser = () => {
 
 export const writeStoredUser = (user) => {
   const serialized = JSON.stringify(user || {});
-  const sessionStore = session();
-  const localStore = local();
-  sessionStore?.setItem(USER_KEY, serialized);
-  sessionStore?.removeItem(LEGACY_USER_KEY);
-  localStore?.removeItem(LEGACY_USER_KEY);
+  writeValueToStores(USER_KEY, serialized);
+  removeFromStores(LEGACY_USER_KEY);
 };
 
 export const clearStoredUser = () => {
-  const sessionStore = session();
-  const localStore = local();
-  sessionStore?.removeItem(USER_KEY);
-  sessionStore?.removeItem(LEGACY_USER_KEY);
-  localStore?.removeItem(LEGACY_USER_KEY);
+  removeFromStores(USER_KEY, LEGACY_USER_KEY);
 };
 
 export const clearAuthSession = () => {
-  const sessionStore = session();
-  const localStore = local();
-  sessionStore?.removeItem(ACCESS_TOKEN_KEY);
-  sessionStore?.removeItem(LEGACY_TOKEN_KEY);
-  sessionStore?.removeItem(REFRESH_TOKEN_KEY);
-  sessionStore?.removeItem(LEGACY_REFRESH_TOKEN_KEY);
-  sessionStore?.removeItem(USER_KEY);
-  sessionStore?.removeItem(LEGACY_USER_KEY);
-  localStore?.removeItem(LEGACY_TOKEN_KEY);
-  localStore?.removeItem(LEGACY_REFRESH_TOKEN_KEY);
-  localStore?.removeItem(LEGACY_USER_KEY);
+  removeFromStores(
+    ACCESS_TOKEN_KEY,
+    LEGACY_TOKEN_KEY,
+    REFRESH_TOKEN_KEY,
+    LEGACY_REFRESH_TOKEN_KEY,
+    USER_KEY,
+    LEGACY_USER_KEY
+  );
 };

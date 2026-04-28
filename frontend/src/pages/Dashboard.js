@@ -20,6 +20,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import Layout from '../components/Layout';
 import PanchangDisplay from '../components/PanchangDisplay';
 import api from '../services/api';
+import { ACTIVE_TEMPLE_EVENT, getActiveTempleId } from '../utils/activeTemple';
 
 const bankSubModeOptions = [
   { value: 'UPI', label: 'UPI' },
@@ -45,6 +46,8 @@ const getInitialDonationForm = () => ({
   first_name: '',
   last_name: '',
   devotee_phone: '',
+  email: '',
+  pan_number: '',
   amount: '',
   category: '',
   payment_mode: 'Cash',
@@ -154,6 +157,27 @@ function Dashboard() {
     fetchPanchangData();
     fetchCategories();
     fetchPaymentAccounts();
+  }, []);
+
+  useEffect(() => {
+    const handleActiveTempleChanged = () => {
+      fetchDashboardStats();
+      fetchPanchangData();
+      fetchCategories();
+      fetchPaymentAccounts();
+    };
+
+    window.addEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChanged);
+    window.addEventListener('storage', handleActiveTempleChanged);
+
+    if (getActiveTempleId()) {
+      handleActiveTempleChanged();
+    }
+
+    return () => {
+      window.removeEventListener(ACTIVE_TEMPLE_EVENT, handleActiveTempleChanged);
+      window.removeEventListener('storage', handleActiveTempleChanged);
+    };
   }, []);
 
   useEffect(() => {
@@ -317,6 +341,8 @@ function Dashboard() {
     };
   };
 
+  const isValidPan = (value) => /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(String(value || '').trim().toUpperCase());
+
   const handleSearchByMobile = async () => {
     const phone = donationForm.devotee_phone.trim();
     if (phone.length !== 10) {
@@ -342,6 +368,8 @@ function Dashboard() {
           name_prefix: devotee.name_prefix || prev.name_prefix || 'Sri',
           first_name: parsedName.firstName,
           last_name: parsedName.lastName,
+          email: devotee.email || '',
+          pan_number: devotee.pan_number || devotee.pan || '',
           address: devotee.address || '',
           pincode: devotee.pincode || '',
           city: devotee.city || '',
@@ -359,6 +387,8 @@ function Dashboard() {
           devotee_phone: phone,
           first_name: '',
           last_name: '',
+          email: '',
+          pan_number: '',
           address: '',
           pincode: '',
           city: '',
@@ -378,6 +408,8 @@ function Dashboard() {
           devotee_phone: phone,
           first_name: '',
           last_name: '',
+          email: '',
+          pan_number: '',
           address: '',
           pincode: '',
           city: '',
@@ -447,6 +479,12 @@ function Dashboard() {
       return;
     }
 
+    if (donationForm.pan_number && !isValidPan(donationForm.pan_number)) {
+      setError('PAN format must be AAAAA9999A');
+      setSaving(false);
+      return;
+    }
+
     if (donationForm.payment_mode === 'Bank' && !donationForm.bank_sub_mode) {
       setError('Please select Bank Sub-Category (UPI/Online Transfer/Cheque/DD).');
       setSaving(false);
@@ -494,6 +532,8 @@ function Dashboard() {
       const response = await api.post('/api/v1/donations/', {
         devotee_name: devoteeName,
         devotee_phone: donationForm.devotee_phone,
+        email: donationForm.email?.trim() || null,
+        pan_number: donationForm.pan_number?.trim() || null,
         amount: amountNum,
         category: donationForm.category,
         payment_mode: finalPaymentMode,
@@ -840,7 +880,32 @@ function Dashboard() {
                     disabled={!canEditDevoteeDetails}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    label="Email (Optional)"
+                    type="email"
+                    placeholder="devotee@example.com"
+                    value={donationForm.email || ''}
+                    onChange={(e) => handleDonationChange('email', e.target.value)}
+                    size="small"
+                    disabled={!canEditDevoteeDetails}
+                    helperText="For sending donation receipt via email"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    label="PAN"
+                    placeholder="PAN details (optional)"
+                    value={donationForm.pan_number || ''}
+                    onChange={(e) => handleDonationChange('pan_number', e.target.value.toUpperCase())}
+                    size="small"
+                    inputProps={{ maxLength: 10 }}
+                    disabled={!canEditDevoteeDetails}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
                   <TextField
                     fullWidth
                     label="Amount (INR)"

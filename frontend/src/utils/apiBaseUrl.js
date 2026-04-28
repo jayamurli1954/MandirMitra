@@ -3,7 +3,7 @@ import { handleTenantInactive, isTenantInactivePayload } from './tenantInactive'
 
 const LOCAL_API_BASE_URL = 'http://localhost:8000';
 const PRODUCTION_FALLBACK_API_BASE_URL = (
-  process.env.REACT_APP_FALLBACK_API_URL || process.env.REACT_APP_API_URL || 'https://sanmitra-backend-staging-sg.onrender.com'
+  process.env.REACT_APP_FALLBACK_API_URL || process.env.REACT_APP_API_URL || 'http://localhost:8000'
 )
   .trim()
   .replace(/\/$/, '');
@@ -149,7 +149,10 @@ export async function fetchWithApiFallback(path, init = {}, options = {}) {
   } = options;
   const primaryUrl = buildApiUrl(path);
   const fallbackUrl = buildApiUrl(path, { preferDirect: true });
-  const targets = primaryUrl === fallbackUrl
+
+  // When running on localhost, don't use fallback mechanism - always use primary URL
+  const isLocalDevelopment = isBrowserLocal();
+  const targets = (primaryUrl === fallbackUrl || isLocalDevelopment)
     ? [{ url: primaryUrl, preferDirect: false }]
     : [{ url: primaryUrl, preferDirect: false }, { url: fallbackUrl, preferDirect: true }];
 

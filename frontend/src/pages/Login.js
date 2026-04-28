@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Container,
   Paper,
@@ -23,6 +23,7 @@ import { clearTenantInactiveReason } from '../utils/tenantInactive';
 import { emitActiveTempleChanged, getActiveTempleId, setActiveTempleId } from '../utils/activeTemple';
 
 const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+const PLATFORM_ADMIN_ROLES = new Set(['super_admin', 'superadmin', 'platform_owner', 'platform_admin']);
 
 const normalizeCurrentUser = (userData, email) => ({
   id: userData?.id || userData?.sub,
@@ -130,7 +131,8 @@ function Login() {
       currentUser = normalizeCurrentUser(profileData, fallbackEmail || profileData?.email || 'user@local');
     }
 
-    if (currentUser.role === 'super_admin' || currentUser.is_superuser) {
+    const resolvedRole = String(currentUser.system_role || currentUser.role || '').toLowerCase();
+    if (currentUser.is_superuser || PLATFORM_ADMIN_ROLES.has(resolvedRole)) {
       const storedTempleId = getActiveTempleId();
       const templesResponse = await fetchWithApiFallback('/api/v1/temples/', {
         headers: {
@@ -146,12 +148,13 @@ function Login() {
         const hasStoredTemple = selectableTemples.some((temple) => Number(temple?.id) === Number(storedTempleId));
 
         if (hasStoredTemple && storedTempleId) {
-          setActiveTempleId(storedTempleId);
-          emitActiveTempleChanged(storedTempleId);
+          const storedTemple = selectableTemples.find((temple) => Number(temple?.id) === Number(storedTempleId));
+          setActiveTempleId(storedTempleId, storedTemple?.tenant_id);
+          emitActiveTempleChanged(storedTempleId, storedTemple?.tenant_id);
         } else if (selectableTemples.length > 0 && selectableTemples[0]?.id) {
           const preferredTempleId = Number(selectableTemples[0].id);
-          setActiveTempleId(preferredTempleId);
-          emitActiveTempleChanged(preferredTempleId);
+          setActiveTempleId(preferredTempleId, selectableTemples[0]?.tenant_id);
+          emitActiveTempleChanged(preferredTempleId, selectableTemples[0]?.tenant_id);
         } else {
           setActiveTempleId(null);
           emitActiveTempleChanged(null);
@@ -193,16 +196,12 @@ function Login() {
       return unifiedResponse;
     }
 
-    const formData = new URLSearchParams();
-    formData.append('username', email);
-    formData.append('password', password);
-
     return fetchWithApiFallback('/api/v1/login', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
-      body: formData.toString(),
+      body: JSON.stringify({ email, password }),
     }, { timeoutMs: 20000, maxAttemptsPerOrigin: 2, retryDelayMs: 1000 });
   }, [email, password]);
 
@@ -465,7 +464,7 @@ function Login() {
                   Book a Seva / Make a Donation
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  No login required — pay directly to your temple
+                  No login required â€” pay directly to your temple
                 </Typography>
               </Box>
             </Box>
@@ -477,3 +476,4 @@ function Login() {
 }
 
 export default Login;
+

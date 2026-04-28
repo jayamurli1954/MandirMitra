@@ -226,5 +226,28 @@
     "networkError": "नेटवर्क त्रुटि। कृपया पुनः प्रयास करें।",
     "submissionFailed": "सबमिशन विफल। कृपया पुनः प्रयास करें।",
     "select": "चुनें"
+  },
+  "dashboard": {
+    "title": "डैशबोर्ड",
+    "quickDonationEntry": "त्वरित दान प्रविष्टि",
+    "searchMobile": "मोबाइल खोजें",
+    "phoneNumber": "फोन नंबर",
+    "devoteeDetails": "भक्त विवरण",
+    "donationAmount": "दान राशि (₹) *",
+    "paymentMode": "भुगतान विधि",
+    "category": "श्रेणी",
+    "recordDonation": "दान रिकॉर्ड करें",
+    "donationRecordedSuccess": "दान सफलतापूर्वक रिकॉर्ड किया गया! रसीद: {{receiptNumber}}",
+    "donationReceiptDetails": "दान रसीद",
+    "receiptNumber": "रसीद नंबर: {{number}}",
+    "amount": "राशि: ₹{{amount}}",
+    "date": "तारीख: {{date}}",
+    "name": "नाम: {{name}}",
+    "category": "श्रेणी: {{category}}",
+    "paymentMethod": "भुगतान विधि: {{method}}",
+    "donationThankYou": "आपके उदार दान के लिए धन्यवाद!",
+    "devoteeName": "भक्त का नाम",
+    "devoteeMobile": "भक्त का मोबाइल",
+    "donationCategory": "दान श्रेणी"
   }
 }

@@ -63,7 +63,7 @@ export default function QuickTicket() {
         ...(phone.trim() && { devotee_phone: phone.trim() }),
         ...(devoteeName.trim() && { devotee_name: devoteeName.trim() }),
       };
-      const response = await api.post('/api/v1/sevas/book', payload);
+      const response = await api.post('/api/v1/sevas/bookings/quick-ticket', payload);
       setBooking(response.data);
       setDialogOpen(false);
     } catch (err) {
@@ -79,7 +79,7 @@ export default function QuickTicket() {
     if (!printContent) return;
     const w = window.open('', '_blank');
     w.document.write(`
-      <html><head><title>Quick Ticket</title>
+      <html><head><title>Quick Token</title>
       <style>body{font-family:Arial,sans-serif;padding:16px;} h3{margin:4px 0;} p{margin:2px 0;}</style>
       </head><body>${printContent}</body></html>
     `);
@@ -158,7 +158,7 @@ export default function QuickTicket() {
             <TempleHinduIcon sx={{ color: '#fff', fontSize: 32 }} />
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 700, color: '#fff' }}>
-                Quick Ticket Counter
+                Quick Token Counter
               </Typography>
               <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
                 One-click booking for counter sevas
@@ -172,7 +172,7 @@ export default function QuickTicket() {
         {sevas.length === 0 ? (
           <Paper sx={{ p: 4, textAlign: 'center' }}>
             <Typography color="text.secondary">
-              No quick-ticket sevas configured. Enable "Quick Ticket Mode" on sevas in Seva Management.
+              No quick-token sevas configured. Enable "Quick Token Mode" on sevas in Seva Management.
             </Typography>
           </Paper>
         ) : (
