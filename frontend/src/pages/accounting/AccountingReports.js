@@ -55,6 +55,7 @@ function AccountingReports() {
   const [topDonors, setTopDonors] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
+  const [reportError, setReportError] = useState('');
   const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), 3, 1)); // April 1st
   const [toDate, setToDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
@@ -417,6 +418,7 @@ function AccountingReports() {
 
   const fetchTrialBalance = async () => {
     setLoading(true);
+    setReportError('');
     try {
       const token = getAccessToken();
       const asOfDate = toDate.toISOString().split('T')[0];
@@ -432,6 +434,8 @@ function AccountingReports() {
       setTrialBalance(data);
     } catch (error) {
       console.error('Error fetching trial balance:', error);
+      setTrialBalance(null);
+      setReportError(error?.message || 'Unable to generate Trial Balance. Please retry or check backend status.');
     } finally {
       setLoading(false);
     }
@@ -701,6 +705,12 @@ function AccountingReports() {
                 </Button>
               </Grid>
             </Grid>
+
+            {reportError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {reportError}
+              </Alert>
+            )}
 
             {trialBalance && (
               <>
