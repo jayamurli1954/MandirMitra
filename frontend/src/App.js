@@ -95,14 +95,14 @@ function App() {
       }
     };
 
-    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'focus'];
     activityEvents.forEach((eventName) => {
       window.addEventListener(eventName, recordActivity, { passive: true });
     });
 
     const onVisibilityChange = () => {
       if (!document.hidden) {
-        checkIdle();
+        recordActivity();
       }
     };
 
