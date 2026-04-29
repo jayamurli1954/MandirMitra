@@ -37,29 +37,44 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Skip empty matrix row
-        if: ${{ matrix.frontend_url == '' || vars.SANMITRA_BACKEND_URL == '' || secrets.E2E_TEST_USERNAME == '' || secrets.E2E_TEST_PASSWORD == '' }}
+      - name: Check E2E settings
+        id: preflight
+        env:
+          FRONTEND_URL: ${{ matrix.frontend_url }}
+          BACKEND_URL: ${{ vars.SANMITRA_BACKEND_URL }}
+          E2E_TEST_USERNAME: ${{ secrets.E2E_TEST_USERNAME }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
         run: |
-          echo "Skipping ${{ matrix.app_name }} because one or more required settings are missing."
+          if [ -z "$FRONTEND_URL" ] || [ -z "$BACKEND_URL" ] || [ -z "$E2E_TEST_USERNAME" ] || [ -z "$E2E_TEST_PASSWORD" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping ${{ matrix.app_name }} because one or more required settings are missing."
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip empty matrix row
+        if: ${{ steps.preflight.outputs.should_run != 'true' }}
+        run: |
+          echo "Skipped ${{ matrix.app_name }}."
 
       - name: Set up Node.js
-        if: ${{ matrix.frontend_url != '' && vars.SANMITRA_BACKEND_URL != '' && secrets.E2E_TEST_USERNAME != '' && secrets.E2E_TEST_PASSWORD != '' }}
+        if: ${{ steps.preflight.outputs.should_run == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: Install frontend dependencies
-        if: ${{ matrix.frontend_url != '' && vars.SANMITRA_BACKEND_URL != '' && secrets.E2E_TEST_USERNAME != '' && secrets.E2E_TEST_PASSWORD != '' }}
+        if: ${{ steps.preflight.outputs.should_run == 'true' }}
         working-directory: frontend
         run: npm install
 
       - name: Install Playwright browsers
-        if: ${{ matrix.frontend_url != '' && vars.SANMITRA_BACKEND_URL != '' && secrets.E2E_TEST_USERNAME != '' && secrets.E2E_TEST_PASSWORD != '' }}
+        if: ${{ steps.preflight.outputs.should_run == 'true' }}
         working-directory: frontend
         run: npx playwright install chromium
 
       - name: Run Playwright smoke
-        if: ${{ matrix.frontend_url != '' && vars.SANMITRA_BACKEND_URL != '' && secrets.E2E_TEST_USERNAME != '' && secrets.E2E_TEST_PASSWORD != '' }}
+        if: ${{ steps.preflight.outputs.should_run == 'true' }}
         working-directory: frontend
         env:
           PLAYWRIGHT_SKIP_WEBSERVER: '1'
