@@ -440,7 +440,8 @@ function Sevas() {
       });
       const availability = response?.data || {};
       setBookingDateStatus(availability);
-      if (availability.available === false || Number(availability.slots_left) <= 0) {
+      const hasFiniteSlots = availability.slots_left !== null && availability.slots_left !== undefined;
+      if (availability.available === false || (hasFiniteSlots && Number(availability.slots_left) <= 0)) {
         setBookingDateError(`This seva is fully booked for ${normalizedDate}. Please select another date.`);
       } else {
         setBookingDateError('');
