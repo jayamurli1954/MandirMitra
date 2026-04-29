@@ -50,6 +50,7 @@ import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { useCurrentUser } from '../contexts/CurrentUserContext';
 import { clearAuthSession, getAccessToken, hasAccessToken } from '../utils/authStorage';
 import { useTranslation } from 'react-i18next';
+import AppInstallButton from './AppInstallButton';
 import {
   ACTIVE_TEMPLE_EVENT,
   getActiveTempleId,
@@ -616,6 +617,7 @@ function Layout({ children }) {
             >
               <DashboardIcon fontSize="small" />
             </IconButton>
+            <AppInstallButton />
             <Button
               color="inherit"
               startIcon={<DashboardIcon />}

@@ -21,6 +21,7 @@ import { fetchWithApiFallback } from '../utils/apiBaseUrl';
 import { setAccessToken, setRefreshToken, writeStoredUser } from '../utils/authStorage';
 import { clearTenantInactiveReason } from '../utils/tenantInactive';
 import { emitActiveTempleChanged, getActiveTempleId, setActiveTempleId } from '../utils/activeTemple';
+import AppInstallButton from '../components/AppInstallButton';
 
 const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const PLATFORM_ADMIN_ROLES = new Set(['super_admin', 'superadmin', 'platform_owner', 'platform_admin']);
@@ -467,6 +468,9 @@ function Login() {
                   No login required - pay directly to your temple
                 </Typography>
               </Box>
+            </Box>
+            <Box sx={{ mt: 2 }}>
+              <AppInstallButton variant="button" color="primary" fullWidth />
             </Box>
           </Box>
         </Paper>

@@ -11,27 +11,12 @@ root.render(
   </React.StrictMode>
 );
 
-// Disable service worker caching for now to prevent stale/offline intercepts
-// from breaking live API calls in browser/PWA.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.getRegistrations()
-      .then((registrations) => {
-        registrations.forEach((registration) => {
-          registration.unregister();
-        });
-      })
+    navigator.serviceWorker.register('/service-worker.js')
       .catch((err) => {
         // eslint-disable-next-line no-console
-        console.error('Service worker unregister failed:', err);
+        console.error('Service worker registration failed:', err);
       });
-
-    if ('caches' in window) {
-      caches.keys().then((keys) => {
-        keys.forEach((key) => {
-          caches.delete(key);
-        });
-      });
-    }
   });
 }
