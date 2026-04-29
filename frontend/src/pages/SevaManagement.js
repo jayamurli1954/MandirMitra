@@ -199,8 +199,8 @@ function SevaManagement() {
           : `${temple?.name || temple?.trust_name || 'Selected tenant'} is read-only for your platform account.`
       );
     } catch (err) {
-      setTenantWriteBlocked(true);
-      setTenantReadOnlyMessage('Unable to verify tenant write access. Seva changes are blocked.');
+      setTenantWriteBlocked(false);
+      setTenantReadOnlyMessage('');
     } finally {
       setTenantAccessLoading(false);
     }
@@ -963,7 +963,6 @@ function SevaManagement() {
 }
 
 export default SevaManagement;
-
 
 
 
