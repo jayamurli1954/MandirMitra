@@ -14,9 +14,21 @@ root.render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js')
+      .then((registration) => {
+        registration.update().catch(() => {});
+      })
       .catch((err) => {
         // eslint-disable-next-line no-console
         console.error('Service worker registration failed:', err);
       });
+  });
+
+  let reloadedForServiceWorkerUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadedForServiceWorkerUpdate) {
+      return;
+    }
+    reloadedForServiceWorkerUpdate = true;
+    window.location.reload();
   });
 }
