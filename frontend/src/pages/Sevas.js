@@ -643,12 +643,67 @@ function Sevas() {
 
       const devoteeId = String(bookingForm.devotee_id || '').trim();
       const amountNum = Number(bookingForm.amount_paid);
-      if (!devoteeId) {
-        setBookingError('Please select a valid devotee before booking.');
-        return;
-      }
       if (!Number.isFinite(amountNum) || amountNum <= 0) {
         setBookingError('Please enter a valid amount greater than zero.');
+        return;
+      }
+
+      const rawBookingDate = (bookingForm.booking_date || '').trim();
+      const normalizedBookingDate = normalizeBookingDate(rawBookingDate);
+      if (!normalizedBookingDate || Number.isNaN(Date.parse(normalizedBookingDate))) {
+        setBookingError('Please enter a valid booking date.');
+        return;
+      }
+
+      if (selectedSeva?.quick_ticket_enabled) {
+        const quickPaymentMode = bookingForm.payment_method === 'UPI' ? 'UPI' : 'Cash';
+        const defaultAccount =
+          quickPaymentMode === 'UPI'
+            ? paymentAccounts.bank_accounts[0]
+            : paymentAccounts.cash_accounts[0];
+
+        if (!defaultAccount?.account_id) {
+          setBookingError(
+            `No ${quickPaymentMode === 'UPI' ? 'bank' : 'cash'} account is configured for quick seva posting.`
+          );
+          return;
+        }
+
+        const optionalName = bookingForm.devotee_names?.trim() || null;
+        const quickPayload = {
+          seva_id: String(selectedSeva.id),
+          seva_name: selectedSeva.name_english || selectedSeva.name || 'Quick Seva',
+          seva_name_local: selectedSeva.name_kannada || null,
+          amount: amountNum,
+          booking_date: normalizedBookingDate,
+          payment_mode: quickPaymentMode,
+          payment_status: 'completed',
+          ticket_type: 'seva',
+          payment_account_id: Number(defaultAccount.account_id),
+          devotee_name: optionalName,
+          devotee_names: optionalName,
+          skip_devotee_save: true,
+          quick_ticket: true,
+        };
+
+        const response = await api.post('/api/v1/sevas/bookings/quick-ticket', quickPayload);
+        const createdBooking = response.data?.record || response.data;
+        setBookingSuccess(true);
+        setLastBooking(createdBooking);
+        await fetchSevas();
+
+        if (createdBooking?.id) {
+          await handlePrintReceipt(createdBooking.id, createdBooking.receipt_number);
+        }
+
+        setTimeout(() => {
+          handleCloseBookingDialog();
+        }, 1200);
+        return;
+      }
+
+      if (!devoteeId) {
+        setBookingError('Please select a valid devotee before booking.');
         return;
       }
 
@@ -697,13 +752,6 @@ function Sevas() {
           setBookingError('Please enter branch name for cheque.');
           return;
         }
-      }
-
-      const rawBookingDate = (bookingForm.booking_date || '').trim();
-      const normalizedBookingDate = normalizeBookingDate(rawBookingDate);
-      if (!normalizedBookingDate || Number.isNaN(Date.parse(normalizedBookingDate))) {
-        setBookingError('Please enter a valid booking date.');
-        return;
       }
 
       const finalPaymentMethod = paymentMethod === 'Bank' ? bankSubMode : paymentMethod;
@@ -1330,8 +1378,43 @@ function Sevas() {
           )}
 
           <Stack spacing={2}>
+            {selectedSeva?.quick_ticket_enabled && (
+              <Box>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Quick Seva counter booking. Mobile number and devotee details are not required.
+                </Alert>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Name (Optional)"
+                    value={bookingForm.devotee_names}
+                    onChange={(e) => setBookingForm({ ...bookingForm, devotee_names: e.target.value })}
+                    placeholder="Name to print on receipt, if required"
+                    fullWidth
+                  />
+                  <FormControl fullWidth>
+                    <InputLabel>Payment Mode</InputLabel>
+                    <Select
+                      value={bookingForm.payment_method === 'UPI' ? 'UPI' : 'Cash'}
+                      onChange={(e) =>
+                        setBookingForm({
+                          ...bookingForm,
+                          payment_method: e.target.value,
+                          payment_account_id: '',
+                          ...emptyBankPaymentFields,
+                        })
+                      }
+                      label="Payment Mode"
+                    >
+                      <MenuItem value="Cash">Cash</MenuItem>
+                      <MenuItem value="UPI">UPI</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Stack>
+              </Box>
+            )}
+
             {/* Mobile Number Input - STEP 1 */}
-            {!foundDevotee && !showNewDevoteeForm && (
+            {!selectedSeva?.quick_ticket_enabled && !foundDevotee && !showNewDevoteeForm && (
               <Box>
                 <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
                   Step 1: Enter Devotee Mobile Number *
@@ -1358,7 +1441,7 @@ function Sevas() {
             )}
 
             {/* Found Devotee - STEP 2a */}
-            {foundDevotee && (
+            {!selectedSeva?.quick_ticket_enabled && foundDevotee && (
               <Box>
                 <Alert severity="success" sx={{ mb: 2 }}>
                   Devotee Found!
@@ -1388,7 +1471,7 @@ function Sevas() {
             )}
 
             {/* New Devotee Form - STEP 2b */}
-            {showNewDevoteeForm && (
+            {!selectedSeva?.quick_ticket_enabled && showNewDevoteeForm && (
               <Box>
                 <Alert severity="info" sx={{ mb: 2 }}>
                   Devotee not found. Please enter details to create new devotee.
@@ -1513,7 +1596,7 @@ function Sevas() {
             )}
 
             {/* Booking Details - Only show after devotee is selected */}
-            {foundDevotee && (
+            {!selectedSeva?.quick_ticket_enabled && foundDevotee && (
               <>
                 <Typography variant="subtitle2" sx={{ mt: 2, fontWeight: 600, color: '#FF9933' }}>
                   Step 2: Seva Booking Details
@@ -1871,9 +1954,16 @@ function Sevas() {
           <Button
             onClick={handleBookingSubmit}
             variant="contained"
-            disabled={!bookingForm.devotee_id || !bookingForm.amount_paid || bookingSuccess || tenantWriteBlocked || checkingBookingDate || Boolean(bookingDateError)}
+            disabled={
+              !bookingForm.amount_paid ||
+              bookingSuccess ||
+              tenantWriteBlocked ||
+              checkingBookingDate ||
+              Boolean(bookingDateError) ||
+              (!selectedSeva?.quick_ticket_enabled && !bookingForm.devotee_id)
+            }
           >
-            Confirm Booking
+            {selectedSeva?.quick_ticket_enabled ? 'Book & Print' : 'Confirm Booking'}
           </Button>
         </DialogActions>
       </Dialog>
