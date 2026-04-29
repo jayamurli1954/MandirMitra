@@ -47,12 +47,12 @@ _SUPPORTED_LOCAL_LANGUAGES = {'kannada', 'tamil', 'telugu', 'malayalam', 'hindi'
 _LOCAL_LABELS = {
     'kannada': {
         'receipt_title': 'ರಶೀದಿ',
-        'receipt_number': 'ರಸೀದಿ ಸಂಖ್ಯೆ',
+        'receipt_number': 'ರಶೀದಿ ಸಂಖ್ಯೆ',
         'date': 'ದಿನಾಂಕ',
         'party': 'ಶ್ರೀ/ಶ್ರೀಮತಿ',
         'address': 'ವಿಳಾಸ',
         'line_item': 'ಸೇವೆ ವಿವರ',
-        'total': 'ಒಟ್ಟು',
+        'total': 'ಮೊತ್ತ',
         'gotra': 'ಗೋತ್ರ',
         'nakshatra': 'ನಕ್ಷತ್ರ',
         'rashi': 'ರಾಶಿ',
@@ -237,7 +237,39 @@ def _split_amount(value: Any) -> tuple[str, str]:
 
 
 def _paragraph(text: str, style: ParagraphStyle) -> Paragraph:
-    return Paragraph(escape(_as_text(text, '-')).replace('\n', '<br/>'), style)
+    raw_text = _as_text(text, '-')
+    pieces: list[str] = []
+    buffer: list[str] = []
+    buffer_is_latin: bool | None = None
+
+    def flush_buffer() -> None:
+        nonlocal buffer, buffer_is_latin
+        if not buffer:
+            return
+        escaped_text = escape(''.join(buffer))
+        if buffer_is_latin and style.fontName != 'Helvetica':
+            pieces.append(f'<font name="Helvetica">{escaped_text}</font>')
+        else:
+            pieces.append(escaped_text)
+        buffer = []
+        buffer_is_latin = None
+
+    for char in raw_text:
+        if char == '\n':
+            flush_buffer()
+            pieces.append('<br/>')
+            continue
+
+        is_latin = ord(char) < 128
+        if buffer_is_latin is None:
+            buffer_is_latin = is_latin
+        elif buffer_is_latin != is_latin:
+            flush_buffer()
+            buffer_is_latin = is_latin
+        buffer.append(char)
+
+    flush_buffer()
+    return Paragraph(''.join(pieces), style)
 
 
 def _bilingual_label(local_label: str, english_label: str, use_local_labels: bool) -> str:
@@ -271,6 +303,9 @@ def _resolve_label(payload_value: Any, labels: dict[str, str], key: str, local_l
         return labels[key]
 
     if not use_local_labels:
+        return provided
+
+    if ' / ' in provided:
         return provided
 
     local_label = _LOCAL_LABELS.get(local_language or '', {}).get(key, '')
@@ -511,19 +546,20 @@ def build_compact_receipt_pdf(payload: dict) -> io.BytesIO:
             _paragraph(f'{rashi_label} {_as_text(payload.get("rashi"), "--")}', table_cell),
         ])
 
-    rows.append([
-        _paragraph(
-            f'{service_date_label} {_as_text(payload.get("service_date"), "--")}',
-            table_cell,
-        ),
-        _paragraph('', table_cell_center),
-        signature_cell,
-    ])
+    if payload.get('include_service_date_row', True):
+        rows.append([
+            _paragraph(
+                f'{service_date_label} {_as_text(payload.get("service_date"), "--")}',
+                table_cell,
+            ),
+            _paragraph('', table_cell_center),
+            signature_cell,
+        ])
 
     note_line_local = _as_text(payload.get('note_local'), labels['note_local'])
     note_line_english = _as_text(payload.get('note_english'), '')
     note_lines = [line for line in [note_line_local if use_local_labels else '', note_line_english] if line]
-    note_block = '<br/>'.join(note_lines)
+    note_block = '\n'.join(note_lines)
     rows.append([_paragraph(note_block or '-', table_cell_center), '', ''])
 
     col1 = doc.width * 0.72

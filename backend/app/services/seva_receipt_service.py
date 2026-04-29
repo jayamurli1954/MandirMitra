@@ -7,20 +7,27 @@ from app.models.temple import Temple
 from app.services.receipt_adapter_service import (
     build_base_receipt_payload,
     format_date,
+    number_to_kannada_words,
     number_to_words,
     safe_text,
 )
 from app.services.receipt_template_service import build_compact_receipt_pdf
 
 
-def _build_localized_copy(local_language: str, payment_mode: str, amount_words: str) -> dict[str, str]:
+def _build_localized_copy(
+    local_language: str,
+    payment_mode: str,
+    amount_words: str,
+    amount_value: float,
+) -> dict[str, str]:
     if local_language == "kannada":
+        kannada_amount_words = number_to_kannada_words(int(round(amount_value or 0)))
         return {
-            "receipt_title": "ಸೇವೆ ರಶೀದಿ / SEVA RECEIPT",
-            "line_item_header": "ಸೇವೆ ವಿವರ / Seva Details",
-            "service_date_label": "ಸೇವೆ ದಿನಾಂಕ / Seva Date",
-            "amount_words_line": f"ಸ್ವೀಕರಿಸಿದ ರೂ. {amount_words.upper()} ಮಾತ್ರ / Received Rupees {amount_words.upper()} ONLY",
-            "payment_line": f"{payment_mode} ಮೂಲಕ ಕೆಳಗಿನ ಸೇವೆಗೆ ಸ್ವೀಕರಿಸಲಾಗಿದೆ. / Received with thanks for the below mentioned seva by {payment_mode}.",
+            "receipt_title": "ಸೇವಾ ರಶೀದಿ / SEVA RECEIPT",
+            "line_item_header": "ಸೇವಾ ವಿವರ / Seva Details",
+            "service_date_label": "ಸೇವಾ ದಿನಾಂಕ / Seva Date",
+            "amount_words_line": f"ರೂಪಾಯಿ {kannada_amount_words} ಮಾತ್ರ / Rupees {amount_words.upper()} ONLY",
+            "payment_line": f"{payment_mode} ಮೂಲಕ ಕೆಳಗಿನ ಸೇವೆಗೆ ಕೃತಜ್ಞತೆಯಿಂದ ಸ್ವೀಕರಿಸಲಾಗಿದೆ. / Received with thanks for the below mentioned seva by {payment_mode}.",
             "note_local": "ಸೂಚನೆ: ಪೂಜೆ ಸಮಯಕ್ಕೆ 10 ನಿಮಿಷ ಮುಂಚೆ ಬಂದು ಪ್ರಸಾದವನ್ನು ಅದೇ ದಿನ ಸ್ವೀಕರಿಸಿ.",
         }
 
@@ -73,7 +80,7 @@ def generate_seva_receipt_pdf(
     seva_name_local = safe_text(getattr(seva, "name_kannada", None), "") if local_language == "kannada" else ""
     seva_name = f"{seva_name_local} / {seva_name_english}" if seva_name_local else seva_name_english
     payment_mode = safe_text(getattr(booking, "payment_method", None), "Cash")
-    localized_copy = _build_localized_copy(local_language, payment_mode, amount_words)
+    localized_copy = _build_localized_copy(local_language, payment_mode, amount_words, amount_value)
 
     payload = {
         **base_payload,

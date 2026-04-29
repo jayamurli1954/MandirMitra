@@ -143,6 +143,69 @@ def number_to_words(n: int) -> str:
     return result.strip()
 
 
+def number_to_kannada_words(n: int) -> str:
+    """Return a simple Kannada amount phrase for receipt totals."""
+    ones = {
+        0: "ಶೂನ್ಯ",
+        1: "ಒಂದು",
+        2: "ಎರಡು",
+        3: "ಮೂರು",
+        4: "ನಾಲ್ಕು",
+        5: "ಐದು",
+        6: "ಆರು",
+        7: "ಏಳು",
+        8: "ಎಂಟು",
+        9: "ಒಂಬತ್ತು",
+        10: "ಹತ್ತು",
+        11: "ಹನ್ನೊಂದು",
+        12: "ಹನ್ನೆರಡು",
+        13: "ಹದಿಮೂರು",
+        14: "ಹದಿನಾಲ್ಕು",
+        15: "ಹದಿನೈದು",
+        16: "ಹದಿನಾರು",
+        17: "ಹದಿನೇಳು",
+        18: "ಹದಿನೆಂಟು",
+        19: "ಹತ್ತೊಂಬತ್ತು",
+    }
+    tens = {
+        20: "ಇಪ್ಪತ್ತು",
+        30: "ಮೂವತ್ತು",
+        40: "ನಲವತ್ತು",
+        50: "ಐವತ್ತು",
+        60: "ಅರವತ್ತು",
+        70: "ಎಪ್ಪತ್ತು",
+        80: "ಎಂಭತ್ತು",
+        90: "ತೊಂಬತ್ತು",
+    }
+
+    if n < 0:
+        return f"ಮೈನಸ್ {number_to_kannada_words(abs(n))}"
+    if n < 20:
+        return ones[n]
+    if n < 100:
+        base = (n // 10) * 10
+        remainder = n % 10
+        return tens[base] if remainder == 0 else f"{tens[base]} {ones[remainder]}"
+    if n < 1000:
+        hundreds = n // 100
+        remainder = n % 100
+        prefix = "ನೂರು" if hundreds == 1 else f"{ones[hundreds]} ನೂರು"
+        return prefix if remainder == 0 else f"{prefix} {number_to_kannada_words(remainder)}"
+
+    for value, label in (
+        (10000000, "ಕೋಟಿ"),
+        (100000, "ಲಕ್ಷ"),
+        (1000, "ಸಾವಿರ"),
+    ):
+        if n >= value:
+            count = n // value
+            remainder = n % value
+            prefix = f"{number_to_kannada_words(count)} {label}"
+            return prefix if remainder == 0 else f"{prefix} {number_to_kannada_words(remainder)}"
+
+    return str(n)
+
+
 def build_base_receipt_payload(
     temple: Any,
     app_key: str = "mandirmitra",

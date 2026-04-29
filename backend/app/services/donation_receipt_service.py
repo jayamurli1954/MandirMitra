@@ -7,6 +7,7 @@ from app.models.temple import Temple
 from app.services.receipt_adapter_service import (
     build_base_receipt_payload,
     format_date,
+    number_to_kannada_words,
     number_to_words,
     safe_text,
 )
@@ -70,23 +71,30 @@ def _build_donation_note(temple, category) -> str:
     return "Thank you for your generous contribution."
 
 
-def _build_localized_copy(local_language: str, is_in_kind: bool, payment_mode: str, amount_words: str) -> dict[str, str]:
+def _build_localized_copy(
+    local_language: str,
+    is_in_kind: bool,
+    payment_mode: str,
+    amount_words: str,
+    amount_value: float,
+) -> dict[str, str]:
     if local_language == "kannada":
+        kannada_amount_words = number_to_kannada_words(int(round(amount_value or 0)))
         if is_in_kind:
             return {
-                "receipt_title": "ದಾನ ರಶೀದಿ / DONATION RECEIPT",
-                "line_item_header": "ದೇಣಿಗೆ ವಿವರಗಳು / Donation Details",
+                "receipt_title": "ದೇಣಿಗೆ ರಶೀದಿ / DONATION RECEIPT",
+                "line_item_header": "ದೇಣಿಗೆ ವಿವರ / Donation Details",
                 "service_date_label": "ದೇಣಿಗೆ ದಿನಾಂಕ / Donation Date",
-                "amount_words_line": f"ಸ್ವೀಕರಿಸಿದ ಮೌಲ್ಯ ರೂ. {amount_words.upper()} ಮಾತ್ರ / Received Assessed Value Rupees {amount_words.upper()} ONLY",
+                "amount_words_line": f"ಸ್ವೀಕರಿಸಿದ ಮೌಲ್ಯ ರೂಪಾಯಿ {kannada_amount_words} ಮಾತ್ರ / Received Assessed Value Rupees {amount_words.upper()} ONLY",
                 "payment_line": "ವಸ್ತುರೂಪದ ದೇಣಿಗೆಯನ್ನು ಕೃತಜ್ಞತೆಯಿಂದ ಸ್ವೀಕರಿಸಲಾಗಿದೆ. / Received with thanks towards in-kind donation.",
                 "note_local": "ನಿಮ್ಮ ದೇಣಿಗೆಗೆ ಹೃತ್ಪೂರ್ವಕ ಧನ್ಯವಾದಗಳು.",
             }
 
         return {
-            "receipt_title": "ದಾನ ರಶೀದಿ / DONATION RECEIPT",
-            "line_item_header": "ದೇಣಿಗೆ ವಿವರಗಳು / Donation Details",
+            "receipt_title": "ದೇಣಿಗೆ ರಶೀದಿ / DONATION RECEIPT",
+            "line_item_header": "ದೇಣಿಗೆ ವಿವರ / Donation Details",
             "service_date_label": "ದೇಣಿಗೆ ದಿನಾಂಕ / Donation Date",
-            "amount_words_line": f"ಸ್ವೀಕರಿಸಿದ ರೂ. {amount_words.upper()} ಮಾತ್ರ / Received Rupees {amount_words.upper()} ONLY",
+            "amount_words_line": f"ರೂಪಾಯಿ {kannada_amount_words} ಮಾತ್ರ / Rupees {amount_words.upper()} ONLY",
             "payment_line": f"{payment_mode} ಮೂಲಕ ನೀಡಿದ ದೇಣಿಗೆಯನ್ನು ಕೃತಜ್ಞತೆಯಿಂದ ಸ್ವೀಕರಿಸಲಾಗಿದೆ. / Received with thanks towards donation by {payment_mode}.",
             "note_local": "ನಿಮ್ಮ ದೇಣಿಗೆಗೆ ಹೃತ್ಪೂರ್ವಕ ಧನ್ಯವಾದಗಳು.",
         }
@@ -128,7 +136,13 @@ def generate_receipt_pdf(
     payment_mode = safe_text(getattr(donation, "payment_mode", None), "Cash")
     category_name = safe_text(getattr(category, "name", None), "Donation")
     local_language = safe_text(base_payload.get("local_language"), "").lower()
-    localized_copy = _build_localized_copy(local_language, is_in_kind, payment_mode, amount_words)
+    localized_copy = _build_localized_copy(
+        local_language,
+        is_in_kind,
+        payment_mode,
+        amount_words,
+        amount_value,
+    )
 
     payload = {
         **base_payload,
@@ -144,6 +158,7 @@ def generate_receipt_pdf(
         "line_items": _build_line_items(donation, category_name, is_in_kind),
         "total_amount": amount_value,
         "include_astro_row": False,
+        "include_service_date_row": False,
         "service_date": format_date(getattr(donation, "donation_date", None)),
         "note_local": localized_copy["note_local"],
         "note_english": _build_donation_note(temple, category),
